@@ -1829,6 +1829,7 @@ const es = {
     reconnectAction: 'Reconectar',
     connectedAs: 'Conectado como {{name}}',
     connectedToSite: 'Conectado a {{site}}',
+    connectedButLastCheckFailed: 'Credencial guardada, pero el último chequeo falló.',
     disconnectAction: 'Desconectar',
     disconnectedHint: 'Sin conectar. Todavía no se pueden adjuntar issues como contexto.',
     noProjectHint: 'Abre antes una carpeta de proyecto en esta pestaña: jira.json vive en el proyecto.',

@@ -1827,6 +1827,7 @@ const en = {
     reconnectAction: 'Reconnect',
     connectedAs: 'Connected as {{name}}',
     connectedToSite: 'Connected to {{site}}',
+    connectedButLastCheckFailed: 'Credential stored, but the last check failed.',
     disconnectAction: 'Disconnect',
     disconnectedHint: 'Not connected. Issues cannot be attached as context yet.',
     noProjectHint: 'Open a project folder in this tab first — jira.json lives in the project.',

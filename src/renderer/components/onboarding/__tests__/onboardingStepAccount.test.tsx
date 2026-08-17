@@ -110,6 +110,20 @@ describe('OnboardingStepAccount', () => {
     expect(screen.queryByRole('button', { name: 'onboarding.accountContinue' })).toBeNull()
   })
 
+  it('un sign-in fallido muestra el error mapeado, no el genérico', async () => {
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: false })),
+      signIn: vi.fn(() => Promise.resolve({ ok: false as const, error: 'no-github-token' })),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.accountSignIn' }))
+
+    expect(await screen.findByText('organizations.errorNoGithubToken')).toBeTruthy()
+    expect(screen.queryByText('onboarding.accountError')).toBeNull()
+  })
+
   it('con sesión llama onSignedInChange(true)', async () => {
     const onSignedInChange = vi.fn()
     const api = mockApi({

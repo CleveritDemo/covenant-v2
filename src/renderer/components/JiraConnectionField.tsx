@@ -180,19 +180,25 @@ export const JiraConnectionField: React.FC<JiraConnectionFieldProps> = ({ cwd })
             </Button>
           ) : null}
         </div>
-        {connected
+        {error && connected
           ? (
-            <span className="jira-connection__ok">
-              {connectedAs
-                ? t('jira.connectedAs', { name: connectedAs })
-                : t('jira.connectedToSite', { site })}
-            </span>
+            <span className="jira-connection__stale">{t('jira.connectedButLastCheckFailed')}</span>
           )
-          : (
-            <span className="jira-connection__hint">
-              {hasProject ? t('jira.disconnectedHint') : t('jira.noProjectHint')}
-            </span>
-          )}
+          : error
+            ? null
+            : connected
+              ? (
+                <span className="jira-connection__ok">
+                  {connectedAs
+                    ? t('jira.connectedAs', { name: connectedAs })
+                    : t('jira.connectedToSite', { site })}
+                </span>
+              )
+              : (
+                <span className="jira-connection__hint">
+                  {hasProject ? t('jira.disconnectedHint') : t('jira.noProjectHint')}
+                </span>
+              )}
       </div>
       {notice ? <p className="jira-connection__notice">{notice}</p> : null}
       {error ? <p className="jira-connection__error">{error}</p> : null}

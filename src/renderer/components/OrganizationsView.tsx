@@ -27,17 +27,13 @@ import './OrganizationsModal.css'
 import './OrganizationsView.css'
 import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
 import { workspacePeopleRows } from '../../shared/orgPeople'
+import { mapCovenantAuthError } from '../covenantAuthErrorLabel'
 
 interface Props {
   open?: boolean
   onClose: () => void
   /** Refresca el snapshot Cmd+T tras mutaciones de orgs/workspaces. */
   onOrgWorkspacesMutated?: () => void
-}
-
-function mapCovenantAuthError(error: string, translate: (key: 'organizations.errorNoGithubToken') => string): string {
-  if (error === 'no-github-token') return translate('organizations.errorNoGithubToken')
-  return error
 }
 
 function isForbiddenError(error: string): boolean {

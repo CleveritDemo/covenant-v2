@@ -5,6 +5,7 @@ import {
   type CovenantAuthStatus,
   type CovenantOrg,
 } from '../../covenantApi'
+import { mapCovenantAuthError } from '../../covenantAuthErrorLabel'
 import { SectionStatus } from '../OrgSectionStatus'
 import { Button } from '../ui/Button'
 import './OnboardingStepAccount.css'
@@ -26,6 +27,7 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
   const covenant = useMemo(() => getCovenantApi(), [])
   const [loading, setLoading] = useState(() => covenant != null)
   const [hasError, setHasError] = useState(false)
+  const [signInError, setSignInError] = useState('')
   const [auth, setAuth] = useState<CovenantAuthStatus | null>(null)
   const [orgs, setOrgs] = useState<CovenantOrg[]>([])
   const [signingIn, setSigningIn] = useState(false)
@@ -83,11 +85,13 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
 
     setSigningIn(true)
     setHasError(false)
+    setSignInError('')
     const result = await covenant.signIn()
     setSigningIn(false)
 
     if (!result.ok) {
       setHasError(true)
+      setSignInError(mapCovenantAuthError(result.error, t))
       return
     }
 
@@ -112,7 +116,7 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
   const name = auth?.name?.trim() || ''
   const previewOrgs = orgs.slice(0, ORG_PREVIEW_LIMIT)
   const extraOrgCount = Math.max(0, orgs.length - ORG_PREVIEW_LIMIT)
-  const errorLabel = hasError ? t('onboarding.accountError') : null
+  const errorLabel = signInError || (hasError ? t('onboarding.accountError') : null)
 
   useEffect(() => {
     onSignedInChange?.(covenant ? signedIn : false)

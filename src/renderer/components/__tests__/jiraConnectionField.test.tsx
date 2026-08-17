@@ -77,6 +77,26 @@ describe('JiraConnectionField', () => {
     await screen.findByText(/401/)
   })
 
+  it('con credencial guardada, un Reconnect fallido degrada el estado y no deja Connected', async () => {
+    jiraStatus.mockResolvedValue({
+      configured: true,
+      site: 'https://x.atlassian.net',
+      email: 'a@b.c',
+      projectKeys: ['GRAV'],
+      connected: true,
+    })
+    jiraConnect.mockResolvedValue({ ok: false, error: 'Jira 403' })
+    render(<JiraConnectionField cwd="/repo" />)
+
+    await screen.findByText(/jira\.connectedToSite/)
+    fireEvent.click(screen.getByText('jira.reconnectAction'))
+
+    await screen.findByText('jira.connectedButLastCheckFailed')
+    expect(await screen.findByText(/403/)).toBeTruthy()
+    expect(screen.queryByText(/jira\.connectedToSite/)).toBeNull()
+    expect(screen.queryByText(/jira\.connectedAs/)).toBeNull()
+  })
+
   it('el input del token no expone el valor en claro', async () => {
     render(<JiraConnectionField cwd="/repo" />)
     await waitFor(() => expect(jiraStatus).toHaveBeenCalled())

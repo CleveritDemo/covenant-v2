@@ -56,7 +56,8 @@ const BubbleBodyInner: React.FC<{
   live: boolean
   role: 'user' | 'assistant'
   projectAgents?: readonly ProjectAgentDefinition[]
-}> = ({ content, live, role, projectAgents = [] }) => {
+  onInsertCommand?: (cmd: string) => void
+}> = ({ content, live, role, projectAgents = [], onInsertCommand }) => {
   // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
     // Salvo el follow-up de una delegación: ese no lo escribió una persona, lo
@@ -82,7 +83,7 @@ const BubbleBodyInner: React.FC<{
   }
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
-      <AssistantFormattedBody content={content} live={live} />
+      <AssistantFormattedBody content={content} live={live} onInsertCommand={onInsertCommand} />
     </div>
   )
 }
@@ -124,6 +125,7 @@ interface AgentChatBubbleRowProps {
   onEnteringAnimationEnd?: (id: string) => void
   onMaterializingAnimationEnd?: (id: string) => void
   projectAgents?: readonly ProjectAgentDefinition[]
+  onInsertCommand?: (cmd: string) => void
 }
 
 const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
@@ -140,6 +142,7 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   onEnteringAnimationEnd,
   onMaterializingAnimationEnd,
   projectAgents = [],
+  onInsertCommand,
 }) => {
   const { t } = useT()
   const live = busy &&
@@ -241,6 +244,7 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
                     live={live}
                     role={message.role === 'user' ? 'user' : 'assistant'}
                     projectAgents={projectAgents}
+                    onInsertCommand={onInsertCommand}
                   />
                 </div>
                 {canCollapse && (
@@ -310,6 +314,7 @@ export interface AgentChatBubblesProps {
   projectAgents?: readonly ProjectAgentDefinition[]
   /** Contenedor con scroll (`.agent-pane__messages`). */
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
+  onInsertCommand?: (cmd: string) => void
 }
 
 /** Lista de burbujas user/assistant + Gravity de espera (panel / plano). */
@@ -326,6 +331,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     surface = 'pane',
     projectAgents = [],
     scrollRef,
+    onInsertCommand,
   },
   ref,
 ) {
@@ -483,6 +489,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     onEnteringAnimationEnd,
     onMaterializingAnimationEnd,
     projectAgents,
+    onInsertCommand,
   }
 
   const rootClass = [

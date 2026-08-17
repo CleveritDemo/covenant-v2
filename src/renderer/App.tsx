@@ -78,6 +78,7 @@ import {
   maxPaneWindowZ,
   minimizeOtherPaneWindows,
 } from '@shared/paneWindows'
+import { buildTerminalInsertPayload } from '@shared/terminalInsertPayload'
 import { APP_OVERLAY_MODAL_Z, QUIT_CONFIRM_Z } from '@shared/overlayZIndex'
 import {
   computeBusyForGate,
@@ -750,6 +751,7 @@ export const App: React.FC = () => {
     context: TabContext
   } | null>(null)
   const termRefs = useRef<Map<string, TerminalRef>>(new Map())
+  const pendingTerminalInsertRef = useRef<{ tabId: string; payload: string } | null>(null)
   const tabExplorerHostByTabRef = useRef<Map<string, TabFileExplorerWindowHandle>>(new Map())
   const splitSpawnCwdRef = useRef<Map<string, string>>(new Map())
   const cwdsRef = useRef<Record<string, string>>({})
@@ -3696,6 +3698,36 @@ export const App: React.FC = () => {
     })
   }, [closeTabExplorer, scheduleSaveSession])
 
+  const handleInsertCommandInTerminal = useCallback((tabId: string, cmd: string) => {
+    const payload = buildTerminalInsertPayload(cmd)
+    if (!payload) return
+    const tab = tabsRef.current.find(t => t.id === tabId)
+    if (!tab) return
+
+    const activeId = tab.activePaneId
+    const paneId = (
+      activeId
+      && tab.paneKinds?.[activeId] !== 'agent'
+      && termRefs.current.has(activeId)
+    )
+      ? activeId
+      : tab.paneIds.find(id => tab.paneKinds?.[id] !== 'agent' && termRefs.current.has(id))
+
+    if (paneId) {
+      handleOpenPaneWindow(tabId, paneId)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          termRefs.current.get(paneId)?.writeToTty(payload)
+        })
+      })
+      return
+    }
+
+    if (!tab.projectFolder?.trim()) return
+    pendingTerminalInsertRef.current = { tabId, payload }
+    handleCreateTerminal(tabId)
+  }, [handleCreateTerminal, handleOpenPaneWindow])
+
   const openPaneWindowUnlessSuppressed = useCallback((tabId: string, paneId: string) => {
     if (isMiniExpandSuppressed()) return
     if (Date.now() < suppressPaneExpandUntilRef.current) return
@@ -6374,6 +6406,7 @@ export const App: React.FC = () => {
           onAbortDelegation={delegationId => {
             void abortSingleDelegation(paneId, delegationId)
           }}
+          onInsertCommand={cmd => handleInsertCommandInTerminal(tab.id, cmd)}
           onDelegationTurnComplete={handleDelegationTurnComplete}
           onOrchestrationUserTurn={() => beginOrchestrationUserTurn(paneId)}
           getOrchestrationRound={() => {
@@ -6476,8 +6509,20 @@ export const App: React.FC = () => {
         onTitleChange={title => handleTabTitleChange(tab.id, title)}
         onBusyChange={busy => handleBusyChange(paneId, busy)}
         onRegisterRef={ref => {
-          if (ref) termRefs.current.set(paneId, ref)
-          else termRefs.current.delete(paneId)
+          if (ref) {
+            termRefs.current.set(paneId, ref)
+            const pending = pendingTerminalInsertRef.current
+            if (pending?.tabId === tab.id) {
+              pendingTerminalInsertRef.current = null
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  ref.writeToTty(pending.payload)
+                })
+              })
+            }
+          } else {
+            termRefs.current.delete(paneId)
+          }
         }}
         onRequestGitPanel={() => { void openTabGitPanel(tab.id) }}
       />
@@ -7118,6 +7163,7 @@ export const App: React.FC = () => {
                   onAbortDelegation={(fromPaneId, delegationId) => {
                     void abortSingleDelegation(fromPaneId, delegationId)
                   }}
+                  onInsertCommand={cmd => handleInsertCommandInTerminal(tab.id, cmd)}
                   onClearConversation={paneId => {
                     setPlaneClearPaneId(paneId)
                   }}

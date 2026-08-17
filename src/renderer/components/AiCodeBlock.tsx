@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react'
+import { useT } from '@i18n/useT'
+import { Tooltip } from './ui/Tooltip'
 import { buildAiCodeHighlightPieces } from './aiCodeHighlight'
 import { isShellAiCodeLang, normalizeAiCodeLang } from './aiCodeLang'
 import './AiMarkdown.css'
@@ -8,7 +10,7 @@ interface AiCodeBlockProps {
   content: string
   isStreaming: boolean
   isLastSegment: boolean
-  onInsert: (cmd: string) => void
+  onInsert?: (cmd: string) => void
 }
 
 function displayLangLabel(lang: string): string {
@@ -23,6 +25,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
   isLastSegment,
   onInsert,
 }) => {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
   const pieces = useMemo(
     () => buildAiCodeHighlightPieces(content, lang),
@@ -44,7 +47,7 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
           <button
             type="button"
             className="ai-copy-btn"
-            aria-label="Copiar código"
+            aria-label={t('aiCodeBlock.copyLabel')}
             onClick={handleCopy}
           >
             {copied ? '✓' : '⧉'}
@@ -67,15 +70,20 @@ export const AiCodeBlock: React.FC<AiCodeBlockProps> = ({
         </code>
         {isStreaming && isLastSegment ? <span className="ai-cursor">▌</span> : null}
       </pre>
-      {!isStreaming && isShellAiCodeLang(lang) ? (
-        <button
-          type="button"
-          className="ai-insert-btn"
-          aria-label="Ctrl+U + pegar en terminal (sin Enter)"
-          onClick={() => onInsert(content)}
+      {!isStreaming && onInsert && isShellAiCodeLang(lang) ? (
+        <Tooltip
+          content={t('aiCodeBlock.insertTooltip')}
+          hint={t('aiCodeBlock.insertHint')}
         >
-          ↵ poner en terminal
-        </button>
+          <button
+            type="button"
+            className="ai-insert-btn"
+            aria-label={t('aiCodeBlock.insertLabel')}
+            onClick={() => onInsert(content)}
+          >
+            {t('aiCodeBlock.insertLabel')}
+          </button>
+        </Tooltip>
       ) : null}
     </div>
   )

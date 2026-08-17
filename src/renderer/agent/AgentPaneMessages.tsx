@@ -50,6 +50,7 @@ export interface AgentPaneMessagesProps {
   /** Stop por fila en Waiting (solo esa delegación). */
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
+  onInsertCommand?: (cmd: string) => void
 }
 
 export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
@@ -75,6 +76,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onScrollToBottom,
   onAbortDelegation,
   projectAgents = [],
+  onInsertCommand,
 }) => {
   const { t } = useT()
   const waveLabel = orchestrationAwaiting
@@ -107,6 +109,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           surface="pane"
           scrollRef={scrollRef}
           projectAgents={projectAgents}
+          onInsertCommand={onInsertCommand}
         />
         {awaitingDelegations ? (
           <div className="agent-pane__delegating">

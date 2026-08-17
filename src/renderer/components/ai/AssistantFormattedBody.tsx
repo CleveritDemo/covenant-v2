@@ -14,6 +14,7 @@ import {
 export interface AssistantFormattedBodyProps {
   content: string
   live?: boolean
+  onInsertCommand?: (cmd: string) => void
 }
 
 type BodyStableCache = {
@@ -26,6 +27,7 @@ type BodyStableCache = {
 export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
   content,
   live = false,
+  onInsertCommand,
 }) => {
   const { t } = useT()
   const stableCacheRef = useRef<BodyStableCache>({ length: 0, slice: '', segments: [] })
@@ -78,7 +80,7 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
                 content={segment.content}
                 isStreaming={live}
                 isLastSegment={index === segments.length - 1}
-                onInsert={() => undefined}
+                onInsert={onInsertCommand}
               />
             </ChatBubble>
           )

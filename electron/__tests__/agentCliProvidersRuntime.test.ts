@@ -99,14 +99,39 @@ describe('commandAndArgs con el registro de proveedores', () => {
     expect(args[0]).toBe('run')
     expect(args[args.indexOf('--agent') + 1]).toBe('plan')
   })
+
+  it('grok: -p/-d/-m; mode y sessionId no cambian los args', () => {
+    const expected = ['-p', 'hola', '-d', '/tmp/x', '-m', 'grok-4-latest']
+    for (const permissionMode of ['plan', 'auto'] as const) {
+      const { args } = commandAndArgs(
+        request({
+          provider: 'grok',
+          permissionMode,
+          prompt: 'hola',
+          cwd: '/tmp/x',
+          model: 'grok-4-latest',
+          cliSessionId: 'abc',
+        }),
+        config,
+        '/tmp/x',
+        'hola',
+        'abc',
+        testHome,
+      )
+      expect(args, permissionMode).toEqual(expected)
+      expect(args, permissionMode).not.toContain('abc')
+    }
+  })
 })
 
 describe('createAgentCliParser', () => {
   it('proveedor de texto: cada línea es delta y el cierre emite el turno completo', () => {
-    const parser = createAgentCliParser('hermes')
-    expect(parser.line('hola')).toEqual([{ type: 'assistant_delta', text: 'hola\n' }])
-    expect(parser.line('mundo')).toEqual([{ type: 'assistant_delta', text: 'mundo\n' }])
-    expect(parser.end()).toEqual([{ type: 'assistant_final', text: 'hola\nmundo' }])
+    for (const provider of ['hermes', 'grok'] as const) {
+      const parser = createAgentCliParser(provider)
+      expect(parser.line('hola')).toEqual([{ type: 'assistant_delta', text: 'hola\n' }])
+      expect(parser.line('mundo')).toEqual([{ type: 'assistant_delta', text: 'mundo\n' }])
+      expect(parser.end()).toEqual([{ type: 'assistant_final', text: 'hola\nmundo' }])
+    }
   })
 
   it('proveedor de texto sin salida no emite final', () => {

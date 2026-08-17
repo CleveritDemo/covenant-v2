@@ -26,13 +26,14 @@ import { ExplorerToast } from './ExplorerToast'
 import type { ExplorerConfirmRequest } from './ExplorerConfirmHost'
 import {
   buildNewRelPath,
+  dragExceedsThreshold,
   expandedPathsKey,
-  isRelPathInside,
   normalizeSessionCwd,
   parentDirForCreate,
   parentRelPath,
   pasteDestRelPath,
   resolveExplorerActionPaths,
+  resolveExplorerMovePaths,
   seedMultiSelect,
   filterRowsKeepingAncestors,
   sessionCwdPaneLabel,
@@ -159,6 +160,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const treeScrollRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const dragRelPathRef = useRef<string | null>(null)
+    const dragStartPointRef = useRef<{ x: number; y: number } | null>(null)
     /** Copia actual de carpetas expandidas; evita toggles perdidos con clics rápidos antes del re-render. */
     const expandedRelPathsRef = useRef(expandedRelPaths)
     const pendingExpandedKeyRef = useRef<string | null>(null)
@@ -844,49 +846,54 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
     const handleDropOnDir = useCallback(
       async (destRelPath: string, e: React.DragEvent): Promise<void> => {
         setDragOverRelPath(null)
-        const raw = dragRelPathRef.current ?? e.dataTransfer.getData('text/plain')
-        if (!raw) return
-        const sources = raw.includes('\n')
-          ? raw.split('\n').map(s => s.trim()).filter(Boolean)
-          : [raw]
-        const movePaths = sources.filter(src => {
-          if (!src || src === destRelPath) return false
-          if (isRelPathInside(src, destRelPath)) return false
-          return true
-        })
-        if (movePaths.length === 0) {
-          if (sources.some(src => isRelPathInside(src, destRelPath))) {
-            showErrorToast(undefined, FILE_EXPLORER_ERROR_CODES.DROP_INTO_SELF)
-          }
-          return
-        }
-        if (canMutateOpenPaths) {
-          const ok = await canMutateOpenPaths(movePaths)
-          if (!ok) return
-        }
-        for (const src of movePaths) {
-          const newRel = destRelPath
-            ? `${destRelPath}/${src.split('/').pop()}`
-            : src.split('/').pop()!
-          const result = await window.api.fileExplorerMove(sessionId, src, newRel)
-          if (!result.ok) {
-            showErrorToast(result.error, result.code)
+        try {
+          const raw = e.dataTransfer.getData('text/plain') || dragRelPathRef.current
+          if (!raw) return
+          const sources = raw.includes('\n')
+            ? raw.split('\n').map(s => s.trim()).filter(Boolean)
+            : [raw]
+          const start = dragStartPointRef.current
+          if (start && !dragExceedsThreshold(start.x, start.y, e.clientX, e.clientY)) {
             return
           }
-          let movedIsDir = false
-          for (const entries of childrenByDir.values()) {
-            const found = entries.find(entry => entry.relPath === src)
-            if (found) {
-              movedIsDir = found.isDirectory
-              break
+          const { movePaths, intoSelf } = resolveExplorerMovePaths(sources, destRelPath)
+          if (movePaths.length === 0) {
+            if (intoSelf) {
+              showErrorToast(undefined, FILE_EXPLORER_ERROR_CODES.DROP_INTO_SELF)
             }
+            return
           }
-          onEntryRenamed?.(src, newRel, movedIsDir)
-          await refreshAfterMutation(destRelPath)
-          await refreshAfterMutation(parentRelPath(src))
+          if (canMutateOpenPaths) {
+            const ok = await canMutateOpenPaths(movePaths)
+            if (!ok) return
+          }
+          for (const src of movePaths) {
+            const newRel = destRelPath
+              ? `${destRelPath}/${src.split('/').pop()}`
+              : src.split('/').pop()!
+            const result = await window.api.fileExplorerMove(sessionId, src, newRel)
+            if (!result.ok) {
+              showErrorToast(result.error, result.code)
+              return
+            }
+            let movedIsDir = false
+            for (const entries of childrenByDir.values()) {
+              const found = entries.find(entry => entry.relPath === src)
+              if (found) {
+                movedIsDir = found.isDirectory
+                break
+              }
+            }
+            onEntryRenamed?.(src, newRel, movedIsDir)
+            await refreshAfterMutation(destRelPath)
+            await refreshAfterMutation(parentRelPath(src))
+          }
+          setMultiSelected(new Set())
+          await refreshGitStatus()
+        } finally {
+          dragRelPathRef.current = null
+          dragStartPointRef.current = null
         }
-        setMultiSelected(new Set())
-        await refreshGitStatus()
       },
       [
         sessionId, childrenByDir, refreshAfterMutation, refreshGitStatus,
@@ -1194,9 +1201,16 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           ? Array.from(multiSelected)
           : [relPath]
       dragRelPathRef.current = paths.join('\n')
+      dragStartPointRef.current = { x: e.clientX, y: e.clientY }
       e.dataTransfer.setData('text/plain', paths.join('\n'))
       e.dataTransfer.effectAllowed = 'move'
     }, [multiSelected])
+
+    const handleDragEndEntry = useCallback(() => {
+      dragRelPathRef.current = null
+      dragStartPointRef.current = null
+      setDragOverRelPath(null)
+    }, [])
 
     const renderRow = (row: typeof visibleRows[number], index: number): React.ReactNode => (
       <FileExplorerTreeNode
@@ -1222,6 +1236,7 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
         onSelectEntry={handleSelectEntry}
         onDoubleClickEntry={handleDoubleClickEntry}
         onDragStartEntry={handleDragStartEntry}
+        onDragEndEntry={handleDragEndEntry}
         onDragOverDir={rel => setDragOverRelPath(rel)}
         onDragLeaveDir={rel => {
           setDragOverRelPath(prev => (prev === rel ? null : prev))
@@ -1386,6 +1401,10 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
           onKeyDown={handleTreeKeyDown}
           onContextMenu={onTreeContextMenu}
           onDragOver={e => {
+            const hitNode = (e.target instanceof Element ? e.target : null)
+              ?.closest('.file-explorer-tree-node')
+            if (hitNode) return
+            if (!e.dataTransfer.getData('text/plain') && !dragRelPathRef.current) return
             e.preventDefault()
             e.dataTransfer.dropEffect = 'move'
             setDragOverRelPath('')
@@ -1394,6 +1413,9 @@ export const FileExplorerTree = forwardRef<FileExplorerTreeHandle, FileExplorerT
             if (e.currentTarget === e.target) setDragOverRelPath(null)
           }}
           onDrop={e => {
+            const hitNode = (e.target instanceof Element ? e.target : null)
+              ?.closest('.file-explorer-tree-node')
+            if (hitNode) return
             e.preventDefault()
             void handleDropOnDir('', e)
           }}

@@ -25,6 +25,7 @@ interface FileExplorerTreeNodeProps {
   onSelectEntry: (relPath: string, isDirectory: boolean, e: React.MouseEvent) => void | Promise<void>
   onDoubleClickEntry: (relPath: string, isDirectory: boolean) => void
   onDragStartEntry?: (relPath: string, e: React.DragEvent) => void
+  onDragEndEntry?: () => void
   onDragOverDir?: (relPath: string) => void
   onDragLeaveDir?: (relPath: string) => void
   onDropOnDir?: (destRelPath: string, e: React.DragEvent) => void
@@ -52,6 +53,7 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
   onSelectEntry,
   onDoubleClickEntry,
   onDragStartEntry,
+  onDragEndEntry,
   onDragOverDir,
   onDragLeaveDir,
   onDropOnDir,
@@ -152,8 +154,14 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
           e.dataTransfer.effectAllowed = 'move'
         }
       }}
+      onDragEnd={() => {
+        onDragEndEntry?.()
+      }}
       onDragOver={e => {
-        if (!isDir || !onDropOnDir) return
+        if (!isDir || !onDropOnDir) {
+          e.stopPropagation()
+          return
+        }
         e.preventDefault()
         e.stopPropagation()
         e.dataTransfer.dropEffect = 'move'
@@ -163,7 +171,10 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
         if (isDir) onDragLeaveDir?.(entry.relPath)
       }}
       onDrop={e => {
-        if (!isDir || !onDropOnDir) return
+        if (!isDir || !onDropOnDir) {
+          e.stopPropagation()
+          return
+        }
         e.preventDefault()
         e.stopPropagation()
         onDropOnDir(entry.relPath, e)

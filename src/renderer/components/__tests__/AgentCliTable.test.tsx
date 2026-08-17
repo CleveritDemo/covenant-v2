@@ -4,7 +4,11 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { AgentCliProvider, AgentCliResolution } from '@shared/agentCliProviders'
+import {
+  AGENT_CLI_PROVIDER_IDS,
+  type AgentCliProvider,
+  type AgentCliResolution,
+} from '@shared/agentCliProviders'
 import { AgentCliTable } from '../AgentCliTable'
 
 vi.mock('@i18n/useT', () => ({
@@ -13,6 +17,8 @@ vi.mock('@i18n/useT', () => ({
       params ? `${key}:${Object.values(params).join(',')}` : key,
   }),
 }))
+
+const PROVIDER_COUNT = AGENT_CLI_PROVIDER_IDS.length
 
 function resolution(provider: AgentCliProvider, path: string | null, version = '1.0.0'): AgentCliResolution {
   return { provider, command: provider, path, version: path ? version : null }
@@ -43,8 +49,8 @@ describe('AgentCliTable', () => {
     })
     // Claude resuelto muestra la versión; el resto, no encontrado.
     expect(screen.getByText('v1.0.0')).toBeTruthy()
-    expect(resolveAgentCli).toHaveBeenCalledTimes(9)
-    expect(screen.getByText('settings.cliAvailable:1,9')).toBeTruthy()
+    expect(resolveAgentCli).toHaveBeenCalledTimes(PROVIDER_COUNT)
+    expect(screen.getByText(`settings.cliAvailable:1,${PROVIDER_COUNT}`)).toBeTruthy()
   })
 
   it('abre la fila y muestra la ruta resuelta', async () => {
@@ -53,7 +59,7 @@ describe('AgentCliTable', () => {
     )
 
     render(<AgentCliTable commands={{}} onChange={() => {}} />)
-    await waitFor(() => expect(screen.getAllByText('v1.0.0').length).toBe(9))
+    await waitFor(() => expect(screen.getAllByText('v1.0.0').length).toBe(PROVIDER_COUNT))
 
     fireEvent.click(screen.getByText('Claude Code'))
     expect(screen.getByText('/usr/local/bin/x')).toBeTruthy()
@@ -68,8 +74,8 @@ describe('AgentCliTable', () => {
 
     const onChange = vi.fn()
     render(<AgentCliTable commands={{}} onChange={onChange} />)
-    // 9 comprobaciones de montaje en vuelo; la de claude es la primera.
-    expect(pending.length).toBe(9)
+    // N comprobaciones de montaje en vuelo; la de claude es la primera.
+    expect(pending.length).toBe(PROVIDER_COUNT)
 
     fireEvent.click(screen.getByText('Claude Code'))
     const input = screen.getByLabelText('settings.cliCommandLabel:Claude Code')
@@ -77,10 +83,10 @@ describe('AgentCliTable', () => {
     expect(onChange).toHaveBeenCalledWith('claude', '/ruta/nueva')
 
     await vi.advanceTimersByTimeAsync(500)
-    expect(pending.length).toBe(10) // la comprobación del texto nuevo
+    expect(pending.length).toBe(PROVIDER_COUNT + 1) // la comprobación del texto nuevo
 
     // La nueva responde primero, la vieja del montaje después.
-    pending[9](resolution('claude', '/ruta/nueva'))
+    pending[PROVIDER_COUNT](resolution('claude', '/ruta/nueva'))
     pending[0](resolution('claude', '/vieja/claude'))
     await vi.advanceTimersByTimeAsync(0)
 

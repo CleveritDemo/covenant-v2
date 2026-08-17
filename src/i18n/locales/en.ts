@@ -1416,6 +1416,13 @@ const en = {
     closeAriaLabel: 'Close',
   },
 
+  aiCodeBlock: {
+    insertLabel: '↵ send to terminal',
+    insertTooltip: 'Insert the command in this tab\'s terminal',
+    insertHint: 'Does not run it: review and press Enter',
+    copyLabel: 'Copy code',
+  },
+
   sketch: {
     title: 'Sketch',
     open: 'Sketch',

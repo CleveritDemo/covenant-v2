@@ -27,6 +27,7 @@ export interface PlaneQuickChatProps {
   /** Stop por fila en Waiting (solo esa delegación). */
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
+  onInsertCommand?: (cmd: string) => void
 }
 
 /** Conversación user/assistant del plano (sin system). */
@@ -52,6 +53,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   onShowingChange,
   onAbortDelegation,
   projectAgents = [],
+  onInsertCommand,
 }) => {
   const { t } = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -139,6 +141,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 surface="pane"
                 scrollRef={scrollRef}
                 projectAgents={projectAgents}
+                onInsertCommand={onInsertCommand}
               />
               {awaitingDelegations ? (
                 <div className="plane-quick-chat__delegating">

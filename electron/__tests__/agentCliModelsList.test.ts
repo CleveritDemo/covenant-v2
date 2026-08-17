@@ -158,6 +158,13 @@ describe('listAgentCliModels static providers', () => {
     const result = await listAgentCliModels('hermes', baseConfig)
     expect(result).toEqual({ models: [], source: 'fallback' })
   })
+
+  it('returns grok static fallback models without error', async () => {
+    const result = await listAgentCliModels('grok', baseConfig)
+    expect(result.source).toBe('fallback')
+    expect(result.error).toBeUndefined()
+    expect(result.models.map(m => m.id)).toEqual(['grok-code-fast-1', 'grok-4-latest'])
+  })
 })
 
 function writeCopilotFixture(prefix: string): string {

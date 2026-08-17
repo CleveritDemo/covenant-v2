@@ -172,6 +172,7 @@ export interface TabAgenticPlaneProps {
   onStopChat: (paneId: string) => void
   /** Stop por fila en Waiting: cancela solo esa delegación del orquestador. */
   onAbortDelegation?: (fromPaneId: string, delegationId: string) => void
+  onInsertCommand?: (cmd: string) => void
   /** Pide borrar la conversación activa del agente (confirmación en AgentPane). */
   onClearConversation: (paneId: string) => void
   /** Abre una conversación nueva sin borrar la actual. */
@@ -387,6 +388,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onSendChat,
   onStopChat,
   onAbortDelegation,
+  onInsertCommand,
   onClearConversation,
   onNewThread,
   onSelectThread,
@@ -1358,6 +1360,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   : undefined
               }
               projectAgents={projectAgents}
+              onInsertCommand={onInsertCommand}
             />
           ) : null}
           composer={(

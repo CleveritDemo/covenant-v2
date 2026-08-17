@@ -306,6 +306,25 @@ export const AGENT_CLI_PROVIDERS = {
       ...withModel('-m', model),
     ],
   },
+  grok: {
+    label: 'Grok',
+    brand: '#6E7681',
+    command: 'grok',
+    stream: 'text',
+    // ponytail: `grok -p <prompt> -m <model> -d <dir>` está en la doc del CLI,
+    // pero no pude correr `grok --help` en vivo (no está instalado en esta
+    // máquina). No documenta flag de auto-aprobación ni de plan, así que
+    // `mode` no se mapea: en Plan el CLI escribe igual. Tampoco expone
+    // salida estructurada ni resume de sesión, de ahí `stream: 'text'` y que
+    // no se pase `sessionId`. Sin `capabilities`: falla cerrado.
+    args: ({ prompt, cwd, model }) => [
+      '-p',
+      prompt,
+      '-d',
+      cwd,
+      ...withModel('-m', model),
+    ],
+  },
 } satisfies Record<string, AgentCliProviderSpec>
 
 export type AgentCliProvider = keyof typeof AGENT_CLI_PROVIDERS

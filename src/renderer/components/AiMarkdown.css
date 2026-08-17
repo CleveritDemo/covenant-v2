@@ -343,6 +343,12 @@
 .ai-tok-heading { color: var(--accent); font-weight: 650; }
 .ai-tok-invalid { color: var(--danger, #e5484d); }
 
+/* El Tooltip envuelve el CTA: el ancla debe seguir ocupando el ancho del bloque. */
+.ai-code-block > .ui-tooltip {
+  display: flex;
+  width: 100%;
+}
+
 .ai-insert-btn {
   display: flex;
   align-items: center;

@@ -159,6 +159,47 @@ export function seedMultiSelect(
   return next
 }
 
+/** Distancia mínima (px) para tratar un arrastre HTML5 como movimiento real. */
+export const EXPLORER_DRAG_MIN_PX = 12
+
+/**
+ * Filtra orígenes de un drop: descarta vacío, destino igual a src, carpeta
+ * dentro de sí misma y soltar donde el archivo ya vive (padre actual).
+ */
+export function resolveExplorerMovePaths(
+  sources: readonly string[],
+  destRelPath: string,
+): { movePaths: string[]; intoSelf: boolean } {
+  const movePaths: string[] = []
+  let intoSelf = false
+  for (const src of sources) {
+    if (!src) continue
+    if (src === destRelPath) continue
+    if (isRelPathInside(src, destRelPath)) {
+      intoSelf = true
+      continue
+    }
+    if (parentRelPath(src) === destRelPath) continue
+    movePaths.push(src)
+  }
+  return { movePaths, intoSelf }
+}
+
+/**
+ * True si el puntero se movió al menos `minPx` (euclídea).
+ * Coordenadas no finitas → true, para no bloquear un arrastre sin origen.
+ */
+export function dragExceedsThreshold(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  minPx = EXPLORER_DRAG_MIN_PX,
+): boolean {
+  if (![startX, startY, endX, endY, minPx].every(Number.isFinite)) return true
+  return Math.hypot(endX - startX, endY - startY) >= minPx
+}
+
 /** Ancestros de una ruta relativa (sin incluir la propia ruta). */
 export function ancestorRelPaths(relPath: string): string[] {
   const parts = relPath.split('/').filter(Boolean)

@@ -81,12 +81,22 @@ export const GEMINI_AGENT_MODELS: AgentModelOption[] = [
   { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
 ]
 
+/**
+ * Catálogo estático de Grok: el CLI no expone comando de listado.
+ * IDs de la doc del CLI; `grok-code-fast-1` es su default.
+ */
+export const GROK_AGENT_MODELS: AgentModelOption[] = [
+  { id: 'grok-code-fast-1', label: 'Grok Code Fast' },
+  { id: 'grok-4-latest', label: 'Grok 4' },
+]
+
 /** Fallback estático por provider (solo si el CLI no responde). */
 export function modelsForProvider(provider: AgentCliProvider): AgentModelOption[] {
   if (provider === 'claude') return CLAUDE_AGENT_MODELS
   if (provider === 'copilot') return COPILOT_AGENT_MODELS
   if (provider === 'cursor') return CURSOR_AGENT_MODELS
   if (provider === 'gemini') return GEMINI_AGENT_MODELS
+  if (provider === 'grok') return GROK_AGENT_MODELS
   // Resto de CLIs: sin catálogo propio; se usa el modelo por defecto del CLI.
   return []
 }

@@ -1418,6 +1418,13 @@ const es = {
     closeAriaLabel: 'Cerrar',
   },
 
+  aiCodeBlock: {
+    insertLabel: '↵ poner en terminal',
+    insertTooltip: 'Inserta el comando en la terminal de esta pestaña',
+    insertHint: 'No lo ejecuta: revísalo y pulsa Enter',
+    copyLabel: 'Copiar código',
+  },
+
   sketch: {
     title: 'Sketch',
     open: 'Sketch',

@@ -6,8 +6,8 @@ import { AGENT_CLI_PROVIDERS, type AgentCliProvider } from '@shared/agentCliProv
  *
  * Fuentes: claude / cursor / copilot / gemini / kimi vienen de simple-icons
  * (CC0; se copió el `path` en vez de agregar el paquete). Codex usa un
- * destello neutro — el logo de OpenAI es marca registrada. Opencode, Pi y
- * Hermes son glifos propios simplificados para leerse a 12px.
+ * destello neutro — el logo de OpenAI es marca registrada. Opencode, Pi,
+ * Hermes y Grok son glifos propios simplificados para leerse a 12px.
  */
 const BRAND_PATHS: Record<AgentCliProvider, { d: string; evenodd?: boolean }> = {
   claude: {
@@ -38,6 +38,9 @@ const BRAND_PATHS: Record<AgentCliProvider, { d: string; evenodd?: boolean }> = 
   },
   hermes: {
     d: 'M11 6h2v14h-2V6ZM3 4l8 5V6L3 1v3Zm18 0V1l-8 5v3l8-5Z',
+  },
+  grok: {
+    d: 'M15 2h6l-9 13H6L15 2Zm-3 15h6l-3.5 5H8.5L12 17Z',
   },
 }
 

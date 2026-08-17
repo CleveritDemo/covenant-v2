@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.81.0
+
+- Nueva terminal con ⌘J además de ⌘Y; en Windows y Linux sigue siendo Ctrl+Y.
+- Los botones flotantes del plano ahora dicen al pasar el mouse su nombre, su atajo y qué crean.
+- El botón de nuevo agente dibuja un bot con signo + y algo más grande.
+- Corregido el chip de la conversación activa, que se dibujaba como dos píldoras y ocupaba el doble de ancho.
+
 ## v0.80.1
 
 - Los chips de conversación del chat ya no dejan ver el texto de abajo: ahora tapan, y el chip activo recupera su borde y su brillo de acento.

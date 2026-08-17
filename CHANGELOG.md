@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.81.1
+
+- Las fichas de agente del listado de Brainstorming rooms se ven con el mismo relieve que las del plano.
+- Al abrir Organizations sobre una sala ya no queda encima el botón de la carpeta del proyecto ni sus acciones.
+
 ## v0.81.0
 
 - Nueva terminal con ⌘J además de ⌘Y; en Windows y Linux sigue siendo Ctrl+Y.

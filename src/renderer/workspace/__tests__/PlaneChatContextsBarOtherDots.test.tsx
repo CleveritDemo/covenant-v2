@@ -23,22 +23,37 @@ function chipsRegion(container: HTMLElement): HTMLElement {
   return region as HTMLElement
 }
 
-describe('PlaneChatContextsBar: chips de hilos busy en segundo plano', () => {
-  it('solo el hilo activo corriendo: no hay chips extra (el activo ya lleva el suyo)', () => {
+describe('PlaneChatContextsBar: chips de hilos recientes', () => {
+  it('solo el hilo activo: no hay chips extra', () => {
     const { container } = render(
       <PlaneChatContextsBar
-        threads={threads}
+        threads={[{ id: 't-1', title: 'One', updatedAt: 1_700_000_000_000 }]}
         activeThreadId="t-1"
         runningThreadIds={['t-1']}
         onSelectThread={() => undefined}
       />,
     )
     const chips = chipsRegion(container)
-    expect(chips.querySelectorAll('.plane-chat-contexts-bar__chip--running')).toHaveLength(0)
+    expect(chips.querySelectorAll('.plane-chat-contexts-bar__chip--recent')).toHaveLength(0)
     expect(chips.querySelector('.plane-chat-contexts-bar__chips-active')).not.toBeNull()
   })
 
-  it('un hilo de fondo corriendo: chip con título junto al activo', () => {
+  it('hilo reciente sin correr: chip junto al activo', () => {
+    const { container } = render(
+      <PlaneChatContextsBar
+        threads={threads}
+        activeThreadId="t-1"
+        runningThreadIds={[]}
+        onSelectThread={() => undefined}
+      />,
+    )
+    const chips = chipsRegion(container)
+    expect(chips.querySelectorAll('.plane-chat-contexts-bar__chip--recent')).toHaveLength(1)
+    expect(chips.querySelector('.plane-chat-contexts-bar__chip--recent')?.textContent).toContain('Two')
+    expect(chips.querySelector('.plane-chat-contexts-bar__chip--running')).toBeNull()
+  })
+
+  it('un hilo de fondo corriendo: chip con título y dot junto al activo', () => {
     const { container } = render(
       <PlaneChatContextsBar
         threads={threads}
@@ -49,7 +64,7 @@ describe('PlaneChatContextsBar: chips de hilos busy en segundo plano', () => {
       />,
     )
     const chips = chipsRegion(container)
-    expect(chips.querySelectorAll('.plane-chat-contexts-bar__chip--running')).toHaveLength(1)
+    expect(chips.querySelectorAll('.plane-chat-contexts-bar__chip--recent')).toHaveLength(1)
     expect(chips.querySelector('.plane-chat-contexts-bar__chip--running')?.textContent).toContain('Two')
     expect(chips.querySelector('.plane-chat-contexts-bar__chips-active')).not.toBeNull()
   })
@@ -65,7 +80,7 @@ describe('PlaneChatContextsBar: chips de hilos busy en segundo plano', () => {
       />,
     )
     const chips = chipsRegion(container)
-    const runningChip = chips.querySelector('.plane-chat-contexts-bar__chip--running') as HTMLButtonElement
+    const runningChip = chips.querySelector('.plane-chat-contexts-bar__chip--recent') as HTMLButtonElement
     fireEvent.click(runningChip)
     expect(onSelectThread).toHaveBeenCalledWith('t-2')
   })
@@ -91,7 +106,7 @@ describe('PlaneChatContextsBar: chips de hilos busy en segundo plano', () => {
         onSelectThread={() => undefined}
       />,
     )
-    const chip = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chip--running')
+    const chip = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chip--recent')
     expect(chip?.textContent).toContain('agentPane.threadDelegationTitle')
   })
 })

@@ -37,6 +37,13 @@
   z-index: 95;
 }
 
+/* En pantalla completa el pane llena el panel y el overlay se lee como marco del
+   workspace. Solo ahí se apaga; en splits y minis sigue separando. */
+.pane-window--fullscreen .agent-pane::after,
+.pane-window--zooming-to-fullscreen .agent-pane::after {
+  display: none;
+}
+
 .agent-pane::before {
   display: none;
 }

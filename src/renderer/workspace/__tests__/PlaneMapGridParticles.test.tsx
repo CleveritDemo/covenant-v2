@@ -15,6 +15,7 @@ import {
   PARTICLE_GRID_CELL_COUNT,
   PARTICLE_GRID_COLS,
   PARTICLE_GRID_ROWS,
+  particleAlphaFloorForEnergy,
   PlaneMapGridParticles,
   positionInGridCell,
   randomGridCell,
@@ -451,6 +452,212 @@ describe('PlaneMapGridParticles', () => {
     const trebleMax = Math.max(0, ...radii)
 
     expect(bassMax).toBeGreaterThan(trebleMax * 1.25)
+  })
+
+  it('particleAlphaFloorForEnergy interpola entre idle y el piso energizado', () => {
+    const idle = particleAlphaFloorForEnergy(0)
+    const full = particleAlphaFloorForEnergy(1)
+    expect(idle).toBeCloseTo(0.14, 6)
+    expect(full).toBeCloseTo(0.3, 6)
+    expect(particleAlphaFloorForEnergy(0.5)).toBeCloseTo((idle + full) / 2, 6)
+    // Fuera de rango e inválidos quedan clampeados.
+    expect(particleAlphaFloorForEnergy(-1)).toBeCloseTo(idle, 6)
+    expect(particleAlphaFloorForEnergy(4)).toBeCloseTo(full, 6)
+    expect(particleAlphaFloorForEnergy(Number.NaN)).toBeCloseTo(idle, 6)
+  })
+
+  it('con energía del plano sube el piso de alpha sin reiniciar las partículas', () => {
+    const alphas = attachAlphaCapture(ctx)
+    const setTransform = vi.fn()
+    ctx.setTransform = setTransform as unknown as typeof ctx.setTransform
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.7)
+
+    try {
+      const { rerender } = render(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles energyTarget={0} />
+        </div>,
+      )
+      expect(rafCallback).toBeTruthy()
+
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+      for (let t = 0; t <= 1600; t += 16) {
+        alphas.length = 0
+        rafCallback!(t)
+      }
+      const idleAlpha = Math.max(0, ...alphas)
+      const transformCallsBefore = setTransform.mock.calls.length
+
+      rerender(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles energyTarget={1} />
+        </div>,
+      )
+      for (let t = 1616; t <= 3216; t += 16) {
+        alphas.length = 0
+        rafCallback!(t)
+      }
+      const busyAlpha = Math.max(0, ...alphas)
+
+      expect(busyAlpha).toBeGreaterThan(idleAlpha * 1.3)
+      expect(busyAlpha).toBeLessThan(1)
+      // El efecto no se reinicia: nada de resize/cleanup al cambiar la energía.
+      expect(setTransform.mock.calls.length).toBe(transformCallsBefore)
+    } finally {
+      randomSpy.mockRestore()
+    }
+  })
+
+  it('al cambiar el tema recolorea las partículas vivas sin reiniciar posiciones ni energía', async () => {
+    const alphas = attachAlphaCapture(ctx)
+    const setTransform = vi.fn()
+    ctx.setTransform = setTransform as unknown as typeof ctx.setTransform
+    const positions: Array<{ x: number; y: number }> = []
+    ctx.arc = vi.fn((x: number, y: number) => {
+      positions.push({ x, y })
+    }) as unknown as typeof ctx.arc
+    const stops: string[] = []
+    ctx.createRadialGradient = vi.fn(() => ({
+      addColorStop: (_offset: number, color: string) => {
+        if (color !== 'transparent') stops.push(color)
+      },
+    })) as unknown as typeof ctx.createRadialGradient
+
+    let paletteTag = 'theme-a'
+    vi.stubGlobal('getComputedStyle', () => ({
+      getPropertyValue: (name: string) => `${paletteTag}${name}`,
+    }))
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.7)
+
+    try {
+      render(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles energyTarget={1} />
+        </div>,
+      )
+      expect(rafCallback).toBeTruthy()
+
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+      // Sube la energía a tope antes de tocar el tema.
+      for (let t = 0; t <= 1600; t += 16) rafCallback!(t)
+
+      stops.length = 0
+      alphas.length = 0
+      positions.length = 0
+      // dt = 0: el frame es una foto exacta del estado actual.
+      rafCallback!(1600)
+      const beforeStops = [...stops]
+      const beforeAlphas = [...alphas]
+      const beforePositions = positions.map((p) => `${p.x},${p.y}`)
+      const transformCallsBefore = setTransform.mock.calls.length
+
+      expect(beforeStops.length).toBeGreaterThan(0)
+      expect(beforeStops.every((c) => c.startsWith('theme-a'))).toBe(true)
+      expect(new Set(beforeStops).size).toBe(THEME_MUSIC_BAND_COUNT)
+
+      paletteTag = 'theme-b'
+      document.documentElement.setAttribute('data-theme', 'nocturne')
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0)
+      })
+
+      stops.length = 0
+      alphas.length = 0
+      positions.length = 0
+      rafCallback!(1600)
+
+      // Colores nuevos…
+      expect(stops.length).toBe(beforeStops.length)
+      expect(stops.every((c) => c.startsWith('theme-b'))).toBe(true)
+      expect(new Set(stops).size).toBe(THEME_MUSIC_BAND_COUNT)
+      // …y el resto intacto: mismas posiciones, mismo alpha (misma energía),
+      // sin resize ni remonte del efecto.
+      expect(positions.map((p) => `${p.x},${p.y}`)).toEqual(beforePositions)
+      expect(alphas).toEqual(beforeAlphas)
+      expect(setTransform.mock.calls.length).toBe(transformCallsBefore)
+    } finally {
+      randomSpy.mockRestore()
+      document.documentElement.removeAttribute('data-theme')
+    }
+  })
+
+  it('con música y energía a la vez el alpha respeta ALPHA_CAP y el piso energizado sigue aplicando', () => {
+    const ALPHA_IDLE = 0.14
+    const ALPHA_CAP = 0.88
+    const LAST_TS = 4000
+    const alphas = attachAlphaCapture(ctx)
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.7)
+
+    // Math.random fijo ⇒ mismas partículas y misma vida en cada corrida,
+    // así los alphas de dos corridas son comparables índice a índice.
+    const alphasAtEnd = (energyTarget: number): number[] => {
+      render(
+        <div style={{ width: 400, height: 300 }}>
+          <PlaneMapGridParticles energyTarget={energyTarget} />
+        </div>,
+      )
+      expect(rafCallback).toBeTruthy()
+      for (let t = 0; t < LAST_TS; t += 16) rafCallback!(t)
+      alphas.length = 0
+      rafCallback!(LAST_TS)
+      const out = [...alphas]
+      cleanup()
+      return out
+    }
+
+    try {
+      // Referencia de fade: sin música ni energía el alpha es fade * ALPHA_IDLE.
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0),
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 0, bpm: null })
+      const idle = alphasAtEnd(0)
+      expect(idle.length).toBeGreaterThan(0)
+      const fade = Math.max(...idle) / ALPHA_IDLE
+      expect(fade).toBeGreaterThan(0.1)
+
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 1),
+      )
+      getThemeMusicBeat.mockReturnValue({ pulse: 1, bpm: 120 })
+      const musicOnly = alphasAtEnd(0)
+      const musicBusy = alphasAtEnd(1)
+
+      expect(musicBusy.length).toBe(musicOnly.length)
+      expect(musicBusy.length).toBe(idle.length)
+
+      // El tope muerde con música + beat + energía: el pico queda en el cap.
+      expect(Math.max(...musicBusy)).toBeLessThanOrEqual(ALPHA_CAP)
+      expect(Math.max(...musicBusy) / fade).toBeCloseTo(ALPHA_CAP, 3)
+      // Sin energía el mismo pico todavía no llegaba al tope.
+      expect(Math.max(...musicOnly) / fade).toBeLessThan(ALPHA_CAP)
+
+      // Nadie baja al subir la energía.
+      for (let i = 0; i < musicBusy.length; i += 1) {
+        expect(musicBusy[i]!).toBeGreaterThanOrEqual(musicOnly[i]!)
+      }
+
+      // Con música moderada el cap no muerde, así que se ve el piso energizado
+      // sumando por debajo del tope en todas las partículas.
+      getThemeMusicBands.mockReturnValue(
+        Array.from({ length: THEME_MUSIC_BAND_COUNT }, () => 0.3),
+      )
+      const softOnly = alphasAtEnd(0)
+      const softBusy = alphasAtEnd(1)
+      expect(softBusy.length).toBe(softOnly.length)
+      expect(Math.max(...softBusy) / fade).toBeLessThan(ALPHA_CAP)
+      for (let i = 0; i < softBusy.length; i += 1) {
+        expect(softBusy[i]!).toBeGreaterThan(softOnly[i]! * 1.1)
+      }
+    } finally {
+      randomSpy.mockRestore()
+    }
   })
 
   it('un color por banda de frecuencia', () => {

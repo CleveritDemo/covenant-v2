@@ -1,20 +1,15 @@
 /* Grilla de contextos en mini del agente: dos filas (inputs / results), sin labels. */
+/* Inputs y results son dos secciones más: mismo hueco que el resto, sin línea divisoria. */
 .plane-agent-context-nodes-stack {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--plane-mini-face-section-gap, 4px);
   width: 100%;
   min-width: 0;
 }
 
 .plane-agent-context-nodes-stack--decorative {
   pointer-events: none;
-}
-
-.plane-agent-context-nodes--results:not(:first-child) {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--plane-border) 26%, transparent);
 }
 
 .plane-agent-context-nodes {

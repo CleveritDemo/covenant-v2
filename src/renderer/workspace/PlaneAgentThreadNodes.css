@@ -18,8 +18,14 @@
   width: 100%;
 }
 
+/*
+ * Hueco entre filas hermanas: menor que el hueco entre secciones
+ * (`--plane-mini-face-section-gap`), para que las filas se lean como un grupo.
+ * El respiro hacia los contextos lo pone ese gap de sección, no un padding de aquí:
+ * sumarlo dejaba 8px bajo la última fila contra 4px en el resto de la card.
+ */
 .plane-agent-thread-nodes--running {
-  gap: 5px;
+  gap: 3px;
   list-style: none;
 }
 

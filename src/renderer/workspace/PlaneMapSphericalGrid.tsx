@@ -1,5 +1,6 @@
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { isReduceMotionActive } from '../reduceMotion'
+import { stepPlaneEnergy } from './planeEnergyEnvelope'
 import {
   mountPlaneSpacetimeGrid,
   readSpacetimeGridConfig,
@@ -31,13 +32,27 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
+type PlaneMapSphericalGridProps = {
+  /** Energía objetivo del plano 0..1 (agentes busy); se suaviza en el rAF. */
+  energyTarget?: number
+}
+
 /** Rejilla 3D del plano (Three.js): interior de esfera vista desde el centro. */
-export const PlaneMapSphericalGrid: React.FC = () => {
+export const PlaneMapSphericalGrid: React.FC<PlaneMapSphericalGridProps> = ({
+  energyTarget = 0,
+}) => {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const runtimeRef = useRef<PlaneSpacetimeGridRuntime | null>(null)
   const reducedMotion = usePrefersReducedMotion()
   const [webglReady, setWebglReady] = useState(false)
+  // Ref y no dependencia: cambiar la energía no debe remontar la escena.
+  const energyTargetRef = useRef(energyTarget)
+  const energyRef = useRef(0)
+
+  useEffect(() => {
+    energyTargetRef.current = energyTarget
+  }, [energyTarget])
 
   // Reduce motion: misma esfera, pintada una vez en canvas 2D y sin animación.
   useLayoutEffect(() => {
@@ -94,6 +109,7 @@ export const PlaneMapSphericalGrid: React.FC = () => {
 
     let raf = 0
     let running = true
+    let lastFrameMs = -1
 
     const syncSize = (): boolean => {
       const rect = wrap.getBoundingClientRect()
@@ -120,8 +136,20 @@ export const PlaneMapSphericalGrid: React.FC = () => {
 
     const frame = (time: number): void => {
       if (!running) return
+      const dtReal = lastFrameMs < 0
+        ? 0
+        : Math.max(0, Math.min(0.25, (time - lastFrameMs) / 1000))
+      lastFrameMs = time
       const runtime = runtimeRef.current
-      if (runtime && syncSize()) runtime.render(time)
+      if (runtime && syncSize()) {
+        energyRef.current = stepPlaneEnergy(
+          energyRef.current,
+          energyTargetRef.current,
+          dtReal,
+        )
+        runtime.setEnergy(energyRef.current)
+        runtime.render(time)
+      }
       raf = window.requestAnimationFrame(frame)
     }
 

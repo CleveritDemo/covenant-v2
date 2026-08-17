@@ -187,6 +187,14 @@
   backdrop-filter: none;
 }
 
+/* A pantalla completa el marco coincide con el perímetro del workspace: se apaga
+   el color, no el border, para no re-medir el pane (box-sizing: border-box). */
+.pane-window--fullscreen,
+.pane-window--full.pane-window--fullscreen,
+.pane-window--full.pane-window--fullscreen.pane-window--focused {
+  border-color: transparent;
+}
+
 /* Durante el morph, no anular la transición del zoom. */
 .pane-window--fullscreen:not(.pane-window--zooming) {
   transition: none;

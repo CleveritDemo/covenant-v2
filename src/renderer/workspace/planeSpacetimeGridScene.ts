@@ -23,6 +23,8 @@ export type SpacetimeGridConfig = {
 export type PlaneSpacetimeGridRuntime = {
   resize: (width: number, height: number) => void
   updateConfig: (config: SpacetimeGridConfig) => void
+  /** Energía del plano 0..1: solo uniforms, nunca reconstruye geometría. */
+  setEnergy: (energy: number) => void
   render: (timeMs: number) => void
   dispose: () => void
 }
@@ -124,6 +126,26 @@ export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): Spac
     lineColor: new THREE.Color(readPlaneGridLineColor(root)),
     animate,
   }
+}
+
+function clampEnergy(energy: number): number {
+  if (!Number.isFinite(energy)) return 0
+  return Math.min(1, Math.max(0, energy))
+}
+
+/** Warmth con energía: hasta +80% de mezcla hacia el acento. */
+export function energizedWarmth(base: number, energy: number): number {
+  return base * (1 + 0.8 * clampEnergy(energy))
+}
+
+/** Factor de opacidad con energía: hasta +18%. */
+export function energizedOpacityFactor(energy: number): number {
+  return 1 + 0.18 * clampEnergy(energy)
+}
+
+/** Multiplicador de velocidad angular con energía: hasta 1.5×. */
+export function energizedRotationMul(energy: number): number {
+  return 1 + 0.5 * clampEnergy(energy)
 }
 
 /** Alfa final del material: la rejilla y el alfa que CSS aplica a `--plane-grid-line`. */
@@ -290,13 +312,30 @@ export function mountPlaneSpacetimeGrid(
   scene.add(grid)
 
   const rotationQuat = new THREE.Quaternion()
+  let energy = 0
+  /** Ángulo acumulado: cambiar la velocidad no debe saltar de fase. */
+  let rotationAngle = 0
+  let lastRenderTimeMs = -1
+
+  const applyEnergyUniforms = (): void => {
+    material.uniforms.warmthMax!.value = energizedWarmth(activeConfig.warmth, energy)
+    material.uniforms.opacity!.value = sphereMaterialOpacity(
+      activeConfig.opacity * energizedOpacityFactor(energy),
+    )
+  }
 
   const render = (timeMs: number): void => {
+    const previousTimeMs = lastRenderTimeMs
+    lastRenderTimeMs = timeMs
     if (activeConfig.animate) {
-      const angle = timeMs * 0.001 * sphereYRotationSpeedRadPerSec()
-      rotationQuat.setFromAxisAngle(SPHERE_ROTATION_AXIS, angle)
+      const dt = previousTimeMs < 0
+        ? 0
+        : Math.max(0, Math.min(0.25, (timeMs - previousTimeMs) / 1000))
+      rotationAngle += dt * sphereYRotationSpeedRadPerSec() * energizedRotationMul(energy)
+      rotationQuat.setFromAxisAngle(SPHERE_ROTATION_AXIS, rotationAngle)
       grid.setRotationFromQuaternion(rotationQuat)
     } else {
+      rotationAngle = 0
       grid.rotation.set(0, 0, 0)
     }
     renderer.render(scene, camera)
@@ -316,7 +355,15 @@ export function mountPlaneSpacetimeGrid(
       activeConfig = next
       accentColor.set(resolveCssColor(document.documentElement, '--accent', '#d4a84b'))
       syncGridMaterialColors(next)
+      // El tema reescribe warmth/opacity base: reaplica la energía vigente.
+      applyEnergyUniforms()
       replaceGridGeometry(grid, layoutWidth, layoutHeight, next.cellSize)
+    },
+    setEnergy(next: number): void {
+      const value = clampEnergy(next)
+      if (value === energy) return
+      energy = value
+      applyEnergyUniforms()
     },
     render,
     dispose(): void {

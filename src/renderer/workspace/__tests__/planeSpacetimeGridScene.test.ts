@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   angularStepsForAspect,
+  energizedOpacityFactor,
+  energizedRotationMul,
+  energizedWarmth,
   interiorSphereLineWarmth,
   sphereCameraLookTarget,
   sphereCameraPosition,
@@ -82,6 +85,33 @@ describe('sphereRotationAxis', () => {
     expect(Math.abs(y)).toBeCloseTo(1, 5)
     expect(Math.abs(x)).toBeLessThan(0.01)
     expect(Math.abs(z)).toBeLessThan(0.01)
+  })
+})
+
+describe('energía del plano', () => {
+  it('sin energía deja warmth, opacidad y rotación en su base', () => {
+    expect(energizedWarmth(0.42, 0)).toBeCloseTo(0.42, 6)
+    expect(energizedOpacityFactor(0)).toBe(1)
+    expect(energizedRotationMul(0)).toBe(1)
+  })
+
+  it('a energía plena sube warmth 80%, opacidad 18% y rotación 50%', () => {
+    expect(energizedWarmth(0.42, 1)).toBeCloseTo(0.42 * 1.8, 6)
+    expect(energizedOpacityFactor(1)).toBeCloseTo(1.18, 6)
+    expect(energizedRotationMul(1)).toBeCloseTo(1.5, 6)
+  })
+
+  it('crece de forma monótona con la energía', () => {
+    expect(energizedWarmth(0.42, 0.7)).toBeGreaterThan(energizedWarmth(0.42, 0.4))
+    expect(energizedOpacityFactor(0.7)).toBeGreaterThan(energizedOpacityFactor(0.4))
+    expect(energizedRotationMul(0.7)).toBeGreaterThan(energizedRotationMul(0.4))
+  })
+
+  it('clampea energías fuera de rango o inválidas', () => {
+    expect(energizedWarmth(0.42, 5)).toBeCloseTo(energizedWarmth(0.42, 1), 6)
+    expect(energizedWarmth(0.42, -3)).toBeCloseTo(0.42, 6)
+    expect(energizedOpacityFactor(Number.NaN)).toBe(1)
+    expect(energizedRotationMul(9)).toBeCloseTo(1.5, 6)
   })
 })
 

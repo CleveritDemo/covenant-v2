@@ -57,18 +57,21 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.plane-chat-contexts-bar__chip--recent,
 .plane-chat-contexts-bar__chip--running {
   cursor: pointer;
   color: color-mix(in srgb, var(--text) 78%, transparent);
   font-weight: 500;
 }
 
+.plane-chat-contexts-bar__chip--recent:hover:not(:disabled),
 .plane-chat-contexts-bar__chip--running:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--border) 88%, transparent);
   color: var(--text);
   background: color-mix(in srgb, var(--bg-secondary) 22%, transparent);
 }
 
+.plane-chat-contexts-bar__chip--recent:disabled,
 .plane-chat-contexts-bar__chip--running:disabled {
   opacity: 0.55;
   cursor: default;

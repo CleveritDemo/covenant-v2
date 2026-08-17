@@ -90,17 +90,19 @@ function liveShellCover(
 }
 
 /**
- * Transform del root a tamaño full que equivale visualmente al mini con shell cover.
- * Usa la misma escala uniforme (no sx/sy distintos → sin estirar el PTY).
+ * Transform del root full → mini para morph FLIP de terminales live.
+ * Fit exacto (sx/sy) para que el landing coincida con la ranura mini.
+ * El preview estático usa cover uniforme dentro del body (overflow clip).
  */
-function liveParkedTransform(
+export function computePaneMiniMorphTransform(
   mini: RectBox,
   geo: { x: number; y: number; width: number; height: number },
 ): string {
-  const { scale, offsetX, offsetY } = liveShellCover(mini, geo.width, geo.height)
-  const dx = mini.x + offsetX - geo.x
-  const dy = mini.y + offsetY - geo.y
-  return `translate(${dx}px, ${dy}px) scale(${scale})`
+  const sx = mini.w / Math.max(geo.width, 1)
+  const sy = mini.h / Math.max(geo.height, 1)
+  const dx = mini.x - geo.x
+  const dy = mini.y - geo.y
+  return `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`
 }
 
 type PaneZoomSetters = {
@@ -486,7 +488,7 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     }
     // Live terminal: misma escala uniforme del shell cover. Resto: fit exacto de caja.
     const parked = miniLivePreview
-      ? liveParkedTransform(slot, geo)
+      ? computePaneMiniMorphTransform(slot, geo)
       : (() => {
           const sx = slot.w / Math.max(geo.width, 1)
           const sy = slot.h / Math.max(geo.height, 1)

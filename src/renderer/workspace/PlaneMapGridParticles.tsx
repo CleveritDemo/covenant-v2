@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { isReduceMotionActive } from '../reduceMotion'
+import { stepPlaneEnergy } from './planeEnergyEnvelope'
 import {
   getThemeMusicBands,
   getThemeMusicBeat,
@@ -80,6 +81,19 @@ const CELL_INSET = 0.15
 const VISUAL_BEAT_ATTACK = 0.42
 /** Release del pulso visual (más lento que el ataque). */
 const VISUAL_BEAT_RELEASE = 0.12
+/** Piso de alpha con el plano a energía plena (agentes trabajando). */
+const ALPHA_ENERGY_FLOOR = 0.30
+/** Expansión extra del halo con energía plena. */
+const HALO_SCALE_ENERGY = 0.4
+
+/**
+ * Piso de opacidad según energía del plano: idle sin agentes busy,
+ * ALPHA_ENERGY_FLOOR con el plano encendido.
+ */
+export function particleAlphaFloorForEnergy(energy: number): number {
+  const e = Number.isFinite(energy) ? Math.min(1, Math.max(0, energy)) : 0
+  return ALPHA_IDLE + (ALPHA_ENERGY_FLOOR - ALPHA_IDLE) * e
+}
 
 /**
  * Tamaño base por banda de frecuencia: más grave → más grande.
@@ -265,17 +279,19 @@ function drawParticle(
   p: Particle,
   bandIntensity: number,
   beatPulse: number,
+  energy: number,
 ): void {
   const lifeRatio = Math.min(1, Math.max(0, p.life / p.maxLife))
   const fade = Math.sin(lifeRatio * Math.PI)
   const intensity = Math.min(1, Math.max(0, bandIntensity))
   const beat = Math.min(1, Math.max(0, beatPulse))
+  const alphaFloor = particleAlphaFloorForEnergy(energy)
   const bandBoost = (ALPHA_MUSIC_PEAK - ALPHA_IDLE) * intensity
   const beatBoost = ALPHA_BEAT_BOOST * beat
   // Beat eleva el piso; la banda mantiene quién brilla más.
   const alpha = Math.max(
     0,
-    fade * Math.min(ALPHA_CAP, ALPHA_IDLE + bandBoost + beatBoost),
+    fade * Math.min(ALPHA_CAP, alphaFloor + bandBoost + beatBoost),
   )
   if (alpha < 0.01) return
 
@@ -284,7 +300,9 @@ function drawParticle(
   )
   if (radius < 0.15) return
 
-  const haloScale = HALO_SCALE_BASE + HALO_SCALE_BEAT * beat
+  const haloScale = HALO_SCALE_BASE
+    + HALO_SCALE_BEAT * beat
+    + HALO_SCALE_ENERGY * Math.min(1, Math.max(0, energy))
   const drawRadius = radius * haloScale
   const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, drawRadius)
   gradient.addColorStop(0, p.color)
@@ -300,15 +318,25 @@ function drawParticle(
 
 type PlaneMapGridParticlesProps = {
   active?: boolean
+  /** Energía objetivo del plano 0..1 (agentes busy); se suaviza en el tick. */
+  energyTarget?: number
 }
 
 /** Partículas ambientales lentas sobre la cuadrícula del PlaneMap (solo con motion). */
 export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
   active = true,
+  energyTarget = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const reducedMotion = usePrefersReducedMotion()
   const shouldRun = active && !reducedMotion
+  // Ref y no dependencia: cambiar la energía no debe reiniciar las partículas.
+  const energyTargetRef = useRef(energyTarget)
+  const energyRef = useRef(0)
+
+  useEffect(() => {
+    energyTargetRef.current = energyTarget
+  }, [energyTarget])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -381,6 +409,20 @@ export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
     if (ro && canvas.parentElement) ro.observe(canvas.parentElement)
     window.addEventListener('resize', resize)
 
+    // Mismo observador de tema que la esfera (PlaneMapSphericalGrid): recolorea
+    // las partículas vivas in place, sin tocar posición, vida ni energía.
+    const themeObserver = new MutationObserver(() => {
+      colors = readThemeColors(canvas)
+      for (let i = 0; i < particles.length; i += 1) {
+        const p = particles[i]!
+        p.color = colorForFrequencyBand(colors, p.frequencyBand)
+      }
+    })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'data-theme-appearance', 'style'],
+    })
+
     const tick = (ts: number): void => {
       if (!running) return
       if (lastTs < 0) lastTs = ts
@@ -408,6 +450,12 @@ export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
       const bpmBlend = 1 - Math.pow(1 - BPM_SMOOTH, dt * 60)
       visualBpm += (targetBpm - visualBpm) * bpmBlend
       const speedMul = driftSpeedForBpm(visualBpm > 1 ? visualBpm : null)
+      energyRef.current = stepPlaneEnergy(
+        energyRef.current,
+        energyTargetRef.current,
+        dt,
+      )
+      const energy = energyRef.current
 
       for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i]!
@@ -434,7 +482,7 @@ export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
 
         const bandLevel = bands[p.frequencyBand] ?? 0
         const pulseIntensity = bandIntensityForParticle(p, bandLevel)
-        drawParticle(ctx, p, pulseIntensity, drawBeat)
+        drawParticle(ctx, p, pulseIntensity, drawBeat, energy)
       }
 
       rafId = requestAnimationFrame(tick)
@@ -447,6 +495,7 @@ export const PlaneMapGridParticles: React.FC<PlaneMapGridParticlesProps> = ({
       cancelAnimationFrame(rafId)
       particles.length = 0
       ro?.disconnect()
+      themeObserver.disconnect()
       window.removeEventListener('resize', resize)
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)

@@ -3,9 +3,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  computePlaneMiniSlotCell,
   computePlaneMiniSlotPadX,
   PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+  PLANE_MINI_AGENT_WIDTH,
+  PLANE_MINI_TERMINAL_HEIGHT,
   PLANE_MINI_SLOT_GAP,
   PLANE_MINI_SLOT_PAD_Y,
 } from '@shared/paneWindows'
@@ -35,7 +36,7 @@ const AGENT_HEIGHTS = { a1: 100, a2: 140 }
 
 describe('buildSlotOrigins virtual scroll', () => {
   it('shifts terminal slots up by scrollOffsets.terminal only', () => {
-    const manyTerminals = Array.from({ length: 6 }, (_, index) => (
+    const manyTerminals = Array.from({ length: 10 }, (_, index) => (
       makeEntity(`t${index}`, 'terminal')
     ))
     const base = buildSlotOrigins(manyTerminals, VIEWPORT, {})
@@ -71,9 +72,8 @@ describe('buildSlotOrigins virtual scroll', () => {
 
   it('computes per-column content heights', () => {
     const layout = buildSlotOrigins(ENTITIES, VIEWPORT, AGENT_HEIGHTS)
-    const cell = computePlaneMiniSlotCell(VIEWPORT, 3)
     expect(layout.contentHeights.terminal).toBe(
-      PLANE_MINI_SLOT_PAD_Y + 3 * cell.height + 2 * PLANE_MINI_SLOT_GAP,
+      PLANE_MINI_SLOT_PAD_Y + 3 * PLANE_MINI_TERMINAL_HEIGHT + 2 * PLANE_MINI_SLOT_GAP,
     )
     expect(layout.contentHeights.agent).toBe(
       PLANE_MINI_SLOT_PAD_Y + AGENT_HEIGHTS.a1 + AGENT_HEIGHTS.a2 + PLANE_MINI_SLOT_GAP,
@@ -106,14 +106,13 @@ describe('buildSlotOrigins virtual scroll', () => {
     })
     expect(implicit.origins).toEqual(explicitZero.origins)
 
-    const cell = computePlaneMiniSlotCell(VIEWPORT, 3)
     const padX = computePlaneMiniSlotPadX(VIEWPORT, 3)
-    const stride = cell.height + PLANE_MINI_SLOT_GAP
+    const stride = PLANE_MINI_TERMINAL_HEIGHT + PLANE_MINI_SLOT_GAP
     expect(implicit.origins.t1).toEqual({
       x: padX,
       y: PLANE_MINI_SLOT_PAD_Y,
-      width: cell.width,
-      height: cell.height,
+      width: PLANE_MINI_AGENT_WIDTH,
+      height: PLANE_MINI_TERMINAL_HEIGHT,
     })
     expect(implicit.origins.t2.y).toBe(PLANE_MINI_SLOT_PAD_Y + stride)
     const agentContentHeight = PLANE_MINI_SLOT_PAD_Y

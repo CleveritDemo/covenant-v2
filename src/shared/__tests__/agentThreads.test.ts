@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_THREAD_ID,
   MAX_THREADS_PER_PANE,
+  MAX_RECENT_CHIP_THREADS,
   chipVisibleThreadIds,
   deleteThread,
   newThread,
@@ -17,6 +18,8 @@ import {
   sortThreadsByRecency,
   stripThreadSessions,
   splitThreadHistoryCandidates,
+  recentChipThreads,
+  threadBarCandidates,
   threadHistoryCandidates,
   threadPatch,
   threadTitleFrom,
@@ -385,33 +388,53 @@ describe('thread history helpers', () => {
     { id: 't6', title: 'Six', updatedAt: 1 },
   ]
 
-  it('chipVisibleThreadIds incluye activo y running', () => {
-    const ids = chipVisibleThreadIds('t1', ['t2', 't3'])
-    expect([...ids].sort()).toEqual(['t1', 't2', 't3'])
+  it('chipVisibleThreadIds incluye activo y hasta 5 recientes', () => {
+    const ids = chipVisibleThreadIds(threads, 't1', ['t2', 't3'])
+    expect([...ids].sort()).toEqual(['t1', 't2', 't3', 't4', 't5', 't6'])
   })
 
-  it('threadHistoryCandidates excluye el activo y ordena por recencia', () => {
-    const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
-    expect(candidates.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'])
+  it('recentChipThreads devuelve hasta MAX_RECENT_CHIP_THREADS sin el activo', () => {
+    const recent = recentChipThreads(threads, 't1', ['t2'])
+    expect(recent.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'].slice(0, MAX_RECENT_CHIP_THREADS))
+    expect(recent).toHaveLength(MAX_RECENT_CHIP_THREADS)
   })
 
-  it('threadHistoryCandidates deja fuera los carriles de delegación cerrados', () => {
+  it('threadHistoryCandidates excluye activo y chips recientes', () => {
+    const sevenThreads = [
+      ...threads,
+      { id: 't7', title: 'Seven', updatedAt: 0 },
+    ]
+    const candidates = threadHistoryCandidates(sevenThreads, 't1', ['t2'])
+    expect(candidates.map(thread => thread.id)).toEqual(['t7'])
+  })
+
+  it('threadBarCandidates deja fuera los carriles de delegación cerrados', () => {
     const withLanes = [
       ...threads,
       { id: 'd1', title: '', updatedAt: 900, origin: 'delegation' as const },
       { id: 'd2', title: '', updatedAt: 901, origin: 'delegation' as const },
     ]
     // d2 sigue corriendo: se muestra. d1 ya terminó: no ensucia el historial.
-    const candidates = threadHistoryCandidates(withLanes, 't1', ['d2'])
+    const candidates = threadBarCandidates(withLanes, 't1', ['d2'])
     expect(candidates.map(thread => thread.id)).toContain('d2')
     expect(candidates.map(thread => thread.id)).not.toContain('d1')
   })
 
   it('paginateThreadHistory devuelve items y hasMore', () => {
-    const candidates = threadHistoryCandidates(threads, 't1', ['t2'])
+    const manyThreads = [
+      ...threads,
+      { id: 't7', title: 'Seven', updatedAt: 0 },
+      { id: 't8', title: 'Eight', updatedAt: -1 },
+      { id: 't9', title: 'Nine', updatedAt: -2 },
+      { id: 't10', title: 'Ten', updatedAt: -3 },
+      { id: 't11', title: 'Eleven', updatedAt: -4 },
+      { id: 't12', title: 'Twelve', updatedAt: -5 },
+    ]
+    const candidates = threadHistoryCandidates(manyThreads, 't1', ['t2'])
+    expect(candidates.map(thread => thread.id)).toEqual(['t7', 't8', 't9', 't10', 't11', 't12'])
     expect(paginateThreadHistory(candidates, 5)).toEqual({
       items: candidates.slice(0, 5),
-      hasMore: false,
+      hasMore: true,
     })
     expect(paginateThreadHistory(candidates, 2)).toEqual({
       items: candidates.slice(0, 2),
@@ -419,13 +442,14 @@ describe('thread history helpers', () => {
     })
   })
 
-  it('splitThreadHistoryCandidates pone delegaciones antes que humanos', () => {
+  it('splitThreadHistoryCandidates pone delegaciones antes que humanos y omite chips recientes', () => {
     const withLanes = [
       ...threads,
+      { id: 't7', title: 'Seven', updatedAt: 0 },
       { id: 'd2', title: '', updatedAt: 901, origin: 'delegation' as const },
     ]
     const { delegations, humans } = splitThreadHistoryCandidates(withLanes, 't1', ['d2', 't2'])
-    expect(delegations.map(thread => thread.id)).toEqual(['d2'])
-    expect(humans.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'])
+    expect(delegations.map(thread => thread.id)).toEqual([])
+    expect(humans.map(thread => thread.id)).toEqual(['t6', 't7'])
   })
 })

@@ -67,9 +67,9 @@
   border: none;
   border-radius: var(--tab-shape-radius);
   clip-path: var(--tab-shape-clip, inset(0 round var(--tab-shape-radius)));
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--border) 16%, transparent);
+  /* Solo brillo superior: el borde inferior lo pone `.tabbar`. Si la pastilla
+     también lo pinta se apilan dos líneas de 1px sobre las pestañas. */
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
   transition:
     background-size 0.38s cubic-bezier(0.22, 1, 0.36, 1),
     background-color 0.24s cubic-bezier(0.22, 1, 0.36, 1),
@@ -109,9 +109,7 @@
 .tab:hover::before {
   background-color: color-mix(in srgb, var(--surface) 78%, var(--accent-veil));
   background-size: var(--tab-fill-bg-hover-size, 100% 100%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--border) 16%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 }
 
 .tab--active {
@@ -122,9 +120,7 @@
 .tab--active::before {
   background-color: color-mix(in srgb, var(--tab-active-bg) 92%, var(--surface));
   background-size: var(--tab-fill-bg-hover-size, 100% 100%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
-    inset 0 -1px 0 color-mix(in srgb, var(--border) 16%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 }
 
 :root[data-theme-category='glow'] .tab:hover {

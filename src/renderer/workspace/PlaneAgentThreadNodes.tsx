@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
+import { readPlaneMiniAgentLayoutHeight } from '@shared/paneWindows'
 import { PlaneBusyDot, type PlaneBusyDotVariant } from '../components/ui/PlaneBusyDot'
 import type { PlaneMiniRowKind } from './planeThreadNodes'
 import './PlaneAgentThreadNodes.css'
@@ -77,9 +78,10 @@ export const PlaneAgentThreadNodes: React.FC<PlaneAgentThreadNodesProps> = ({
       setWrapHeight(next)
     }
 
+    // Altura de layout local: el rect incluye el tilt/escala 3D de la columna
+    // y dejaba unos px muertos bajo la última fila de hilo o delegación.
     const measure = (): void => {
-      const next = Math.ceil(inner.getBoundingClientRect().height)
-      applyHeight(next)
+      applyHeight(readPlaneMiniAgentLayoutHeight(inner))
     }
 
     if (prevCountRef.current === 0 && runningThreads.length > 0) {

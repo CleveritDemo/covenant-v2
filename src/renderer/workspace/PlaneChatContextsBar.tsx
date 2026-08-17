@@ -1,8 +1,7 @@
 import React, { useId, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
-import type { AgentThread } from '@shared/agentThreads'
-import { chipVisibleThreadIds } from '@shared/agentThreads'
+import { recentChipThreads, type AgentThread } from '@shared/agentThreads'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
@@ -87,10 +86,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       awaitingDelegationThreadIds,
     )
     : null
-  const chipVisibleIds = chipVisibleThreadIds(activeThreadId, runningThreadIds)
-  const backgroundRunningThreads = threads.filter(
-    thread => chipVisibleIds.has(thread.id) && thread.id !== activeThreadId,
-  )
+  const recentChipThreadsList = recentChipThreads(threads, activeThreadId, runningThreadIds)
   const activeChipTitle = activeThread
     ? threadChipTitle(activeThread, t)
     : ''
@@ -112,30 +108,39 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
     setDraftTitle(thread.title || '')
   }
 
-  const renderRunningChip = (thread: AgentThread): React.ReactNode => {
+  const renderRecentChip = (thread: AgentThread): React.ReactNode => {
     const title = threadChipTitle(thread, t)
-    const chipDot = resolveThreadChipActivityDot(
-      thread.id,
-      activeThreadId,
-      awaitingDelegations,
-      runningThreadIds,
-      paneCliBusy,
-      awaitingDelegationThreadIds,
-    )
+    const isRunning = runningThreadIds.includes(thread.id)
+    const chipDot = isRunning
+      ? resolveThreadChipActivityDot(
+        thread.id,
+        activeThreadId,
+        awaitingDelegations,
+        runningThreadIds,
+        paneCliBusy,
+        awaitingDelegationThreadIds,
+      )
+      : null
     const activity = runningThreadActivities[thread.id]?.trim()
       || (chipDot === 'delegating'
         ? t('agentPane.delegatingTitle')
         : t('agentPane.awaitingStatusRunning'))
-    const hint = threadSelectionLocked
-      ? activity
-      : `${activity} · ${t('agentPane.threadBackgroundDotHint')}`
+    const hint = isRunning
+      ? (threadSelectionLocked
+        ? activity
+        : `${activity} · ${t('agentPane.threadBackgroundDotHint')}`)
+      : title
 
     return (
       <Tooltip key={thread.id} content={title} hint={hint}>
         <button
           type="button"
           role="option"
-          className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--running"
+          className={[
+            'plane-chat-contexts-bar__chip',
+            'plane-chat-contexts-bar__chip--recent',
+            isRunning ? 'plane-chat-contexts-bar__chip--running' : '',
+          ].filter(Boolean).join(' ')}
           disabled={threadSelectionLocked}
           aria-label={title}
           aria-selected={false}
@@ -158,7 +163,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-contexts-bar__stack">
-        {backgroundRunningThreads.length > 0 || (showThreads && activeThread) ? (
+        {recentChipThreadsList.length > 0 || (showThreads && activeThread) ? (
           <div className="plane-chat-contexts-bar__chips-scroll">
             {showThreads ? (
               <div
@@ -226,7 +231,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                     </div>
                   )
                 ) : null}
-                {backgroundRunningThreads.map(renderRunningChip)}
+                {recentChipThreadsList.map(renderRecentChip)}
               </div>
             ) : null}
           </div>

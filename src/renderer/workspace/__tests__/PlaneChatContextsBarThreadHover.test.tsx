@@ -36,8 +36,13 @@ beforeAll(() => {
 afterEach(cleanup)
 
 const threads = [
-  { id: 't-1', title: 'One', updatedAt: 2, createdAt: 1 },
-  { id: 't-2', title: 'Two', updatedAt: 1, createdAt: 1 },
+  { id: 't-1', title: 'One', updatedAt: 7, createdAt: 1 },
+  { id: 't-2', title: 'Two', updatedAt: 6, createdAt: 1 },
+  { id: 't-3', title: 'Three', updatedAt: 5, createdAt: 1 },
+  { id: 't-4', title: 'Four', updatedAt: 4, createdAt: 1 },
+  { id: 't-5', title: 'Five', updatedAt: 3, createdAt: 1 },
+  { id: 't-6', title: 'Six', updatedAt: 2, createdAt: 1 },
+  { id: 't-7', title: 'Seven', updatedAt: 1, createdAt: 1 },
 ]
 
 describe('PlaneChatContextsBar thread history hover', () => {
@@ -62,7 +67,7 @@ describe('PlaneChatContextsBar thread history hover', () => {
 
     const panel = screen.getByRole('listbox', { hidden: true })
     expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(true)
-    expect(panel.textContent).toContain('Two')
+    expect(panel.textContent).toContain('Seven')
     vi.useRealTimers()
   })
 })

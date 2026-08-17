@@ -95,10 +95,10 @@ function openHistoryPanel(): HTMLElement {
 }
 
 describe('PlaneChatThreadHistoryButton', () => {
-  it('con 6 hilos lista el resto por recencia sin el activo (paginado)', () => {
+  it('con 7+ hilos lista solo los que no están en chips recientes (paginado)', () => {
     render(
       <HistoryHarness
-        threads={makeThreads(6)}
+        threads={makeThreads(7)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         onSelectThread={() => undefined}
@@ -106,10 +106,10 @@ describe('PlaneChatThreadHistoryButton', () => {
     )
     const panel = openHistoryPanel()
     const options = panel.querySelectorAll('[role="option"]')
-    expect(options).toHaveLength(5)
+    expect(options).toHaveLength(1)
     expect(panel.textContent).not.toContain('Thread 1')
-    expect(panel.textContent).toContain('Thread 2')
-    expect(panel.textContent).toContain('Thread 3')
+    expect(panel.textContent).not.toContain('Thread 2')
+    expect(panel.textContent).toContain('Thread 7')
     expect(options[0]?.getAttribute('aria-selected')).toBe('false')
     expect(panel.textContent).not.toContain('agentPane.threadHistory')
   })
@@ -117,7 +117,7 @@ describe('PlaneChatThreadHistoryButton', () => {
   it('scroll al fondo carga la página 2 (+5)', () => {
     render(
       <HistoryHarness
-        threads={makeThreads(12)}
+        threads={makeThreads(18)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         onSelectThread={() => undefined}
@@ -139,40 +139,46 @@ describe('PlaneChatThreadHistoryButton', () => {
     const onSelectThread = vi.fn()
     render(
       <HistoryHarness
-        threads={makeThreads(6)}
+        threads={makeThreads(7)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         onSelectThread={onSelectThread}
       />,
     )
     const panel = openHistoryPanel()
-    fireEvent.pointerDown(screen.getByRole('option', { name: 'Thread 3' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Thread 3' }))
+    fireEvent.pointerDown(screen.getByRole('option', { name: 'Thread 7' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Thread 7' }))
 
-    expect(onSelectThread).toHaveBeenCalledWith('t-3')
+    expect(onSelectThread).toHaveBeenCalledWith('t-7')
     expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
   })
 
-  it('delegaciones van antes que conversaciones humanas', () => {
+  it('delegaciones en historial van antes que conversaciones humanas', () => {
     const threads: AgentThread[] = [
       { id: 't-1', title: 'Human active', updatedAt: 10 },
       { id: 't-2', title: 'Human two', updatedAt: 8 },
-      { id: 'd-1', title: '', updatedAt: 9, origin: 'delegation' },
+      { id: 't-3', title: 'Human three', updatedAt: 7 },
+      { id: 't-4', title: 'Human four', updatedAt: 6 },
+      { id: 't-5', title: 'Human five', updatedAt: 5 },
+      { id: 't-6', title: 'Human six', updatedAt: 4 },
+      { id: 't-7', title: 'Human seven', updatedAt: 3 },
+      { id: 'd-1', title: '', updatedAt: 2, origin: 'delegation' },
+      { id: 'd-2', title: '', updatedAt: 1, origin: 'delegation' },
     ]
     render(
       <HistoryHarness
         threads={threads}
         activeThreadId="t-1"
-        runningThreadIds={['d-1', 't-2']}
+        runningThreadIds={['d-1', 'd-2']}
         onSelectThread={() => undefined}
       />,
     )
     const panel = openHistoryPanel()
     const options = panel.querySelectorAll('[role="option"]')
-    expect(options).toHaveLength(2)
+    expect(options).toHaveLength(3)
     expect(options[0]?.textContent).toContain('agentPane.awaitingStatusRunning')
     expect(options[0]?.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
-    expect(options[1]?.textContent).toContain('Human two')
+    expect(options[2]?.textContent).toContain('Human seven')
   })
 
   it('sin hilos no monta el panel', () => {

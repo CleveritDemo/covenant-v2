@@ -28,6 +28,13 @@
   z-index: 95;
 }
 
+/* En pantalla completa el pane llena el panel y el overlay se lee como marco del
+   workspace. Solo ahí se apaga; en splits y minis sigue separando. */
+.pane-window--fullscreen .terminal-pane::after,
+.pane-window--zooming-to-fullscreen .terminal-pane::after {
+  display: none;
+}
+
 .terminal-pane--inactive-pane .terminal-pane-main,
 .terminal-pane--inactive-pane .terminal-suggest-stack {
   opacity: 0.88;

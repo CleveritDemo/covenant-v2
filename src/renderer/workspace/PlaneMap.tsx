@@ -12,7 +12,9 @@ import {
   estimatePlaneAgentMiniHeight,
   PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
+  PLANE_MINI_AGENT_BASE_HEIGHT,
   PLANE_MINI_AGENT_WIDTH,
+  PLANE_MINI_TERMINAL_HEIGHT,
   PLANE_MINI_SLOT_PAD_X,
   PLANE_MINI_SLOT_PAD_Y,
   PLANE_MINI_WINDOW_HEIGHT,
@@ -220,7 +222,7 @@ export function buildSlotOrigins(
   const terminalWindow = computePlaneColumnWindowing({
     items: terminals.map(entity => ({
       id: entity.paneId,
-      height: cell.height,
+      height: PLANE_MINI_TERMINAL_HEIGHT,
     })),
     viewportHeight: viewport.height,
     scrollOffset: scrollOffsets.terminal,
@@ -231,7 +233,7 @@ export function buildSlotOrigins(
     origins[slot.id] = {
       x: terminalX,
       y: slot.y,
-      width: cell.width,
+      width: PLANE_MINI_AGENT_WIDTH,
       height: slot.height,
     }
   }
@@ -450,6 +452,12 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
   )
   const agentsInOrder = useMemo(
     () => entities.filter(entity => entity.kind === 'agent'),
+    [entities],
+  )
+
+  // Energía del fondo: cuántos agentes están trabajando ahora mismo.
+  const busyAgentCount = useMemo(
+    () => entities.filter(entity => entity.kind === 'agent' && entity.busy).length,
     [entities],
   )
 
@@ -859,7 +867,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       width: PLANE_MINI_WINDOW_WIDTH,
       height: PLANE_MINI_WINDOW_HEIGHT,
     }
-    const reserved = entity.kind !== 'agent' && entity.window.open
     const isDragging = reorder.draggingId === entity.paneId
     const dragPos = isDragging ? reorder.dragPosition : null
     const columnEnabled = (
@@ -868,103 +875,92 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         : agentReorderEnabled && agentIds.length >= 2
     )
 
+    // Al expandir, el hueco de la mini queda vacío: sin placeholder. El slot se
+    // sigue reservando en buildSlotOrigins, así que nada se recoloca.
     return (
-      <React.Fragment key={entity.paneId}>
-        {reserved ? (
-          <div
-            className="plane-map__slot-reserve"
-            style={{
-              left: slot.x,
-              top: slot.y,
-              width: slot.width,
-              height: slot.height,
-            }}
-            aria-hidden="true"
-          />
-        ) : null}
-        <PlanePaneWindow
-          paneId={entity.paneId}
-          kind={entity.kind}
-          title={entity.title}
-          seatDragEnabled={seatDragEnabled && !entity.localOnly}
-          deferPositionMotion={deferPositionMotion}
-          fadeProgress={fadeProgressById[entity.paneId] ?? 1}
-          centerScale={entity.kind === 'agent'
-            ? centerScaleById[entity.paneId] ?? 1
-            : undefined}
-          outOfBand={(fadeProgressById[entity.paneId] ?? 1) <= 0}
-          monogram={entity.monogram}
-          busy={entity.busy}
-          awaitingDelegations={entity.awaitingDelegations}
-          provider={entity.provider}
-          coordination={entity.coordination}
-          orchestrationWorkStyle={entity.orchestrationWorkStyle}
-          snippet={entity.snippet}
-          idleLabel={idleAgentLabel}
-          window={entity.window}
-          openGeometry={openGeometry}
-          miniOrigin={slot}
-          activePaneId={activePaneId}
-          chatActive={entity.kind === 'agent' && entity.paneId === chatActiveAgentId}
-          tabActive={tabActive}
-          contexts={entity.contexts}
-          configLabel={configLabel}
-          deleteLabel={deleteLabel}
-          maximizeLabel={maximizeLabel}
-          restoreLabel={restoreLabel}
-          closeWindowLabel={closeWindowLabel}
-          customTitle={entity.customTitle}
-          folderName={entity.folderName}
-          onExpand={() => onExpandEntity(entity.paneId)}
-          onClose={() => onCloseWindow(entity.paneId)}
-          onFocus={() => onFocusWindow(entity.paneId)}
-          onToggleFullscreen={() => onToggleFullscreen(entity.paneId)}
-          onOpenConfig={() => onOpenConfig(entity.paneId)}
-          onOpenChat={() => onOpenChat(entity.paneId)}
-          onDelete={() => onDeletePane(entity.paneId)}
-          onRename={entity.kind === 'terminal' && onRenamePane
-            ? next => onRenamePane(entity.paneId, next)
-            : undefined}
-          onDropContext={entity.kind === 'agent' && onAssignContext
-            ? contextId => onAssignContext(entity.paneId, contextId)
-            : undefined}
-          onOpenResultsPreview={entity.kind === 'agent' ? onOpenResultsPreview : undefined}
-          onMiniContentHeightChange={entity.kind === 'agent' ? handleAgentMiniHeight : undefined}
-          reorderEnabled={columnEnabled}
-          reorderState={reorder.getVisualState(entity.paneId)}
-          reorderJiggleDelayMs={(indexInColumn % 5) * 40}
-          slotMotion={reorderActive}
-          dragPosition={dragPos}
-          onReorderPointerDown={event => {
+      <PlanePaneWindow
+        key={entity.paneId}
+        paneId={entity.paneId}
+        kind={entity.kind}
+        title={entity.title}
+        seatDragEnabled={seatDragEnabled && !entity.localOnly}
+        deferPositionMotion={deferPositionMotion}
+        fadeProgress={fadeProgressById[entity.paneId] ?? 1}
+        centerScale={entity.kind === 'agent'
+          ? centerScaleById[entity.paneId] ?? 1
+          : undefined}
+        outOfBand={(fadeProgressById[entity.paneId] ?? 1) <= 0}
+        monogram={entity.monogram}
+        busy={entity.busy}
+        awaitingDelegations={entity.awaitingDelegations}
+        provider={entity.provider}
+        coordination={entity.coordination}
+        orchestrationWorkStyle={entity.orchestrationWorkStyle}
+        snippet={entity.snippet}
+        idleLabel={idleAgentLabel}
+        window={entity.window}
+        openGeometry={openGeometry}
+        miniOrigin={slot}
+        activePaneId={activePaneId}
+        chatActive={entity.kind === 'agent' && entity.paneId === chatActiveAgentId}
+        tabActive={tabActive}
+        contexts={entity.contexts}
+        configLabel={configLabel}
+        deleteLabel={deleteLabel}
+        maximizeLabel={maximizeLabel}
+        restoreLabel={restoreLabel}
+        closeWindowLabel={closeWindowLabel}
+        customTitle={entity.customTitle}
+        folderName={entity.folderName}
+        onExpand={() => onExpandEntity(entity.paneId)}
+        onClose={() => onCloseWindow(entity.paneId)}
+        onFocus={() => onFocusWindow(entity.paneId)}
+        onToggleFullscreen={() => onToggleFullscreen(entity.paneId)}
+        onOpenConfig={() => onOpenConfig(entity.paneId)}
+        onOpenChat={() => onOpenChat(entity.paneId)}
+        onDelete={() => onDeletePane(entity.paneId)}
+        onRename={entity.kind === 'terminal' && onRenamePane
+          ? next => onRenamePane(entity.paneId, next)
+          : undefined}
+        onDropContext={entity.kind === 'agent' && onAssignContext
+          ? contextId => onAssignContext(entity.paneId, contextId)
+          : undefined}
+        onOpenResultsPreview={entity.kind === 'agent' ? onOpenResultsPreview : undefined}
+        onMiniContentHeightChange={entity.kind === 'agent' ? handleAgentMiniHeight : undefined}
+        reorderEnabled={columnEnabled}
+        reorderState={reorder.getVisualState(entity.paneId)}
+        reorderJiggleDelayMs={(indexInColumn % 5) * 40}
+        slotMotion={reorderActive}
+        dragPosition={dragPos}
+        onReorderPointerDown={event => {
+          if (column === 'terminal') agentReorder.cancel()
+          else terminalReorder.cancel()
+          reorder.onCardPointerDown(entity.paneId, event)
+        }}
+        onReorderHandlePointerDown={entity.kind === 'agent'
+          ? event => {
             if (column === 'terminal') agentReorder.cancel()
             else terminalReorder.cancel()
-            reorder.onCardPointerDown(entity.paneId, event)
-          }}
-          onReorderHandlePointerDown={entity.kind === 'agent'
-            ? event => {
-              if (column === 'terminal') agentReorder.cancel()
-              else terminalReorder.cancel()
-              reorder.onHandlePointerDown(entity.paneId, event)
-            }
-            : undefined}
-          agentId={entity.agentId}
-          cwd={cwd}
-          contextsRevision={contextsRevision}
-          threadNodes={entity.kind === 'agent' && entity.threads
-            ? entity.threads.map(thread => ({
-              ...thread,
-              active: thread.kind === 'delegation'
-                ? false
-                : thread.id === entity.activeThreadId,
-            }))
-            : undefined}
-          onOpenThread={entity.kind === 'agent' && onOpenThread
-            ? threadId => onOpenThread(entity.paneId, threadId)
-            : undefined}
-        >
-          {renderPane(entity.paneId)}
-        </PlanePaneWindow>
-      </React.Fragment>
+            reorder.onHandlePointerDown(entity.paneId, event)
+          }
+          : undefined}
+        agentId={entity.agentId}
+        cwd={cwd}
+        contextsRevision={contextsRevision}
+        threadNodes={entity.kind === 'agent' && entity.threads
+          ? entity.threads.map(thread => ({
+            ...thread,
+            active: thread.kind === 'delegation'
+              ? false
+              : thread.id === entity.activeThreadId,
+          }))
+          : undefined}
+        onOpenThread={entity.kind === 'agent' && onOpenThread
+          ? threadId => onOpenThread(entity.paneId, threadId)
+          : undefined}
+      >
+        {renderPane(entity.paneId)}
+      </PlanePaneWindow>
     )
   }
 
@@ -982,6 +978,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
       aria-label={reorderActive ? reorderAriaLabel : undefined}
     >
       <PlaneMapBackdrop
+        busyAgentCount={busyAgentCount}
         floorParticles={
           chatFloorGlowVisible && planeFloorAuroraActive(chatFloorGlowWorking, stageHidden) ? (
             <div className="plane-map__floor-particles" aria-hidden="true">

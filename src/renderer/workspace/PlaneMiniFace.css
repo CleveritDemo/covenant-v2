@@ -1,5 +1,6 @@
 .plane-mini-face {
-  --plane-mini-face-section-gap: 8px;
+  /* Banda entre estado/hilos y contextos: mínima, sin hueco muerto bajo las delegaciones. */
+  --plane-mini-face-section-gap: 4px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -153,9 +154,11 @@
   cursor: grabbing;
 }
 
+/* Único hueco entre secciones de la card: header / estado-hilos / nodos. Sin líneas. */
 .plane-mini-face__main {
   display: flex;
   flex-direction: column;
+  gap: var(--plane-mini-face-section-gap);
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -173,7 +176,6 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  margin-bottom: 6px;
 }
 
 .plane-mini-face__identity {
@@ -402,7 +404,6 @@
   flex-shrink: 0;
   width: 100%;
   min-height: 0;
-  margin-top: var(--plane-mini-face-section-gap);
   gap: var(--plane-mini-face-section-gap);
   transition: gap 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -420,8 +421,16 @@
 }
 
 .plane-mini-face--compact .plane-mini-face__header {
-  margin-bottom: 3px;
   gap: 6px;
+}
+
+/* Brainstorm/modales conservan su ritmo propio: header pegado al estado, nodos sueltos. */
+.plane-mini-face--compact .plane-mini-face__main {
+  gap: 3px;
+}
+
+.plane-mini-face--compact .plane-mini-face__nodes {
+  margin-top: calc(var(--plane-mini-face-section-gap) - 3px);
 }
 
 .plane-mini-face--compact .plane-mini-face__controls-btn {

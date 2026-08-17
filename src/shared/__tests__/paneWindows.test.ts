@@ -27,6 +27,7 @@ import {
   PLANE_MINI_BOTTOM_CLEARANCE,
   PLANE_MINI_AGENT_WIDTH,
   PLANE_MINI_MAX_WIDTH,
+  PLANE_MINI_TERMINAL_HEIGHT,
   PLANE_MINI_WINDOW_HEIGHT,
   PLANE_MINI_WINDOW_WIDTH,
   PLANE_TOOLS_RAIL_RESERVE,
@@ -61,7 +62,7 @@ describe('paneWindows', () => {
     const base = computePlaneMiniSlotCell({ width: 1280, height: 800 }, 1)
     expect(base).toEqual({
       width: PLANE_MINI_WINDOW_WIDTH,
-      height: PLANE_MINI_WINDOW_HEIGHT,
+      height: PLANE_MINI_TERMINAL_HEIGHT,
     })
     const wide = computePlaneMiniSlotCell({ width: 2560, height: 1440 }, 1)
     expect(wide.width).toBe(PLANE_MINI_MAX_WIDTH)
@@ -195,10 +196,11 @@ describe('paneWindows', () => {
 
   it('estimates mini agent height from CSS chrome, not AABB', () => {
     expect(estimatePlaneAgentMiniHeight(0)).toBe(84)
-    expect(estimatePlaneAgentMiniHeight(1)).toBe(89)
-    expect(estimatePlaneAgentMiniHeight(3)).toBe(89)
-    expect(estimatePlaneAgentMiniHeight(6)).toBe(89)
-    expect(estimatePlaneAgentMiniHeight(6, 128)).toBe(2 + 8 + 22 + 6 + 17 + 8 + 40 + 8)
+    expect(estimatePlaneAgentMiniHeight(1)).toBe(84)
+    expect(estimatePlaneAgentMiniHeight(3)).toBe(84)
+    expect(estimatePlaneAgentMiniHeight(6)).toBe(84)
+    // Mismo hueco de sección arriba y abajo del estado: header 4 + nodos 4.
+    expect(estimatePlaneAgentMiniHeight(6, 128)).toBe(2 + 8 + 22 + 4 + 17 + 4 + 40 + 8)
   })
 
   it('readPlaneMiniAgentLayoutHeight uses offsetHeight, not getBoundingClientRect', () => {

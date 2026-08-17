@@ -7,7 +7,12 @@ export const PANE_WINDOW_VIEWPORT_RATIO = 0.7
 
 /** Mini terminal / preview en el plano (tamaño base ~1280×800). */
 export const PLANE_MINI_WINDOW_WIDTH = 200
-export const PLANE_MINI_WINDOW_HEIGHT = 130
+/** Altura base de la card mini de agente (face min-height 82 + border 2). */
+export const PLANE_MINI_AGENT_BASE_HEIGHT = 84
+/** Mini terminal: titlebar + preview; un poco más alta que agente base. */
+export const PLANE_MINI_TERMINAL_HEIGHT = 104
+/** Fallback de altura mini terminal (ranura y morph). */
+export const PLANE_MINI_WINDOW_HEIGHT = PLANE_MINI_TERMINAL_HEIGHT
 
 /** Tope al crecer en pantallas muy anchas/altas (ancho contenido a propósito). */
 export const PLANE_MINI_MAX_WIDTH = 230
@@ -204,11 +209,8 @@ export function clampPlaneColumnScroll(
 
 /** Fallback de ranura mini (runtime: computePlaneMiniSlotCell). */
 export const PLANE_MINI_AGENT_WIDTH = PLANE_MINI_WINDOW_WIDTH
-export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_WINDOW_HEIGHT
+export const PLANE_MINI_AGENT_HEIGHT = PLANE_MINI_AGENT_BASE_HEIGHT
 export const PLANE_MINI_TITLEBAR_HEIGHT = 26
-
-/** Altura base de la card mini de agente (face min-height 82 + border 2). */
-export const PLANE_MINI_AGENT_BASE_HEIGHT = 84
 /** Tamaño del ícono de contexto en la grilla mini (`.plane-context-card`). */
 export const PLANE_MINI_AGENT_CONTEXT_ICON_SIZE = 18
 /** Gap horizontal entre íconos en la grilla. */
@@ -217,8 +219,8 @@ export const PLANE_MINI_AGENT_CONTEXT_COL_GAP = 6
 export const PLANE_MINI_AGENT_FACE_PAD_X = 20
 /** Altura de cada fila de contexto (ícono 18px). */
 export const PLANE_MINI_AGENT_CONTEXT_ROW_HEIGHT = PLANE_MINI_AGENT_CONTEXT_ICON_SIZE
-/** .plane-mini-face__nodes margin-top. */
-export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 8
+/** Hueco único entre secciones de la mini (`--plane-mini-face-section-gap`). */
+export const PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT = 4
 /** Gap vertical entre filas de la grilla de contextos en la mini. */
 export const PLANE_MINI_AGENT_CONTEXT_ROW_GAP = 4
 
@@ -262,9 +264,10 @@ export function estimatePlaneAgentMiniHeight(
   const n = Math.max(0, Math.floor(contextCount))
   if (n === 0) return PLANE_MINI_AGENT_BASE_HEIGHT
   const iconsPerRow = computePlaneAgentContextIconsPerRow(cellWidth)
-  // padding-y 8+8, header drag 22 + margin 6, status ~17, nodes margin 6, padding-bottom 8, +2 border.
-  // No modela el separator notes/results (6px): el RO lo corrige.
-  const content = 8 + 22 + 6 + 17 + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
+  // padding-y 8+8, header 22, status ~17, y el mismo hueco de sección entre header/estado
+  // y entre estado/nodos. No modela el hueco inputs↔results: el RO lo corrige.
+  const content = 8 + 22 + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT + 17
+    + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
     + estimatePlaneAgentContextGridHeight(n, iconsPerRow)
     + 8
   return Math.max(

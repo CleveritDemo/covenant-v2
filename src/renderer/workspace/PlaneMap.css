@@ -208,17 +208,6 @@
   transition: none !important;
 }
 
-.plane-map__slot-reserve {
-  position: absolute;
-  box-sizing: border-box;
-  pointer-events: none;
-  border-radius: 10px;
-  border: 1px dashed color-mix(in srgb, var(--border) 45%, transparent);
-  background: color-mix(in srgb, var(--surface) 22%, transparent);
-  opacity: 0.45;
-  z-index: 1;
-}
-
 .pane-window--out-of-band {
   visibility: hidden;
   pointer-events: none;

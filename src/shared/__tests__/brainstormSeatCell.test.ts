@@ -8,8 +8,8 @@ import { PLANE_MINI_WINDOW_HEIGHT } from '@shared/paneWindows'
 describe('brainstormSeatCellHeight', () => {
   it('encoge la celda al sumar asientos', () => {
     const three = brainstormSeatCellHeight(900, 3)
-    const six = brainstormSeatCellHeight(900, 6)
-    expect(six).toBeLessThan(three)
+    const many = brainstormSeatCellHeight(900, 20)
+    expect(many).toBeLessThan(three)
   })
 
   it('no baja del mínimo de las minis del plano: ahí scrollea la columna', () => {

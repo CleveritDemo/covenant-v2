@@ -32,6 +32,8 @@ export interface AgentThreadState {
 /** Thread al que migran los bindings pre-threads (y su transcript plano). */
 export const DEFAULT_THREAD_ID = 't1'
 export const MAX_THREADS_PER_PANE = 20
+/** Hilos recientes visibles en chips junto al activo (el activo no cuenta). */
+export const MAX_RECENT_CHIP_THREADS = 5
 export const THREAD_TITLE_MAX = 48
 
 /** Los ids terminan en un path (`agent-chats/<pane>/<thread>.json`). */
@@ -56,26 +58,11 @@ export function sortThreadsByRecency(threads: readonly AgentThread[]): AgentThre
   return [...threads].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-/** Hilos que ocupan chips en la barra: activo + los que están corriendo. */
-export function chipVisibleThreadIds(
-  activeThreadId: string,
-  runningThreadIds: readonly string[],
-): Set<string> {
-  const ids = new Set<string>()
-  if (activeThreadId) ids.add(activeThreadId)
-  for (const id of runningThreadIds) ids.add(id)
-  return ids
-}
-
 /**
- * Hilos del popover por recencia, sin el activo (ya está en el chip).
- *
- * Los carriles de delegación terminados no entran: son transcripts de
- * subtareas, sin título y sin nada que la persona haya escrito, y en una ola
- * grande sepultaban las conversaciones reales. Los que siguen corriendo sí,
- * que es la misma regla que usan los nodos de hilo de la card.
+ * Candidatos a chips e historial: humanos + delegaciones en curso; sin el
+ * activo; más recientes primero.
  */
-export function threadHistoryCandidates(
+export function threadBarCandidates(
   threads: readonly AgentThread[],
   activeThreadId?: string,
   runningThreadIds?: readonly string[],
@@ -88,6 +75,47 @@ export function threadHistoryCandidates(
   const active = activeThreadId?.trim()
   if (!active) return sorted
   return sorted.filter(thread => thread.id !== active)
+}
+
+/** Hasta MAX_RECENT_CHIP_THREADS hilos recientes para chips (sin el activo). */
+export function recentChipThreads(
+  threads: readonly AgentThread[],
+  activeThreadId: string,
+  runningThreadIds: readonly string[],
+  limit = MAX_RECENT_CHIP_THREADS,
+): AgentThread[] {
+  return threadBarCandidates(threads, activeThreadId, runningThreadIds).slice(0, limit)
+}
+
+/** Hilos que ocupan chips en la barra: activo + los recientes visibles. */
+export function chipVisibleThreadIds(
+  threads: readonly AgentThread[],
+  activeThreadId: string,
+  runningThreadIds: readonly string[],
+): Set<string> {
+  const ids = new Set<string>()
+  if (activeThreadId) ids.add(activeThreadId)
+  for (const thread of recentChipThreads(threads, activeThreadId, runningThreadIds)) {
+    ids.add(thread.id)
+  }
+  return ids
+}
+
+/**
+ * Hilos del popover: candidatos que no caben en los chips recientes.
+ *
+ * Los carriles de delegación terminados no entran: son transcripts de
+ * subtareas, sin título y sin nada que la persona haya escrito, y en una ola
+ * grande sepultaban las conversaciones reales. Los que siguen corriendo sí,
+ * que es la misma regla que usan los nodos de hilo de la card.
+ */
+export function threadHistoryCandidates(
+  threads: readonly AgentThread[],
+  activeThreadId?: string,
+  runningThreadIds?: readonly string[],
+): AgentThread[] {
+  return threadBarCandidates(threads, activeThreadId, runningThreadIds)
+    .slice(MAX_RECENT_CHIP_THREADS)
 }
 
 export function paginateThreadHistory(

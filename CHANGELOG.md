@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.78.2
+
+- Abrir una terminal y apretar Enter ya no abre una segunda: el botón redondo suelta el foco al pulsarlo y la terminal nueva lo toma, así que lo que escribes va al shell.
+- En el Working Set de una sala, una issue asociada se ve con su clave real y el icono de su contexto, en lugar de un texto en minúsculas.
+
 ## v0.78.1
 
 - **Las etiquetas al pasar el ratón ya no se quedan pegadas**: al cambiar de aplicación o de ventana desaparecen solas, sin necesidad de volver y hacer clic.

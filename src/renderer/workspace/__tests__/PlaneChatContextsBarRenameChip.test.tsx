@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { truncateThreadChipLabel } from '@shared/agentThreads'
 import { PlaneChatContextsBar } from '../PlaneChatContextsBar'
 
 vi.mock('@i18n/useT', () => ({
@@ -116,11 +117,12 @@ describe('PlaneChatContextsBar active chip host no-shrink', () => {
     expect(hostBlock).toMatch(/max-width:\s*176px/)
   })
 
-  it('con la fila llena el título del hilo activo sigue en el DOM junto al lápiz', () => {
+  it('con la fila llena el chip activo conserva el label recortado, el título accesible y el lápiz', () => {
+    const longTitle = 'Un titulo bastante largo para el chip activo'
     const crowdedThreads = [
       {
         id: 't-active',
-        title: 'Un titulo bastante largo para el chip activo',
+        title: longTitle,
         updatedAt: 4,
         createdAt: 1,
       },
@@ -138,7 +140,8 @@ describe('PlaneChatContextsBar active chip host no-shrink', () => {
       />,
     )
 
-    expect(screen.getByText('Un titulo bastante largo para el chip activo')).toBeTruthy()
+    expect(screen.getByText(truncateThreadChipLabel(longTitle))).toBeTruthy()
+    expect(screen.getByRole('option', { name: longTitle })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'agentPane.threadRename' })).toBeTruthy()
   })
 })

@@ -5,6 +5,9 @@
 .organizations-view {
   position: fixed;
   inset: 0;
+  /* Encima del chrome elevado del plano (barra de carpeta/acciones y riel a 675
+     con la sala o el mapa abiertos) y por debajo de sus propios confirms (760). */
+  z-index: 700;
   overflow: hidden;
   display: grid;
   grid-template-rows: 48px minmax(0, 1fr);

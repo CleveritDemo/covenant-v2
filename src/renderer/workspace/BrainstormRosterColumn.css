@@ -11,13 +11,18 @@
   gap: 10px;
 }
 
-/* Solo borde/radio/sombra: .plane-mini-face ya pinta fondo opaco encima. */
+/*
+ * Solo borde/radio/sombra: `.plane-mini-face` ya pinta fondo opaco encima.
+ * La sombra es la misma que PaneWindow le pone inline a la mini del plano
+ * (`--plane-mini-card-shadow`, con su anillo inset): sin ella las fichas del
+ * roster se leían planas al lado de las del plano.
+ */
 .brainstorm-roster__item {
   min-width: 0;
   border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: var(--plane-radius-sm);
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--plane-mini-card-shadow);
 }
 
 /* Contexto encima: el mismo aviso que la mini del plano al recibir un drop. */

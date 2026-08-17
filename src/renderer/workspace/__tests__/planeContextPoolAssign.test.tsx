@@ -177,6 +177,7 @@ describe('PlaneContextPool — asignación por modal', () => {
   it('arrastrar no abre el modal ni el menú', () => {
     setup()
     const chip = chipButton()
+    fireEvent.mouseDown(chip, { button: 0 })
     fireEvent.dragStart(chip, { dataTransfer: dragTransfer() })
     fireEvent.click(chip)
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -187,6 +188,7 @@ describe('PlaneContextPool — asignación por modal', () => {
     setup()
     const chip = chipButton()
     const transfer = dragTransfer()
+    fireEvent.mouseDown(chip, { button: 0 })
     fireEvent.dragStart(chip, { dataTransfer: transfer })
     const [ghost] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
     expect(ghost.parentElement).toBe(document.body)
@@ -276,6 +278,7 @@ describe('PlaneContextPool — barra vertical', () => {
     setup(bigCatalog())
     const chip = screen.getByRole('button', { name: /Contexto 8/ })
     const transfer = dragTransfer('c8')
+    fireEvent.mouseDown(chip, { button: 0 })
     fireEvent.dragStart(chip, { dataTransfer: transfer })
     const [ghost] = transfer.setDragImage.mock.calls[0] as [HTMLElement]
     expect(ghost.classList.contains('plane-context-pool__chip--ghost')).toBe(true)

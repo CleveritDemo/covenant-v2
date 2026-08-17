@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import {
   BRAINSTORM_OUTCOMES,
@@ -18,6 +18,12 @@ import {
 } from '@shared/agileCeremonies'
 import { paletteColorForSeed } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { CEREMONY_GOAL_KEY, CEREMONY_ROLE_KEY, CEREMONY_STAGE_KEY } from './ceremonyLabels'
 import { BrainstormRoundsSlider } from './BrainstormRoundsSlider'
 import { BrainstormWorkingSetField } from './BrainstormWorkingSetField'
@@ -102,6 +108,7 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
   const { t } = useT()
   const [open, setOpen] = useState<Drawer | null>(null)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const seatDragArmRef = useRef(createHtml5DragArm())
 
   const isFree = ceremonyUsesFreeOutcome(ceremony)
   const rounds = sanitizeBrainstormMaxRounds(maxRounds)
@@ -196,11 +203,35 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
                     style={{
                       '--brainstorm-seat-color': paletteColorForSeed(agent.id),
                     } as React.CSSProperties}
-                    /* Arrastrar reordena el turno de habla, igual que en la
-                       lista que esto reemplaza. Solo tiene sentido sentado. */
-                    draggable={at >= 0}
-                    onDragStart={() => setDragFrom(at)}
-                    onDragEnd={() => setDragFrom(null)}
+                    /* Arrastrar reordena el turno de habla. Solo sentados;
+                       draggable se arma en mousedown (cursor flicker). */
+                    draggable={false}
+                    onMouseDown={event => {
+                      if (at < 0) return
+                      armHtml5DragOnMouseDown(
+                        event.currentTarget,
+                        seatDragArmRef.current,
+                        event.button,
+                      )
+                    }}
+                    onDragStart={event => {
+                      if (at < 0) {
+                        event.preventDefault()
+                        return
+                      }
+                      if (!allowArmedHtml5DragStart(
+                        event.currentTarget,
+                        seatDragArmRef.current,
+                        () => event.preventDefault(),
+                      )) {
+                        return
+                      }
+                      setDragFrom(at)
+                    }}
+                    onDragEnd={event => {
+                      disarmHtml5Drag(event.currentTarget, seatDragArmRef.current)
+                      setDragFrom(null)
+                    }}
                     onDragOver={event => {
                       if (dragFrom === null || at < 0) return
                       event.preventDefault()

@@ -8,6 +8,7 @@
   box-shadow: none;
   flex-shrink: 0;
   overflow: visible;
+  cursor: default;
 }
 
 .tabbar-scroll {
@@ -227,8 +228,10 @@
   text-align: left;
 }
 
+/* Pointer como el resto de la pastilla; `text` solo en `.tab-title-input` al editar.
+   Si el título usa `cursor: text` en hover, el cursor parpadea pointer↔I-beam. */
 .tab-title--editable {
-  cursor: text;
+  cursor: pointer;
 }
 
 .tab-title--editable:focus-visible {
@@ -276,6 +279,7 @@
   padding: 1px 5px;
   outline: none;
   box-shadow: none;
+  cursor: text;
 }
 
 /* Un solo borde: el :focus-visible global añade outline a todos los inputs */

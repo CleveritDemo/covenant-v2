@@ -5,10 +5,8 @@ export type SphericalGridOptions = {
   lineColor: string
   /** Opacidad compuesta (rejilla × alfa de la línea): el canvas la aplica, no el CSS. */
   lineAlpha?: number
-  /** Escala del arco visible (mayor = más curvatura en bordes). */
-  fovScale?: number
-  /** Elevación máxima dibujada (radianes). */
-  uMax?: number
+  /** Dirección de mirada unitaria (mundo); default +Z. */
+  lookDir?: readonly [number, number, number]
 }
 
 export type SphereGridPoint = {
@@ -16,12 +14,33 @@ export type SphereGridPoint = {
   y: number
 }
 
-/** FOV horizontal de la esfera WebGL y del fallback 2D (grados). */
+/** FOV horizontal de la esfera (grados). */
 export const PLANE_GRID_HORIZONTAL_FOV_DEG = 110
-/** Tamaño de celda en pantalla (px); densidad 3D/2D y CSS plana elevada. */
+/** Tamaño de celda en pantalla (px). */
 export const PLANE_GRID_CELL_SIZE_PX = Number((68 / 1.6).toFixed(3))
-/** Paso angular mínimo compartido entre WebGL y canvas 2D. */
+/** Paso angular mínimo de la rejilla. */
 export const PLANE_GRID_MIN_ANGULAR_STEP = 0.035
+
+/** Desplazamiento máximo de mirada con el cursor (radianes). */
+export const PLANE_GRID_POINTER_YAW_MAX_RAD = (10 * Math.PI) / 180
+export const PLANE_GRID_POINTER_PITCH_MAX_RAD = (7 * Math.PI) / 180
+/**
+ * Suavizado de mirada por frame (legacy WebGL / ~60fps).
+ * Preferir `planeGridPointerLerpAlpha` + tau en el path canvas 2D.
+ */
+export const PLANE_GRID_POINTER_LOOK_LERP = 0.035
+/** Espera tras el último pointermove antes de comprometer el NDC objetivo (ms). */
+export const PLANE_GRID_POINTER_DEBOUNCE_MS = 100
+/** Constante de tiempo: NDC suavizado → objetivo (s). Más alto = más inercia. */
+export const PLANE_GRID_POINTER_NDC_TAU_S = 0.32
+/** Constante de tiempo: mirada → look del NDC suavizado (s). */
+export const PLANE_GRID_POINTER_LOOK_TAU_S = 0.55
+
+/** Alfa de lerp frame-rate independent: `1 - exp(-dt / tau)`. */
+export function planeGridPointerLerpAlpha(dtSec: number, tauSec: number): number {
+  if (!(dtSec > 0) || !(tauSec > 0)) return 0
+  return 1 - Math.exp(-dtSec / tauSec)
+}
 
 export function verticalFovForAspect(
   aspect: number,
@@ -32,31 +51,112 @@ export function verticalFovForAspect(
   return (vFovRad * 180) / Math.PI
 }
 
-/** Distancia focal en px del viewport esférico (misma fórmula que WebGL). */
+/** Distancia focal en px del viewport esférico. */
 export function planeGridFocalPx(width: number, height: number): number {
   const aspect = width / Math.max(height, 1)
   const vFovRad = (verticalFovForAspect(aspect) * Math.PI) / 180
   return Math.max(height, 1) / 2 / Math.tan(vFovRad / 2)
 }
 
-/** Proyección pinhole desde el centro de la esfera hacia el hemisferio frontal. */
+/** Latitud máxima dibujada (ratio×π): deja convergencia polar fuera del FOV interior. */
+export const PLANE_GRID_LATITUDE_MAX_RATIO = 0.47
+
+export function sphereGridLatitudeMax(
+  ratio = PLANE_GRID_LATITUDE_MAX_RATIO,
+): number {
+  return Math.PI * ratio
+}
+
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(-1, value))
+}
+
+/**
+ * Dirección de mirada desde el centro: +Z en reposo; yaw/pitch según NDC del pointer.
+ * `ndcX` derecha+, `ndcY` arriba+. Pitch = +ndcY (canvas 2D: cursor arriba → vista arriba).
+ */
+export function spherePointerLookTarget(
+  ndcX: number,
+  ndcY: number,
+  yawMaxRad = PLANE_GRID_POINTER_YAW_MAX_RAD,
+  pitchMaxRad = PLANE_GRID_POINTER_PITCH_MAX_RAD,
+): [number, number, number] {
+  const x = clampUnit(ndcX)
+  const y = clampUnit(ndcY)
+  const yaw = x * yawMaxRad
+  const pitch = y * pitchMaxRad
+  const cosP = Math.cos(pitch)
+  const sinP = Math.sin(pitch)
+  const cosY = Math.cos(yaw)
+  const sinY = Math.sin(yaw)
+  return [
+    cosP * sinY,
+    sinP,
+    cosP * cosY,
+  ]
+}
+
+/** Dirección unitaria en la esfera (u=latitud, v=longitud). */
+export function sphereInteriorDirection(u: number, v: number): [number, number, number] {
+  const cosU = Math.cos(u)
+  return [
+    cosU * Math.sin(v),
+    Math.sin(u),
+    cosU * Math.cos(v),
+  ]
+}
+
+function normalize3(x: number, y: number, z: number): [number, number, number] {
+  const len = Math.hypot(x, y, z)
+  if (len < 1e-8) return [0, 0, 1]
+  return [x / len, y / len, z / len]
+}
+
+/** Base cámara: forward=look, right=+X, up=+Y (mundo up = +Y). */
+export function sphereCameraBasis(
+  lookDir: readonly [number, number, number],
+): {
+  forward: [number, number, number]
+  right: [number, number, number]
+  up: [number, number, number]
+} {
+  const forward = normalize3(lookDir[0], lookDir[1], lookDir[2])
+  // right = normalize(cross(worldUp, forward)) con worldUp=(0,1,0) → (fz, 0, -fx)
+  let right = normalize3(forward[2], 0, -forward[0])
+  if (Math.hypot(right[0], right[1], right[2]) < 1e-6) {
+    right = [1, 0, 0]
+  }
+  // up = cross(forward, right)
+  const up = normalize3(
+    forward[1] * right[2] - forward[2] * right[1],
+    forward[2] * right[0] - forward[0] * right[2],
+    forward[0] * right[1] - forward[1] * right[0],
+  )
+  return { forward, right, up }
+}
+
+/**
+ * Proyección pinhole desde el centro hacia `lookDir`.
+ * Coordenadas CSS px; null si queda detrás del plano de visión.
+ */
 export function projectSphereGridPoint(
   u: number,
   v: number,
   width: number,
   height: number,
-  fovScale: number,
+  lookDir: readonly [number, number, number] = [0, 0, 1],
 ): SphereGridPoint | null {
-  const cosU = Math.cos(u)
-  const dirZ = cosU * Math.cos(v)
-  if (dirZ <= 0.02) return null
-
-  const scale = Math.min(width, height) * fovScale * 0.5
-  const dirX = cosU * Math.sin(v)
-  const dirY = Math.sin(u)
+  const [wx, wy, wz] = sphereInteriorDirection(u, v)
+  const { forward, right, up } = sphereCameraBasis(lookDir)
+  const camX = wx * right[0] + wy * right[1] + wz * right[2]
+  const camY = wx * up[0] + wy * up[1] + wz * up[2]
+  const camZ = wx * forward[0] + wy * forward[1] + wz * forward[2]
+  if (camZ <= 0.02) return null
+  const focalPx = planeGridFocalPx(width, height)
   return {
-    x: width / 2 + (dirX / dirZ) * scale,
-    y: height / 2 - (dirY / dirZ) * scale,
+    x: width / 2 + (camX / camZ) * focalPx,
+    y: height / 2 - (camY / camZ) * focalPx,
   }
 }
 
@@ -81,15 +181,6 @@ function strokePolyline(
   }
 }
 
-/** Latitud máxima dibujada (ratio×π): deja convergencia polar fuera del FOV interior. */
-export const PLANE_GRID_LATITUDE_MAX_RATIO = 0.47
-
-export function sphereGridLatitudeMax(
-  ratio = PLANE_GRID_LATITUDE_MAX_RATIO,
-): number {
-  return Math.PI * ratio
-}
-
 /** Dibuja la rejilla interior de esfera sobre un canvas 2D (coordenadas CSS px). */
 export function drawSphericalGrid(
   ctx: CanvasRenderingContext2D,
@@ -101,18 +192,17 @@ export function drawSphericalGrid(
     cellSizePx,
     lineColor,
     lineAlpha = 1,
-    fovScale: fovScaleOverride,
-    uMax = sphereGridLatitudeMax(),
+    lookDir = [0, 0, 1],
   } = options
 
   if (width <= 0 || height <= 0) return
 
   const focalPx = planeGridFocalPx(width, height)
-  const fovScale = fovScaleOverride ?? focalPx / (Math.min(width, height) * 0.5)
   const step = Math.max(cellSizePx / focalPx, PLANE_GRID_MIN_ANGULAR_STEP)
   const segments = 96
-  const latMax = Math.min(uMax, Math.PI * 0.48)
+  const latMax = Math.min(sphereGridLatitudeMax(), Math.PI * 0.48)
   const poleEpsilon = 0.02
+  const look = normalize3(lookDir[0], lookDir[1], lookDir[2])
 
   ctx.clearRect(0, 0, width, height)
   ctx.strokeStyle = lineColor
@@ -125,7 +215,7 @@ export function drawSphericalGrid(
     const row: Array<SphereGridPoint | null> = []
     for (let i = 0; i <= segments; i += 1) {
       const v = -Math.PI + (2 * Math.PI * i) / segments
-      row.push(projectSphereGridPoint(u, v, width, height, fovScale))
+      row.push(projectSphereGridPoint(u, v, width, height, look))
     }
     strokePolyline(ctx, row, lineAlpha)
   }
@@ -134,7 +224,7 @@ export function drawSphericalGrid(
     const col: Array<SphereGridPoint | null> = []
     for (let i = 0; i <= segments; i += 1) {
       const u = -latMax + (2 * latMax * i) / segments
-      col.push(projectSphereGridPoint(u, v, width, height, fovScale))
+      col.push(projectSphereGridPoint(u, v, width, height, look))
     }
     strokePolyline(ctx, col, lineAlpha)
   }
@@ -176,21 +266,18 @@ export function resolveCssColor(root: HTMLElement, varName: string, fallback: st
   return fallback
 }
 
-/**
- * Color de línea listo para canvas/WebGL. `--plane-grid-line-rgb` lo escribe
- * `applyTheme()` ya mezclado; el `color-mix` de `--plane-grid-line` solo sirve para CSS.
- */
+/** Color de línea: `--plane-grid-line-rgb` (blanco dark / negro light). */
 export function readPlaneGridLineColor(root: HTMLElement): string {
   const declared = getComputedStyle(root).getPropertyValue('--plane-grid-line-rgb').trim()
   if (declared) return declared
-  return resolveCssColor(root, '--plane-grid-line', resolveCssColor(root, '--border', 'rgb(34, 42, 60)'))
+  return resolveCssColor(root, '--plane-grid-line', resolveCssColor(root, '--border', 'rgb(255, 255, 255)'))
 }
 
 export function readSphericalGridTheme(el: HTMLElement): SphericalGridOptions {
   const style = getComputedStyle(el)
   const root = document.documentElement
   const size = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
-  const gridOpacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.619
+  const gridOpacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.093
   const lineOpacity = Number.parseFloat(style.getPropertyValue('--plane-grid-line-opacity'))
   return {
     cellSizePx: size,

@@ -9,6 +9,12 @@ import { BrandIcon } from '../components/ui/BrandIcon'
 import { CoordinationBadge } from '../components/ui/CoordinationBadge'
 import { OrchestrationWorkStyleBadge } from '../components/ui/OrchestrationWorkStyleBadge'
 import type { OrchestrationWorkStyle } from '@shared/agentOrchestration'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
 import { setPlaneContextDragData } from './planeContextDrag'
 import {
@@ -89,6 +95,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
 }) => {
   const { t } = useT()
   const resultsDragOccurredRef = useRef(false)
+  const resultsDragArmRef = useRef(createHtml5DragArm())
   const showReorder = Boolean(reorderEnabled && onReorderPointerDown && reorderLabel)
   const resultsId = agentId?.trim()
     ? agentResultContextIdForSlug(agentId)
@@ -265,7 +272,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
         type="button"
         className="plane-mini-face__results-drag"
         aria-label={resultsTitle}
-        draggable
+        draggable={false}
         onClick={event => {
           event.preventDefault()
           event.stopPropagation()
@@ -275,17 +282,29 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
           }
           onOpenResultsPreview?.(resultsId)
         }}
+        onMouseDown={event => {
+          event.stopPropagation()
+          armHtml5DragOnMouseDown(event.currentTarget, resultsDragArmRef.current, event.button)
+        }}
         onPointerDown={event => {
           event.stopPropagation()
         }}
         onPointerUp={event => event.stopPropagation()}
         onDragStart={event => {
           event.stopPropagation()
+          if (!allowArmedHtml5DragStart(
+            event.currentTarget,
+            resultsDragArmRef.current,
+            () => event.preventDefault(),
+          )) {
+            return
+          }
           resultsDragOccurredRef.current = true
           setPlaneContextDragData(event.dataTransfer, resultsId)
         }}
         onDragEnd={event => {
           event.stopPropagation()
+          disarmHtml5Drag(event.currentTarget, resultsDragArmRef.current)
           // Mantener el flag hasta después del click sintético post-drag.
           window.setTimeout(() => {
             resultsDragOccurredRef.current = false

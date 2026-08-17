@@ -118,6 +118,7 @@ describe('orden de habla — arrastrar cambia el turno', () => {
     expect(order()).toEqual(['rodrigo', 'ana', 'nico'])
 
     const items = document.querySelectorAll('.brainstorm-sentence__opt')
+    fireEvent.mouseDown(items[2], { button: 0 })
     fireEvent.dragStart(items[2])
     fireEvent.dragOver(items[0])
     fireEvent.drop(items[0])
@@ -132,6 +133,7 @@ describe('orden de habla — arrastrar cambia el turno', () => {
   it('soltar sobre sí mismo no cambia nada', () => {
     open()
     const items = document.querySelectorAll('.brainstorm-sentence__opt')
+    fireEvent.mouseDown(items[1], { button: 0 })
     fireEvent.dragStart(items[1])
     fireEvent.drop(items[1])
     expect(order()).toEqual(['rodrigo', 'ana', 'nico'])

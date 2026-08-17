@@ -34,35 +34,41 @@ function boundsFor(padding: number) {
 }
 
 describe('computeWikiModalPositionNearPoint', () => {
-  it('acopla a la izquierda cuando el nodo está en la mitad izquierda', () => {
-    expect(wikiModalDockSide(200, BOUNDS.width)).toBe('left')
+  it('coloca el modal justo a la derecha del nodo en la mitad izquierda', () => {
+    const originX = 200
+    const padding = 8
+    expect(wikiModalDockSide(originX, BOUNDS.width)).toBe('right')
     const pos = computeWikiModalPositionNearPoint({
-      originX: 200,
+      originX,
       originY: 200,
       ...BOUNDS,
     })
-    expect(pos.x).toBe(8)
+    expect(pos.x).toBe(originX + padding)
   })
 
-  it('acopla a la derecha cuando el nodo está en la mitad derecha', () => {
-    expect(wikiModalDockSide(760, BOUNDS.width)).toBe('right')
+  it('coloca el modal justo a la izquierda del nodo en la mitad derecha', () => {
+    const originX = 760
+    const padding = 8
+    expect(wikiModalDockSide(originX, BOUNDS.width)).toBe('left')
     const pos = computeWikiModalPositionNearPoint({
-      originX: 760,
+      originX,
       originY: 200,
       ...BOUNDS,
     })
-    expect(pos.x).toBe(BOUNDS.width - BOUNDS.modalWidth - 8)
+    expect(pos.x).toBe(originX - BOUNDS.modalWidth - padding)
   })
 
   it('centra verticalmente sobre el origen cuando hay espacio y evita la zona muerta', () => {
+    const originX = 200
     const originY = 200
     const padding = 8
     const pos = computeWikiModalPositionNearPoint({
-      originX: 200,
+      originX,
       originY,
       ...BOUNDS,
     })
     expect(pos.y).toBe(Math.round(originY - BOUNDS.modalHeight / 2))
+    expect(pos.x).toBe(originX + padding)
     expect(modalOverlapsWikiDeadZone(
       pos.x,
       pos.y,
@@ -98,6 +104,20 @@ describe('computeWikiModalPositionNearPoint', () => {
     expect(pos.y).toBeGreaterThanOrEqual(padding)
     expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
     expect(pos.y + BOUNDS.modalHeight).toBeLessThanOrEqual(BOUNDS.height - padding)
+  })
+
+  it('mantiene el modal en bounds y cerca del nodo cuando el origen está al borde', () => {
+    const originX = 12
+    const padding = 8
+    const pos = computeWikiModalPositionNearPoint({
+      originX,
+      originY: 200,
+      ...BOUNDS,
+    })
+    expect(pos.x).toBe(originX + padding)
+    expect(pos.x).toBeGreaterThanOrEqual(padding)
+    expect(pos.x + BOUNDS.modalWidth).toBeLessThanOrEqual(BOUNDS.width - padding)
+    expect(pos.x).toBeLessThan(BOUNDS.width / 2)
   })
 })
 

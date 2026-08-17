@@ -1,11 +1,12 @@
-import React, { useId, useRef, useState } from 'react'
+import React, { useId, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
-import { recentChipThreads, type AgentThread } from '@shared/agentThreads'
+import { barChipThreads, type AgentThread } from '@shared/agentThreads'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import { PlaneChatThreadHistoryButton } from './PlaneChatThreadHistoryButton'
+import { animateThreadChipReorder } from './threadChipReorder'
 import './PlaneChatComposer.css'
 import './PlaneChatContextsBar.css'
 
@@ -75,26 +76,24 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
 }) => {
   const { t } = useT()
   const showThreads = threads.length > 0 && Boolean(onSelectThread)
-  const activeThread = threads.find(thread => thread.id === activeThreadId)
-  const activeChipDot = activeThread
-    ? resolveThreadChipActivityDot(
-      activeThread.id,
-      activeThreadId,
-      awaitingDelegations,
-      runningThreadIds,
-      paneCliBusy,
-      awaitingDelegationThreadIds,
-    )
-    : null
-  const recentChipThreadsList = recentChipThreads(threads, activeThreadId, runningThreadIds)
-  const activeChipTitle = activeThread
-    ? threadChipTitle(activeThread, t)
-    : ''
+  const chipThreads = barChipThreads(threads, activeThreadId, runningThreadIds)
+  const chipOrderKey = chipThreads.map(thread => thread.id).join('\0')
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
   const threadHistoryTriggerRef = useRef<HTMLSpanElement>(null)
+  const chipsRef = useRef<HTMLDivElement>(null)
+  const chipLeftByIdRef = useRef<Map<string, number>>(new Map())
   const [threadPanelOpen, setThreadPanelOpen] = useState(false)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
+
+  useLayoutEffect(() => {
+    const root = chipsRef.current
+    if (!root) return
+    chipLeftByIdRef.current = animateThreadChipReorder(
+      root,
+      chipLeftByIdRef.current,
+    )
+  }, [chipOrderKey])
 
   const commitRename = (): void => {
     if (editingThreadId === null) return
@@ -106,6 +105,82 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   const startRename = (thread: AgentThread): void => {
     setEditingThreadId(thread.id)
     setDraftTitle(thread.title || '')
+  }
+
+  const renderActiveChip = (thread: AgentThread): React.ReactNode => {
+    const title = threadChipTitle(thread, t)
+    const chipDot = resolveThreadChipActivityDot(
+      thread.id,
+      activeThreadId,
+      awaitingDelegations,
+      runningThreadIds,
+      paneCliBusy,
+      awaitingDelegationThreadIds,
+    )
+
+    if (editingThreadId === thread.id) {
+      return (
+        <div
+          key={thread.id}
+          data-thread-chip-id={thread.id}
+          className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--editing"
+          role="presentation"
+        >
+          <Input
+            size="sm"
+            autoFocus
+            value={draftTitle}
+            aria-label={t('agentPane.threadRename')}
+            placeholder={t('agentPane.threadUntitled')}
+            onChange={event => setDraftTitle(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={event => {
+              if (event.key === 'Enter') commitRename()
+              if (event.key === 'Escape') {
+                setEditingThreadId(null)
+                setDraftTitle('')
+              }
+            }}
+          />
+        </div>
+      )
+    }
+
+    return (
+      <div
+        key={thread.id}
+        data-thread-chip-id={thread.id}
+        className="plane-chat-contexts-bar__chip-host plane-chat-contexts-bar__chip-host--active"
+      >
+        <span
+          className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--active"
+          role="option"
+          aria-selected={true}
+          aria-current="true"
+          aria-label={title}
+        >
+          {chipDot ? (
+            <PlaneBusyDot size="sm" variant={chipDot} />
+          ) : null}
+          <span className="plane-chat-contexts-bar__chip-label">
+            {title}
+          </span>
+        </span>
+        {onRenameThread ? (
+          <button
+            type="button"
+            className="plane-chat-contexts-bar__chip-edit"
+            aria-label={t('agentPane.threadRename')}
+            onClick={event => {
+              event.stopPropagation()
+              startRename(thread)
+            }}
+          >
+            <Icon name="pencil" size={12} />
+          </button>
+        ) : null}
+      </div>
+    )
   }
 
   const renderRecentChip = (thread: AgentThread): React.ReactNode => {
@@ -132,28 +207,34 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       : title
 
     return (
-      <Tooltip key={thread.id} content={title} hint={hint}>
-        <button
-          type="button"
-          role="option"
-          className={[
-            'plane-chat-contexts-bar__chip',
-            'plane-chat-contexts-bar__chip--recent',
-            isRunning ? 'plane-chat-contexts-bar__chip--running' : '',
-          ].filter(Boolean).join(' ')}
-          disabled={threadSelectionLocked}
-          aria-label={title}
-          aria-selected={false}
-          onClick={() => onSelectThread!(thread.id)}
-        >
-          {chipDot ? (
-            <PlaneBusyDot size="sm" variant={chipDot} />
-          ) : null}
-          <span className="plane-chat-contexts-bar__chip-label">
-            {title}
-          </span>
-        </button>
-      </Tooltip>
+      <span
+        key={thread.id}
+        data-thread-chip-id={thread.id}
+        className="plane-chat-contexts-bar__chip-flip"
+      >
+        <Tooltip content={title} hint={hint}>
+          <button
+            type="button"
+            role="option"
+            className={[
+              'plane-chat-contexts-bar__chip',
+              'plane-chat-contexts-bar__chip--recent',
+              isRunning ? 'plane-chat-contexts-bar__chip--running' : '',
+            ].filter(Boolean).join(' ')}
+            disabled={threadSelectionLocked}
+            aria-label={title}
+            aria-selected={false}
+            onClick={() => onSelectThread!(thread.id)}
+          >
+            {chipDot ? (
+              <PlaneBusyDot size="sm" variant={chipDot} />
+            ) : null}
+            <span className="plane-chat-contexts-bar__chip-label">
+              {title}
+            </span>
+          </button>
+        </Tooltip>
+      </span>
     )
   }
 
@@ -163,75 +244,19 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       aria-label={t('tabContexts.composerSection')}
     >
       <div className="plane-chat-contexts-bar__stack">
-        {recentChipThreadsList.length > 0 || (showThreads && activeThread) ? (
+        {chipThreads.length > 0 ? (
           <div className="plane-chat-contexts-bar__chips-scroll">
             {showThreads ? (
               <div
+                ref={chipsRef}
                 className="plane-chat-contexts-bar__chips"
                 role="presentation"
               >
-                {activeThread ? (
-                  editingThreadId === activeThread.id ? (
-                    <div
-                      className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--editing"
-                      role="presentation"
-                    >
-                      <Input
-                        size="sm"
-                        autoFocus
-                        value={draftTitle}
-                        aria-label={t('agentPane.threadRename')}
-                        placeholder={t('agentPane.threadUntitled')}
-                        onChange={event => setDraftTitle(event.target.value)}
-                        onBlur={commitRename}
-                        onKeyDown={event => {
-                          if (event.key === 'Enter') commitRename()
-                          if (event.key === 'Escape') {
-                            setEditingThreadId(null)
-                            setDraftTitle('')
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className="plane-chat-contexts-bar__chips-active"
-                      role="presentation"
-                    >
-                      <div
-                        className="plane-chat-contexts-bar__chip-host plane-chat-contexts-bar__chip-host--active"
-                      >
-                        <span
-                          className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--active"
-                          role="option"
-                          aria-selected={true}
-                          aria-label={activeChipTitle}
-                        >
-                          {activeChipDot ? (
-                            <PlaneBusyDot size="sm" variant={activeChipDot} />
-                          ) : null}
-                          <span className="plane-chat-contexts-bar__chip-label">
-                            {activeChipTitle}
-                          </span>
-                        </span>
-                        {onRenameThread ? (
-                          <button
-                            type="button"
-                            className="plane-chat-contexts-bar__chip-edit"
-                            aria-label={t('agentPane.threadRename')}
-                            onClick={event => {
-                              event.stopPropagation()
-                              startRename(activeThread)
-                            }}
-                          >
-                            <Icon name="pencil" size={12} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  )
-                ) : null}
-                {recentChipThreadsList.map(renderRecentChip)}
+                {chipThreads.map(thread => (
+                  thread.id === activeThreadId
+                    ? renderActiveChip(thread)
+                    : renderRecentChip(thread)
+                ))}
               </div>
             ) : null}
           </div>

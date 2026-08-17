@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider } from '@shared/tabSession'
 import type { PlaneLoopChain } from '@shared/planeLoopChain'
 import {
@@ -18,6 +18,12 @@ import { BrandIcon } from '../components/ui/BrandIcon'
 import { Button } from '../components/ui'
 import { TerminalModal } from '../components/TerminalModal'
 import { AgentLoopIntervalModal } from '../agent/AgentLoopIntervalModal'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { LoopChainTranscriptPanel } from './LoopChainTranscriptPanel'
 import type { LoopChainLiveSlice } from './useLoopChainLiveState'
 import './PlaneLoopsSection.css'
@@ -88,6 +94,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
   const [intervalChainId, setIntervalChainId] = useState<string | null>(null)
   const [drag, setDrag] = useState<{ chainId: string; from: number } | null>(null)
   const [transcriptChainId, setTranscriptChainId] = useState<string | null>(null)
+  const stepDragArmRef = useRef(createHtml5DragArm())
 
   useEffect(() => {
     if (!open) {
@@ -176,6 +183,7 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
       : chain.status === 'running' && chain.cursor === index
     const provider = agent?.provider ?? 'claude'
     const liveText = current && live?.lastText.trim() ? live.lastText.trim() : ''
+    const canReorder = !active && chain.steps.length > 1
     return (
       <li
         key={step.agentId}
@@ -183,9 +191,29 @@ export const PlaneLoopsSection: React.FC<PlaneLoopsSectionProps> = ({
           'plane-loops__step',
           current ? 'plane-loops__step--current' : '',
         ].filter(Boolean).join(' ')}
-        draggable={!active && chain.steps.length > 1}
-        onDragStart={() => setDrag({ chainId: chain.id, from: index })}
-        onDragEnd={() => setDrag(null)}
+        draggable={false}
+        onMouseDown={event => {
+          if (!canReorder) return
+          armHtml5DragOnMouseDown(event.currentTarget, stepDragArmRef.current, event.button)
+        }}
+        onDragStart={event => {
+          if (!canReorder) {
+            event.preventDefault()
+            return
+          }
+          if (!allowArmedHtml5DragStart(
+            event.currentTarget,
+            stepDragArmRef.current,
+            () => event.preventDefault(),
+          )) {
+            return
+          }
+          setDrag({ chainId: chain.id, from: index })
+        }}
+        onDragEnd={event => {
+          disarmHtml5Drag(event.currentTarget, stepDragArmRef.current)
+          setDrag(null)
+        }}
         onDragOver={event => {
           if (drag?.chainId === chain.id) event.preventDefault()
         }}

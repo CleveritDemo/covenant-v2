@@ -24,7 +24,7 @@ function chipsRegion(container: HTMLElement): HTMLElement {
 }
 
 function activeChipRegion(container: HTMLElement): HTMLElement {
-  const region = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chips-active')
+  const region = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chip-host--active')
   expect(region).not.toBeNull()
   return region as HTMLElement
 }
@@ -118,9 +118,8 @@ describe('PlaneChatContextsBar locks', () => {
       />,
     )
     const active = activeChipRegion(container)
-    const activeHost = active.querySelector('.plane-chat-contexts-bar__chip-host--active')
-    expect(activeHost?.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
-    expect(activeHost?.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
+    expect(active.querySelector('.plane-busy-dot--delegating')).not.toBeNull()
+    expect(active.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(1)
   })
 
   it('hides delegating dot on the active chip while CLI is busy', () => {
@@ -134,8 +133,7 @@ describe('PlaneChatContextsBar locks', () => {
       />,
     )
     const active = activeChipRegion(container)
-    const activeHost = active.querySelector('.plane-chat-contexts-bar__chip-host--active')
-    expect(activeHost?.querySelector('.plane-busy-dot')).toBeNull()
-    expect(activeHost?.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
+    expect(active.querySelector('.plane-busy-dot')).toBeNull()
+    expect(active.querySelectorAll('.plane-busy-dot--delegating')).toHaveLength(0)
   })
 })

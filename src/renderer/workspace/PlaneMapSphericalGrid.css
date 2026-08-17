@@ -1,5 +1,15 @@
 .plane-map__grid--spherical {
   overflow: hidden;
+  /* Parallax barato: vars en rAF (~30fps), no en cada pointermove. */
+  transform: translate3d(
+    var(--plane-grid-shift-x, 0px),
+    var(--plane-grid-shift-y, 0px),
+    0
+  );
+}
+
+.plane-map__grid--spherical.plane-map__grid--static {
+  transform: none;
 }
 
 .plane-map__grid-canvas {

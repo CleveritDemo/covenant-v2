@@ -1,6 +1,12 @@
 import React, { useCallback, useRef } from 'react'
 import type { TabSession } from '../App'
 import { useT } from '@i18n/useT'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { Icon } from './ui/Icon'
 import { Tooltip } from './ui/Tooltip'
 import { PlaneBusyDot } from './ui/PlaneBusyDot'
@@ -61,6 +67,7 @@ export const TabItem: React.FC<TabItemProps> = ({
 }) => {
   const { t } = useT()
   const canEditTitle = isActive && titleEditable
+  const dragArmRef = useRef(createHtml5DragArm())
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (canEditTitle && (e.key === 'Enter' || e.key === ' ')) {
@@ -117,11 +124,23 @@ export const TabItem: React.FC<TabItemProps> = ({
         isDragOver && dragOverPlace === 'before' ? 'tab--drag-over-before' : '',
         isDragOver && dragOverPlace === 'after' ? 'tab--drag-over-after' : '',
       ].filter(Boolean).join(' ')}
-      draggable={!isEditing}
-      onDragStart={onDragStart}
+      draggable={false}
+      onMouseDown={e => {
+        if (isEditing) return
+        armHtml5DragOnMouseDown(e.currentTarget, dragArmRef.current, e.button)
+      }}
+      onDragStart={e => {
+        if (isEditing || !allowArmedHtml5DragStart(e.currentTarget, dragArmRef.current, () => e.preventDefault())) {
+          return
+        }
+        onDragStart(e)
+      }}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      onDragEnd={onDragEnd}
+      onDragEnd={e => {
+        disarmHtml5Drag(e.currentTarget, dragArmRef.current)
+        onDragEnd()
+      }}
       onDragLeave={onDragLeave}
       onClick={() => { if (!isEditing) onSelect() }}
       onMouseEnter={handleMouseEnter}

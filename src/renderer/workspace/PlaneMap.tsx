@@ -251,7 +251,6 @@ export function buildSlotOrigins(
     viewportHeight: viewport.height,
     scrollOffset: scrollOffsets.agent,
     bottomClearance: PLANE_MINI_AGENT_BOTTOM_CLEARANCE,
-    fitAlignment: 'bottom',
   })
   for (const slot of agentWindow.slots) {
     visibleById[slot.id] = slot.visible

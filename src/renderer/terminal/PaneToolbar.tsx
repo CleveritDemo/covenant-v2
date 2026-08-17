@@ -1,8 +1,15 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import type { DragEvent } from 'react'
 import type { IconName } from '../components/ui/Icon'
 import { Icon } from '../components/ui/Icon'
+import { Tooltip } from '../components/ui/Tooltip'
 import { useT } from '@i18n/useT'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { PaneToolbarQuickOpen } from './PaneToolbarQuickOpen'
 
 export interface PaneToolbarProps {
@@ -148,21 +155,41 @@ const PaneReorderHandle: React.FC<PaneReorderHandleProps> = ({
   reorderAriaLabel,
   onDragStart,
   onDragEnd,
-}) => (
-  <span
-    role="button"
-    tabIndex={-1}
-    draggable
-    className="pane-toolbar-reorder-handle terminal-chrome-btn"
-    aria-label={reorderAriaLabel}
-    aria-grabbed={isGrabbed}
-    onMouseDown={e => { e.stopPropagation() }}
-    onDragStart={onDragStart}
-    onDragEnd={onDragEnd}
-  >
-    <Icon name="drag-handle" size={9} />
-  </span>
-)
+}) => {
+  const dragArmRef = useRef(createHtml5DragArm())
+  return (
+    <Tooltip content={reorderTitle}>
+      <span
+        role="button"
+        tabIndex={-1}
+        draggable={false}
+        className="pane-toolbar-reorder-handle terminal-chrome-btn"
+        aria-label={reorderAriaLabel}
+        aria-grabbed={isGrabbed}
+        onMouseDown={e => {
+          e.stopPropagation()
+          armHtml5DragOnMouseDown(e.currentTarget, dragArmRef.current, e.button)
+        }}
+        onDragStart={e => {
+          if (!allowArmedHtml5DragStart(
+            e.currentTarget,
+            dragArmRef.current,
+            () => e.preventDefault(),
+          )) {
+            return
+          }
+          onDragStart(e)
+        }}
+        onDragEnd={e => {
+          disarmHtml5Drag(e.currentTarget, dragArmRef.current)
+          onDragEnd()
+        }}
+      >
+        <Icon name="drag-handle" size={9} />
+      </span>
+    </Tooltip>
+  )
+}
 
 export interface PaneToolbarButtonProps {
   icon: IconName

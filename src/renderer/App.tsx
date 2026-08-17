@@ -6978,6 +6978,7 @@ export const App: React.FC = () => {
                   canAddTerminal={canCreatePane}
                   bootstrapAgentsLabel={t('tabs.bootstrapAgents')}
                   bootstrapAgentsTitle={t('tabs.bootstrapAgentsTitle')}
+                  bootstrapAgentsHint={t('tabs.bootstrapAgentsHint')}
                   bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
                   showBootstrapAgents={showBootstrapAgents}
                   canBootstrapAgents={canBootstrapAgents}

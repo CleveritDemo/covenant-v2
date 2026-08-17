@@ -4,19 +4,28 @@ import {
   PLANE_GRID_HORIZONTAL_FOV_DEG,
   PLANE_GRID_CELL_SIZE_PX,
   PLANE_GRID_MIN_ANGULAR_STEP,
+  PLANE_GRID_POINTER_LOOK_LERP,
   readPlaneGridLineColor,
   resolveCssColor,
   sphereGridLatitudeMax,
+  spherePointerLookTarget,
   verticalFovForAspect,
 } from './planeSphericalGridDraw'
 
 export { verticalFovForAspect } from './planeSphericalGridDraw'
+export {
+  PLANE_GRID_POINTER_LOOK_LERP,
+  PLANE_GRID_POINTER_PITCH_MAX_RAD,
+  PLANE_GRID_POINTER_YAW_MAX_RAD,
+  spherePointerLookTarget,
+} from './planeSphericalGridDraw'
 
 export type SpacetimeGridConfig = {
   cellSize: number
   opacity: number
   warmth: number
   lineColor: THREE.Color
+  /** false = reduce-motion: sin parallax de pointer. */
   animate: boolean
 }
 
@@ -25,6 +34,11 @@ export type PlaneSpacetimeGridRuntime = {
   updateConfig: (config: SpacetimeGridConfig) => void
   /** Energía del plano 0..1: solo uniforms, nunca reconstruye geometría. */
   setEnergy: (energy: number) => void
+  /**
+   * Mirada de cámara por pointer NDC (−1..1, +Y arriba).
+   * Solo aplica con `animate`; reduce-motion ignora.
+   */
+  setPointerLook: (ndcX: number, ndcY: number) => void
   render: (timeMs: number) => void
   dispose: () => void
 }
@@ -32,7 +46,7 @@ export type PlaneSpacetimeGridRuntime = {
 const SPHERE_RADIUS = 68
 const MAX_HORIZONTAL_FOV_DEG = PLANE_GRID_HORIZONTAL_FOV_DEG
 const MIN_ANGULAR_STEP = PLANE_GRID_MIN_ANGULAR_STEP
-/** Observador en el centro; mira por el ecuador frontal (+Z), alineado con planeSphericalGridDraw. */
+/** Observador en el centro; mira por el ecuador frontal (+Z). */
 const SPHERE_CENTER = new THREE.Vector3(0, 0, 0)
 const CAMERA_LOOK_TARGET = new THREE.Vector3(0, 0, 1)
 /** Observador en el centro de la esfera; solo rota la rejilla, polos fuera del arco dibujado. */
@@ -117,8 +131,10 @@ export function readSpacetimeGridConfig(el: HTMLElement, animate: boolean): Spac
   const style = getComputedStyle(el)
   const root = document.documentElement
   const cellSize = Number.parseFloat(style.getPropertyValue('--plane-grid-size')) || PLANE_GRID_CELL_SIZE_PX
-  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.619
-  const warmth = Number.parseFloat(style.getPropertyValue('--plane-grid-warmth')) || 0.42
+  const opacity = Number.parseFloat(style.getPropertyValue('--plane-grid-opacity')) || 0.093
+  const warmthRaw = Number.parseFloat(style.getPropertyValue('--plane-grid-warmth'))
+  // 0 es válido (sin tinte); no usar `||` porque lo sustituiría por el default.
+  const warmth = Number.isFinite(warmthRaw) ? warmthRaw : 0
   return {
     cellSize,
     opacity,
@@ -310,12 +326,12 @@ export function mountPlaneSpacetimeGrid(
   const grid = new THREE.LineSegments(new THREE.BufferGeometry(), material)
   replaceGridGeometry(grid, width, height, activeConfig.cellSize)
   scene.add(grid)
+  grid.rotation.set(0, 0, 0)
 
-  const rotationQuat = new THREE.Quaternion()
   let energy = 0
-  /** Ángulo acumulado: cambiar la velocidad no debe saltar de fase. */
-  let rotationAngle = 0
-  let lastRenderTimeMs = -1
+  const pointerTarget = new THREE.Vector2(0, 0)
+  const lookCurrent = new THREE.Vector3().copy(CAMERA_LOOK_TARGET)
+  const lookScratch = new THREE.Vector3()
 
   const applyEnergyUniforms = (): void => {
     material.uniforms.warmthMax!.value = energizedWarmth(activeConfig.warmth, energy)
@@ -324,20 +340,28 @@ export function mountPlaneSpacetimeGrid(
     )
   }
 
-  const render = (timeMs: number): void => {
-    const previousTimeMs = lastRenderTimeMs
-    lastRenderTimeMs = timeMs
-    if (activeConfig.animate) {
-      const dt = previousTimeMs < 0
-        ? 0
-        : Math.max(0, Math.min(0.25, (timeMs - previousTimeMs) / 1000))
-      rotationAngle += dt * sphereYRotationSpeedRadPerSec() * energizedRotationMul(energy)
-      rotationQuat.setFromAxisAngle(SPHERE_ROTATION_AXIS, rotationAngle)
-      grid.setRotationFromQuaternion(rotationQuat)
-    } else {
-      rotationAngle = 0
-      grid.rotation.set(0, 0, 0)
+  const applyCameraLook = (): void => {
+    if (!activeConfig.animate) {
+      lookCurrent.copy(CAMERA_LOOK_TARGET)
+      camera.up.set(0, 1, 0)
+      camera.lookAt(CAMERA_LOOK_TARGET)
+      return
     }
+    const [tx, ty, tz] = spherePointerLookTarget(pointerTarget.x, pointerTarget.y)
+    lookScratch.set(tx, ty, tz)
+    lookCurrent.lerp(lookScratch, PLANE_GRID_POINTER_LOOK_LERP)
+    if (lookCurrent.lengthSq() < 1e-8) {
+      lookCurrent.copy(CAMERA_LOOK_TARGET)
+    } else {
+      lookCurrent.normalize()
+    }
+    camera.up.set(0, 1, 0)
+    camera.lookAt(lookCurrent)
+  }
+
+  const render = (_timeMs: number): void => {
+    // Sin giro de malla: solo parallax de cámara (si animate) + energía.
+    applyCameraLook()
     renderer.render(scene, camera)
   }
 
@@ -358,12 +382,25 @@ export function mountPlaneSpacetimeGrid(
       // El tema reescribe warmth/opacity base: reaplica la energía vigente.
       applyEnergyUniforms()
       replaceGridGeometry(grid, layoutWidth, layoutHeight, next.cellSize)
+      if (!next.animate) {
+        pointerTarget.set(0, 0)
+        lookCurrent.copy(CAMERA_LOOK_TARGET)
+      }
     },
     setEnergy(next: number): void {
       const value = clampEnergy(next)
       if (value === energy) return
       energy = value
       applyEnergyUniforms()
+    },
+    setPointerLook(ndcX: number, ndcY: number): void {
+      if (!activeConfig.animate) {
+        pointerTarget.set(0, 0)
+        return
+      }
+      const x = Number.isFinite(ndcX) ? Math.min(1, Math.max(-1, ndcX)) : 0
+      const y = Number.isFinite(ndcY) ? Math.min(1, Math.max(-1, ndcY)) : 0
+      pointerTarget.set(x, y)
     },
     render,
     dispose(): void {

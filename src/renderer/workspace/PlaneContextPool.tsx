@@ -7,6 +7,12 @@ import { Tooltip } from '../components/ui/Tooltip'
 import { useT } from '@i18n/useT'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { setPlaneContextDragData } from './planeContextDrag'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../html5DragArm'
 import { PlaneContextAssignModal } from './PlaneContextAssignModal'
 import { PlaneContextChipMenu } from './PlaneContextChipMenu'
 import type { PlaneContextChipMenuItem } from './PlaneContextChipMenu'
@@ -96,6 +102,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
 }) => {
   const { t } = useT()
   const dragOccurredRef = useRef(false)
+  const chipDragArmRef = useRef(createHtml5DragArm())
   const rootRef = useRef<HTMLDivElement>(null)
   const [openContextId, setOpenContextId] = useState<string | null>(null)
   const [draggingChip, setDraggingChip] = useState(false)
@@ -156,7 +163,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   })
 
   const contextItemProps = (ctx: PlaneContextPoolItem) => ({
-    draggable: true,
+    draggable: false,
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault()
       event.stopPropagation()
@@ -181,11 +188,21 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         anchor: event.currentTarget.getBoundingClientRect(),
       })
     },
+    onMouseDown: (event: React.MouseEvent<HTMLButtonElement>) => {
+      armHtml5DragOnMouseDown(event.currentTarget, chipDragArmRef.current, event.button)
+    },
     onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
       event.stopPropagation()
     },
     onDragStart: (event: React.DragEvent<HTMLButtonElement>) => {
       event.stopPropagation()
+      if (!allowArmedHtml5DragStart(
+        event.currentTarget,
+        chipDragArmRef.current,
+        () => event.preventDefault(),
+      )) {
+        return
+      }
       dragOccurredRef.current = true
       setDraggingChip(true)
       setOpenContextId(null)
@@ -195,6 +212,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     },
     onDragEnd: (event: React.DragEvent<HTMLButtonElement>) => {
       event.stopPropagation()
+      disarmHtml5Drag(event.currentTarget, chipDragArmRef.current)
       setDraggingChip(false)
       endChipDrag()
     },

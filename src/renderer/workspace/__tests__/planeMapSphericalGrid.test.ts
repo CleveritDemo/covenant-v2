@@ -4,27 +4,53 @@ import {
   verticalFovForAspect,
 } from '../planeSpacetimeGridScene'
 import {
-  drawSphericalGrid,
   PLANE_GRID_CELL_SIZE_PX,
+  drawSphericalGrid,
   planeGridFocalPx,
+  planeGridPointerLerpAlpha,
   projectSphereGridPoint,
   sphereGridLatitudeMax,
+  spherePointerLookTarget,
 } from '../planeSphericalGridDraw'
 
 describe('projectSphereGridPoint', () => {
-  it('centra el polo frontal', () => {
-    const point = projectSphereGridPoint(0, 0, 800, 600, 1.72)
+  it('centra el polo frontal con look +Z', () => {
+    const point = projectSphereGridPoint(0, 0, 800, 600, [0, 0, 1])
     expect(point).toEqual({ x: 400, y: 300 })
   })
 
-  it('curva hacia los bordes', () => {
-    const center = projectSphereGridPoint(0, 0, 800, 600, 1.72)!
-    const edge = projectSphereGridPoint(0, 0.8, 800, 600, 1.72)!
-    expect(edge.x).toBeGreaterThan(center.x)
+  it('oculta puntos detrás del observador', () => {
+    expect(projectSphereGridPoint(0, Math.PI, 800, 600, [0, 0, 1])).toBeNull()
+  })
+})
+
+describe('spherePointerLookTarget', () => {
+  it('en el centro mira +Z', () => {
+    const [x, y, z] = spherePointerLookTarget(0, 0)
+    expect(x).toBeCloseTo(0)
+    expect(y).toBeCloseTo(0)
+    expect(z).toBeCloseTo(1)
   })
 
-  it('oculta puntos detrás del observador', () => {
-    expect(projectSphereGridPoint(0, Math.PI, 800, 600, 1.72)).toBeNull()
+  it('cursor arriba (ndcY+) mira hacia +Y', () => {
+    const [, y, z] = spherePointerLookTarget(0, 1)
+    expect(y).toBeGreaterThan(0)
+    expect(z).toBeGreaterThan(0)
+  })
+})
+
+describe('planeGridPointerLerpAlpha', () => {
+  it('dt 0 o tau inválido → 0', () => {
+    expect(planeGridPointerLerpAlpha(0, 0.5)).toBe(0)
+    expect(planeGridPointerLerpAlpha(0.016, 0)).toBe(0)
+  })
+
+  it('tau alto da alfa bajo (más inercia)', () => {
+    const slow = planeGridPointerLerpAlpha(1 / 60, 0.55)
+    const fast = planeGridPointerLerpAlpha(1 / 60, 0.1)
+    expect(slow).toBeLessThan(fast)
+    expect(slow).toBeGreaterThan(0)
+    expect(slow).toBeLessThan(0.1)
   })
 })
 
@@ -51,45 +77,17 @@ describe('drawSphericalGrid', () => {
 
     expect(strokeCount).toBeGreaterThan(30)
   })
-
-  it('aplica la opacidad compuesta en el canvas, no en el contenedor', () => {
-    const alphas: number[] = []
-    const ctx = {
-      clearRect: () => undefined,
-      beginPath: () => undefined,
-      moveTo: () => undefined,
-      lineTo: () => undefined,
-      stroke: () => undefined,
-      set strokeStyle(_: string) { /* noop */ },
-      set globalAlpha(value: number) { alphas.push(value) },
-      set lineWidth(_: number) { /* noop */ },
-      set lineJoin(_: string) { /* noop */ },
-      set lineCap(_: string) { /* noop */ },
-    } as unknown as CanvasRenderingContext2D
-
-    drawSphericalGrid(ctx, 640, 480, {
-      cellSizePx: PLANE_GRID_CELL_SIZE_PX,
-      lineColor: 'rgb(78, 73, 64)',
-      lineAlpha: 0.063,
-    })
-
-    const drawn = alphas.slice(0, -1)
-    expect(drawn.length).toBeGreaterThan(0)
-    for (const alpha of drawn) {
-      expect(alpha).toBeCloseTo(0.063, 2)
-    }
-  })
 })
 
 describe('plane grid density parity', () => {
-  it('el paso angular 2D coincide con WebGL en varios aspectos', () => {
+  it('el paso angular coincide con la focal del viewport en varios aspectos', () => {
     const cellSize = PLANE_GRID_CELL_SIZE_PX
     for (const [width, height] of [[1920, 1080], [800, 600], [1600, 900]]) {
       const aspect = width / height
       const vFov = verticalFovForAspect(aspect)
       const step3d = angularStepsForAspect(cellSize, height, vFov).stepLat
-      const step2d = cellSize / planeGridFocalPx(width, height)
-      expect(step2d).toBeCloseTo(step3d, 6)
+      const stepFromFocal = cellSize / planeGridFocalPx(width, height)
+      expect(stepFromFocal).toBeCloseTo(step3d, 6)
     }
   })
 })

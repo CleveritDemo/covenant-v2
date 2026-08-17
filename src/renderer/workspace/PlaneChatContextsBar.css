@@ -36,12 +36,11 @@
   box-sizing: border-box;
 }
 
-.plane-chat-contexts-bar__chips-active {
+.plane-chat-contexts-bar__chip-flip {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
   min-width: 0;
+  will-change: transform;
 }
 
 .plane-chat-contexts-bar__thread-dropdown {
@@ -52,9 +51,20 @@
 }
 
 .plane-chat-contexts-bar__chip-host--active {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--text-muted) 22%);
-  background: color-mix(in srgb, var(--surface) 96%, var(--bg));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent-border-strong);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  box-shadow:
+    0 0 0 1px var(--accent-border-soft),
+    0 0 12px var(--accent-glow-soft);
+}
+
+.plane-chat-contexts-bar__chip-host--active:hover,
+.plane-chat-contexts-bar__chip-host--active:focus-within {
+  border-color: var(--accent-border-strong);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  box-shadow:
+    0 0 0 1px var(--accent-border-strong),
+    0 0 14px var(--accent-glow);
 }
 
 .plane-chat-contexts-bar__chip--recent,
@@ -92,6 +102,7 @@
   background: color-mix(in srgb, var(--surface) 94%, var(--bg));
   box-shadow: none;
   box-sizing: border-box;
+  will-change: transform;
   transition:
     gap var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
     padding var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease),
@@ -136,7 +147,7 @@
 
 .plane-chat-contexts-bar__chip-host:hover > .plane-chat-contexts-bar__chip--active,
 .plane-chat-contexts-bar__chip-host:focus-within > .plane-chat-contexts-bar__chip--active {
-  color: var(--text);
+  color: color-mix(in srgb, var(--accent) 72%, var(--text));
 }
 
 .plane-chat-contexts-bar__chip {
@@ -182,8 +193,8 @@
 }
 
 .plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip--active {
-  color: var(--text);
-  font-weight: 400;
+  color: color-mix(in srgb, var(--accent) 68%, var(--text));
+  font-weight: 600;
 }
 
 .plane-chat-contexts-bar__chip:hover {
@@ -193,19 +204,19 @@
 }
 
 .plane-chat-contexts-bar__chip--active {
-  border-color: color-mix(in srgb, var(--border) 78%, transparent);
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg-secondary) 14%, transparent);
+  border-color: var(--accent-border-strong);
+  color: color-mix(in srgb, var(--accent) 68%, var(--text));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   backdrop-filter: blur(4px) saturate(1.08);
   -webkit-backdrop-filter: blur(4px) saturate(1.08);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .plane-chat-contexts-bar__chip--active:hover,
 .plane-chat-contexts-bar__chip--menu-open {
-  border-color: color-mix(in srgb, var(--border) 88%, transparent);
-  color: var(--text);
-  background: color-mix(in srgb, var(--bg-secondary) 20%, transparent);
+  border-color: var(--accent-border-strong);
+  color: color-mix(in srgb, var(--accent) 78%, var(--text));
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
 }
 
 .plane-chat-contexts-bar__chip--menu-open {

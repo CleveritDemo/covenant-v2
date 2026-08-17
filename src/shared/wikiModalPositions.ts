@@ -91,11 +91,21 @@ function isTooCloseToExisting(
   return accepted.some(pos => centerDistance(candidate, pos, modalWidth, modalHeight) < minDist)
 }
 
+/** Preferred side of the node: left half → open to the right; right half → open to the left (toward center). */
 export function wikiModalDockSide(originX: number, width: number): 'left' | 'right' {
-  return originX < width / 2 ? 'left' : 'right'
+  return originX < width / 2 ? 'right' : 'left'
 }
 
-/** Docks to the same screen edge as the node half (left half → left edge, right half → right edge); vertically centers on origin; avoids curator dead zone. */
+function wikiModalXBesideNode(
+  side: 'left' | 'right',
+  originX: number,
+  modalWidth: number,
+  gap: number,
+): number {
+  return side === 'right' ? originX + gap : originX - modalWidth - gap
+}
+
+/** Places the modal immediately left/right of the node; vertically centers on origin; avoids curator dead zone. */
 export function computeWikiModalPositionNearPoint({
   originX,
   originY,
@@ -117,8 +127,15 @@ export function computeWikiModalPositionNearPoint({
     ),
   )
 
-  const side = wikiModalDockSide(originX, width)
-  let x = side === 'right' ? width - modalWidth - padding : padding
+  const preferred = wikiModalDockSide(originX, width)
+  const alternate: 'left' | 'right' = preferred === 'right' ? 'left' : 'right'
+  const gap = padding
+
+  let x = wikiModalXBesideNode(preferred, originX, modalWidth, gap)
+  if (x < minX || x > maxX) {
+    const altX = wikiModalXBesideNode(alternate, originX, modalWidth, gap)
+    if (altX >= minX && altX <= maxX) x = altX
+  }
 
   let y = Math.round(originY - modalHeight / 2)
   y = clampAxis(y, minY, maxY)
@@ -126,6 +143,17 @@ export function computeWikiModalPositionNearPoint({
   if (modalOverlapsWikiDeadZone(x, y, modalWidth, modalHeight, width, height)) {
     y = Math.min(y, deadZone.top - modalHeight - padding)
     y = clampAxis(y, minY, maxY)
+  }
+
+  if (modalOverlapsWikiDeadZone(x, y, modalWidth, modalHeight, width, height)) {
+    const altX = clampAxis(
+      wikiModalXBesideNode(alternate, originX, modalWidth, gap),
+      minX,
+      maxX,
+    )
+    if (!modalOverlapsWikiDeadZone(altX, y, modalWidth, modalHeight, width, height)) {
+      x = altX
+    }
   }
 
   x = clampAxis(x, minX, maxX)

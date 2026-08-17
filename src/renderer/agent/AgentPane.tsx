@@ -1125,6 +1125,9 @@ export const AgentPane: React.FC<Props> = ({
     loadedRef.current = false
     pendingCliEventsRef.current = []
     setLoaded(false)
+    // Vaciar ya: sin esto el transcript anterior queda visible hasta loadAgentChat.
+    // El save effect mira loadedRef y no persiste este vacío bajo el hilo nuevo.
+    setMessages([])
     knownMessageIdsRef.current = null
     setEnteringIds(new Set())
     setMaterializingIds(new Set())

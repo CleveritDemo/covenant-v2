@@ -61,9 +61,9 @@
   --plane-radius: 14px;
   --plane-radius-sm: 10px;
   --plane-grid-size: 42.5px;
-  --plane-grid-opacity: 0.619;
-  --plane-grid-line-opacity: 0.452;
-  --plane-grid-warmth: 0.42;
+  --plane-grid-opacity: 0.093;
+  --plane-grid-line-opacity: 0.068;
+  --plane-grid-warmth: 0;
   --plane-glass: color-mix(in srgb, var(--bg-secondary) 68%, transparent);
   --plane-glass-strong: color-mix(in srgb, var(--bg-secondary) 84%, var(--surface));
   /* Lienzo de un pane: mismo fondo en el chat de agente y en la sala. */
@@ -88,9 +88,9 @@
     -5px 7px 22px color-mix(in srgb, #000 30%, transparent),
     -1px 2px 6px color-mix(in srgb, #000 14%, transparent),
     inset 0 0 0 1px var(--plane-highlight);
-  --plane-grid-line: color-mix(in srgb, var(--border) 55%, var(--accent) 18%);
-  /* Misma mezcla resuelta a rgb() por applyTheme: canvas y WebGL no parsean color-mix. */
-  --plane-grid-line-rgb: rgb(78, 73, 64);
+  /* Rejilla: blanco (dark) / negro (light); applyTheme escribe el rgb y la opacidad. */
+  --plane-grid-line: #ffffff;
+  --plane-grid-line-rgb: rgb(255, 255, 255);
   --plane-atmosphere-a: var(--accent-veil-strong);
   --plane-atmosphere-b: color-mix(in srgb, var(--accent) 8%, transparent);
   --plane-terminal-accent: color-mix(in srgb, var(--accent) 32%, #2dd4bf);

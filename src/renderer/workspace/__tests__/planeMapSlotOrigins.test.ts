@@ -115,16 +115,9 @@ describe('buildSlotOrigins virtual scroll', () => {
       height: PLANE_MINI_TERMINAL_HEIGHT,
     })
     expect(implicit.origins.t2.y).toBe(PLANE_MINI_SLOT_PAD_Y + stride)
-    const agentContentHeight = PLANE_MINI_SLOT_PAD_Y
-      + AGENT_HEIGHTS.a1
-      + PLANE_MINI_SLOT_GAP
-      + AGENT_HEIGHTS.a2
-    const agentLift = VIEWPORT.height
-      - PLANE_MINI_AGENT_BOTTOM_CLEARANCE
-      - agentContentHeight
-    expect(implicit.origins.a1.y).toBe(PLANE_MINI_SLOT_PAD_Y + agentLift)
+    expect(implicit.origins.a1.y).toBe(PLANE_MINI_SLOT_PAD_Y)
     expect(implicit.origins.a2.y).toBe(
-      PLANE_MINI_SLOT_PAD_Y + agentLift + AGENT_HEIGHTS.a1 + PLANE_MINI_SLOT_GAP,
+      PLANE_MINI_SLOT_PAD_Y + AGENT_HEIGHTS.a1 + PLANE_MINI_SLOT_GAP,
     )
   })
 

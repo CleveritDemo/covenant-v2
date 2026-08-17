@@ -3,6 +3,12 @@ import type { FileExplorerEntry } from '@shared/fileExplorerTypes'
 import { useT } from '@i18n/useT'
 import { Icon } from '../../components/ui/Icon'
 import { Spinner } from '../../components/ui/Spinner'
+import {
+  allowArmedHtml5DragStart,
+  armHtml5DragOnMouseDown,
+  createHtml5DragArm,
+  disarmHtml5Drag,
+} from '../../html5DragArm'
 import { FileExplorerEntryIcon } from './FileExplorerEntryIcon'
 import type { ExplorerGitStatus } from './fileExplorerGitStatus'
 
@@ -64,6 +70,7 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
   const { t } = useT()
   const isDir = entry.isDirectory
   const escapePressedRef = useRef(false)
+  const rowDragArmRef = useRef(createHtml5DragArm())
   const depthStyle = { '--node-depth': depth } as React.CSSProperties
 
   const gitClass =
@@ -146,15 +153,26 @@ export const FileExplorerTreeNode: React.FC<FileExplorerTreeNodeProps> = ({
       data-rel-path={entry.relPath}
       data-is-directory={isDir ? 'true' : 'false'}
       data-name={entry.name}
-      draggable
+      draggable={false}
+      onMouseDown={e => {
+        armHtml5DragOnMouseDown(e.currentTarget, rowDragArmRef.current, e.button)
+      }}
       onDragStart={e => {
+        if (!allowArmedHtml5DragStart(
+          e.currentTarget,
+          rowDragArmRef.current,
+          () => e.preventDefault(),
+        )) {
+          return
+        }
         onDragStartEntry?.(entry.relPath, e)
         if (!e.dataTransfer.getData('text/plain')) {
           e.dataTransfer.setData('text/plain', entry.relPath)
           e.dataTransfer.effectAllowed = 'move'
         }
       }}
-      onDragEnd={() => {
+      onDragEnd={e => {
+        disarmHtml5Drag(e.currentTarget, rowDragArmRef.current)
         onDragEndEntry?.()
       }}
       onDragOver={e => {

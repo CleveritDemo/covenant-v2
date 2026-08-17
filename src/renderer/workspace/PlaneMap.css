@@ -16,6 +16,15 @@
   pointer-events: none;
 }
 
+/* Encima de grilla/partículas; aísla el piso. Stage/composer quedan arriba. */
+.plane-map-backdrop__shield {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: transparent;
+}
+
 /* Partículas busy del piso: ancladas abajo, encima de la grilla. */
 .plane-map__floor-particles {
   position: absolute;

@@ -135,18 +135,14 @@ describe('resolveAgentMiniPaneIdFromPointer', () => {
 
   it('prefers the agent with higher fade when rects overlap', () => {
     const agents = [makeAgent('a1'), makeAgent('a2')]
-    const baseHeights = { a1: 120, a2: 120 }
-    const layout = buildSlotOrigins(agents, VIEWPORT, baseHeights)
+    const heights = { a1: 120, a2: 120 }
+    const layout = buildSlotOrigins(agents, VIEWPORT, heights)
+    const origin = layout.origins.a2
     const centerX = agentBandCenterX(0, agents.length)
-    const a2CenterY = layout.origins.a2.y + baseHeights.a2 / 2
-    const heights = {
-      a1: a2CenterY - layout.origins.a1.y + 20,
-      a2: baseHeights.a2,
-    }
 
     const paneId = resolveAgentMiniPaneIdFromPointer({
       clientX: centerX,
-      clientY: a2CenterY,
+      clientY: origin.y + origin.height / 2,
       mapRect: mapRect(),
       viewport: VIEWPORT,
       agentsInOrder: agents,

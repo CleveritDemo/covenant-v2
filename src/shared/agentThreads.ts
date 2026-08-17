@@ -87,6 +87,24 @@ export function recentChipThreads(
   return threadBarCandidates(threads, activeThreadId, runningThreadIds).slice(0, limit)
 }
 
+/**
+ * Chips de la barra: el activo (recién abierto / en vista) siempre a la
+ * izquierda; el resto por `updatedAt` desc. Abrir llama `selectThreadOpened`
+ * y sube `updatedAt`; el pin evita que un carril de fondo lo desplace.
+ */
+export function barChipThreads(
+  threads: readonly AgentThread[],
+  activeThreadId: string,
+  runningThreadIds: readonly string[],
+  limit = MAX_RECENT_CHIP_THREADS,
+): AgentThread[] {
+  const recent = recentChipThreads(threads, activeThreadId, runningThreadIds, limit)
+  const active = activeThreadId
+    ? threads.find(thread => thread.id === activeThreadId)
+    : undefined
+  return active ? [active, ...recent] : recent
+}
+
 /** Hilos que ocupan chips en la barra: activo + los recientes visibles. */
 export function chipVisibleThreadIds(
   threads: readonly AgentThread[],
@@ -94,8 +112,7 @@ export function chipVisibleThreadIds(
   runningThreadIds: readonly string[],
 ): Set<string> {
   const ids = new Set<string>()
-  if (activeThreadId) ids.add(activeThreadId)
-  for (const thread of recentChipThreads(threads, activeThreadId, runningThreadIds)) {
+  for (const thread of barChipThreads(threads, activeThreadId, runningThreadIds)) {
     ids.add(thread.id)
   }
   return ids

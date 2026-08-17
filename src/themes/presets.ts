@@ -1986,37 +1986,17 @@ function contrastRatio(lumA: number, lumB: number): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-/** Mezcla border/accent como `--plane-grid-line` en global.css (55% / 18%). */
-function mixPlaneGridLineRgb(
-  borderRgb: [number, number, number],
-  accentRgb: [number, number, number],
-): [number, number, number] {
-  const borderWeight = 55
-  const accentWeight = 18
-  const total = borderWeight + accentWeight
-  return [
-    Math.round((borderRgb[0] * borderWeight + accentRgb[0] * accentWeight) / total),
-    Math.round((borderRgb[1] * borderWeight + accentRgb[1] * accentWeight) / total),
-    Math.round((borderRgb[2] * borderWeight + accentRgb[2] * accentWeight) / total),
-  ]
-}
+/** Línea de rejilla: blanco en oscuros, negro en claros. Sin tinte de border/accent. */
+const PLANE_GRID_LINE_RGB_DARK: [number, number, number] = [255, 255, 255]
+const PLANE_GRID_LINE_RGB_LIGHT: [number, number, number] = [0, 0, 0]
 
-function lerpRgb(
-  a: [number, number, number],
-  b: [number, number, number],
-  t: number,
-): [number, number, number] {
-  return [
-    Math.round(a[0] + (b[0] - a[0]) * t),
-    Math.round(a[1] + (b[1] - a[1]) * t),
-    Math.round(a[2] + (b[2] - a[2]) * t),
-  ]
+function planeGridLineRgbForAppearance(light: boolean): [number, number, number] {
+  return light ? PLANE_GRID_LINE_RGB_LIGHT : PLANE_GRID_LINE_RGB_DARK
 }
 
 /**
- * Alfa que arrastra `--plane-grid-line`: los pesos del `color-mix` suman 73%,
- * y CSS multiplica el alfa del resultado por esa suma. Cualquier consumidor que
- * no sea CSS (canvas 2D, WebGL) tiene que aplicarlo a mano o pintará más fuerte.
+ * Factor de alfa compuesto histórico (antes sumaba el color-mix al 73%).
+ * Canvas 2D / WebGL lo aplican a mano junto con `--plane-grid-opacity`.
  */
 export const PLANE_GRID_LINE_ALPHA = 0.73
 
@@ -2025,25 +2005,20 @@ export function computePlaneGridCompositeOpacity(gridOpacity: number): number {
   return gridOpacity * PLANE_GRID_LINE_ALPHA
 }
 
-/** `rgb(...)` de la línea de rejilla, ya mezclada: WebGL no sabe leer color-mix. */
+/** `rgb(...)` de la línea: blanco (dark) o negro (light). WebGL no parsea color-mix. */
 export function computePlaneGridLineRgb(theme: AppTheme): string {
-  const borderRgb = parseHexAccent(theme.vars['--border'] ?? '#222a3c') ?? [34, 42, 60]
-  const accentRgb = parseHexAccent(theme.vars['--accent'] ?? '#d4a84b') ?? [212, 168, 75]
-  const [r, g, b] = mixPlaneGridLineRgb(borderRgb, accentRgb)
+  const [r, g, b] = planeGridLineRgbForAppearance(isLightTheme(theme))
   return `rgb(${r}, ${g}, ${b})`
 }
 
 function planeGridContrastRatio(
   bg: string,
-  border: string,
-  accent: string,
   opacity: number,
+  light: boolean,
 ): number | null {
   const bgRgb = parseHexAccent(bg)
-  const borderRgb = parseHexAccent(border)
-  const accentRgb = parseHexAccent(accent)
-  if (!bgRgb || !borderRgb || !accentRgb) return null
-  const lineRgb = mixPlaneGridLineRgb(borderRgb, accentRgb)
+  if (!bgRgb) return null
+  const lineRgb = planeGridLineRgbForAppearance(light)
   const bgLum = relativeLuminance(bgRgb)
   const lineLum = relativeLuminance(lineRgb)
   const alpha = opacity * PLANE_GRID_LINE_ALPHA
@@ -2051,7 +2026,8 @@ function planeGridContrastRatio(
   return contrastRatio(blended, bgLum)
 }
 
-const PLANE_GRID_OPACITY_BASE = 0.25
+/** Base de opacidad; −20% vs 0.075 (más transparente en dark y light). */
+const PLANE_GRID_OPACITY_BASE = 0.06
 const PLANE_GRID_OPACITY_MIN = 0.02
 const PLANE_GRID_OPACITY_MAX = 1
 /** Ancla de contraste por apariencia: oscuros y claros se calibran por separado. */
@@ -2060,8 +2036,8 @@ const PLANE_GRID_REFERENCE_ID = {
   light: 'interstellarLight',
 } as const
 /** Ajuste fino de notoriedad por apariencia (1 = neutro). Cada escala solo toca su familia. */
-const PLANE_GRID_DARK_NOTORIETY_SCALE = 1.934
-/** Calibrado para Interstellar Light ≈0.249 con ancla propia (0.25×0.95). */
+const PLANE_GRID_DARK_NOTORIETY_SCALE = 0.967
+/** Calibrado para Interstellar Light ≈0.06 con ancla propia. */
 const PLANE_GRID_LIGHT_NOTORIETY_SCALE = 1.051
 
 function planeGridReferenceThemeId(light: boolean): string {
@@ -2089,16 +2065,15 @@ export function planeGridTargetContrast(light = false): number {
   const refOpacity = planeGridAnchorOpacity(refTheme, light)
   const refRatio = planeGridContrastRatio(
     refTheme.vars['--bg'] ?? '#030508',
-    refTheme.vars['--border'] ?? '#222a3c',
-    refTheme.vars['--accent'] ?? '#d4a84b',
     refOpacity,
+    light,
   )
   return refRatio ?? 1
 }
 
 /**
  * Opacidad de la rejilla del plano calibrada al contraste perceptual del ancla de su apariencia.
- * La escala de notoriedad se aplica al **salto de contraste**, no a la opacidad en bruto.
+ * Color fijo (blanco/negro); la diferencia entre temas es solo transparencia.
  */
 export function computePlaneGridOpacity(theme: AppTheme): number {
   const light = isLightTheme(theme)
@@ -2119,9 +2094,8 @@ export function computePlaneGridOpacity(theme: AppTheme): number {
   ) {
     const ratio = planeGridContrastRatio(
       theme.vars['--bg'] ?? refTheme.vars['--bg'] ?? '#030508',
-      theme.vars['--border'] ?? '#222a3c',
-      theme.vars['--accent'] ?? '#d4a84b',
       opacity,
+      light,
     )
     if (ratio == null) continue
     const delta = Math.abs(ratio - target)
@@ -2133,43 +2107,12 @@ export function computePlaneGridOpacity(theme: AppTheme): number {
   return Number(best.toFixed(3))
 }
 
-const PLANE_GRID_WARMTH_BASE = 0.42
-/** El resplandor sí depende del sentido: en light el acento oscurece la línea. */
-const PLANE_GRID_WARMTH_REFERENCE_ID = {
-  dark: 'interstellar',
-  light: 'interstellarLight',
-} as const
-
-function planeGridWarmLuminanceSpread(theme: AppTheme, warmth: number): number | null {
-  const borderRgb = parseHexAccent(theme.vars['--border'] ?? '#222a3c')
-  const accentRgb = parseHexAccent(theme.vars['--accent'] ?? '#d4a84b')
-  if (!borderRgb || !accentRgb) return null
-  const lineRgb = mixPlaneGridLineRgb(borderRgb, accentRgb)
-  const warmRgb = lerpRgb(lineRgb, accentRgb, warmth)
-  return relativeLuminance(warmRgb) - relativeLuminance(lineRgb)
-}
-
 /**
- * Resplandor línea→acento en WebGL calibrado al spread luminante de Interstellar.
+ * Warmth WebGL apagado: la línea queda blanco/negro puro;
+ * la diferencia entre temas es solo opacidad.
  */
-export function computePlaneGridWarmth(theme: AppTheme): number {
-  const light = isLightTheme(theme)
-  const refTheme = getTheme(PLANE_GRID_WARMTH_REFERENCE_ID[light ? 'light' : 'dark'])
-  const target = planeGridWarmLuminanceSpread(refTheme, PLANE_GRID_WARMTH_BASE)
-  if (target == null) return PLANE_GRID_WARMTH_BASE
-
-  let best = PLANE_GRID_WARMTH_BASE
-  let bestDelta = Number.POSITIVE_INFINITY
-  for (let warmth = 0.05; warmth <= 1; warmth += 0.005) {
-    const spread = planeGridWarmLuminanceSpread(theme, warmth)
-    if (spread == null) continue
-    const delta = Math.abs(spread - target)
-    if (delta < bestDelta) {
-      bestDelta = delta
-      best = warmth
-    }
-  }
-  return Number(best.toFixed(3))
+export function computePlaneGridWarmth(_theme: AppTheme): number {
+  return 0
 }
 
 const ACCENT_FG_CANDIDATES: ReadonlyArray<[[number, number, number], string]> = [
@@ -2267,7 +2210,7 @@ export function applyTheme(theme: AppTheme): void {
     root.style.setProperty('--accent-border-soft', rgba(accentRgb, scaledAlpha(0.24, glow, 0.42)))
     root.style.setProperty('--accent-border-strong', rgba(accentRgb, scaledAlpha(0.52, glow, 0.68)))
 
-    // Plano HUD: rejilla con contraste fijo (referencia Interstellar); glow solo en atmósfera
+    // Plano HUD: rejilla blanco/negro; diferencia entre temas = opacidad
     const planeGridOpacity = computePlaneGridOpacity(theme)
     root.style.setProperty('--plane-grid-opacity', String(planeGridOpacity))
     root.style.setProperty(
@@ -2275,7 +2218,9 @@ export function applyTheme(theme: AppTheme): void {
       String(computePlaneGridCompositeOpacity(planeGridOpacity)),
     )
     root.style.setProperty('--plane-grid-warmth', String(computePlaneGridWarmth(theme)))
-    root.style.setProperty('--plane-grid-line-rgb', computePlaneGridLineRgb(theme))
+    const planeGridLineRgb = computePlaneGridLineRgb(theme)
+    root.style.setProperty('--plane-grid-line-rgb', planeGridLineRgb)
+    root.style.setProperty('--plane-grid-line', planeGridLineRgb)
     root.style.setProperty('--plane-atmosphere-a', rgba(accentRgb, scaledAlpha(0.16, glow, 0.36)))
     root.style.setProperty('--plane-atmosphere-b', rgba(accentRgb, scaledAlpha(0.07, glow, 0.22)))
     root.style.setProperty('--plane-glow', rgba(accentRgb, scaledAlpha(0.2, glow, 0.48)))

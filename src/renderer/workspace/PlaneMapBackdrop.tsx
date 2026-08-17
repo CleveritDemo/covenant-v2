@@ -22,6 +22,8 @@ export const PlaneMapBackdrop: React.FC<PlaneMapBackdropProps> = ({
       <PlaneMapSphericalGrid energyTarget={energyTarget} />
       {floorParticles}
       <PlaneMapGridParticles energyTarget={energyTarget} />
+      {/* Encima del parallax/grilla: aísla el piso; UI (stage/composer) queda arriba. */}
+      <div className="plane-map-backdrop__shield" />
     </div>
   )
 }

@@ -1,7 +1,8 @@
 .plane-idle-gravity {
   position: absolute;
   inset: 0 0 140px 0;
-  z-index: 5;
+  /* Dentro de la esfera: encima del backdrop/grilla (16), debajo del stage (17). */
+  z-index: 16;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12,23 +13,95 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  /* Mismo aire que GravityHeroCanvas (gap 30) entre masa y copy. */
+  gap: 30px;
   max-width: min(420px, calc(100% - 48px));
   padding: 0 24px;
   text-align: center;
 }
 
-.plane-idle-gravity__hint {
-  margin: 0;
-  font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-muted);
+/* Copy: misma gramática que .hero-confirm-overlay__copy (sin shell overlay). */
+.plane-idle-gravity__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 
-.plane-idle-gravity__cta {
+.plane-idle-gravity__meta {
+  margin: 0;
+  max-width: 28em;
+  color: var(--text-muted, #7878a8);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+/* Select folder / Crear equipo: botón grande tipo ghost (no kit Button). */
+.plane-idle-gravity__cta--ghost {
   pointer-events: auto;
-  max-width: min(240px, 100%);
-  padding: 0 4px;
-  margin-top: 4px;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 28px;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 42%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.plane-idle-gravity__cta--ghost:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 38%, transparent);
+}
+
+.plane-idle-gravity__cta--ghost:active {
+  opacity: 0.9;
+}
+
+.plane-idle-gravity__cta--ghost:focus {
+  outline: none;
+}
+
+.plane-idle-gravity__cta--ghost:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 3px;
+}
+
+.plane-idle-gravity__hint {
+  margin: 4px 0 0;
+  max-width: 28em;
+  color: var(--text-muted, #7878a8);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+html[data-reduce-motion="true"] .plane-idle-gravity__cta--ghost {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plane-idle-gravity__cta--ghost {
+    transition: none;
+  }
 }

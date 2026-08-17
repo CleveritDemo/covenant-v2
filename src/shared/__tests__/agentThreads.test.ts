@@ -3,6 +3,7 @@ import {
   DEFAULT_THREAD_ID,
   MAX_THREADS_PER_PANE,
   MAX_RECENT_CHIP_THREADS,
+  barChipThreads,
   chipVisibleThreadIds,
   deleteThread,
   newThread,
@@ -397,6 +398,17 @@ describe('thread history helpers', () => {
     const recent = recentChipThreads(threads, 't1', ['t2'])
     expect(recent.map(thread => thread.id)).toEqual(['t2', 't3', 't4', 't5', 't6'].slice(0, MAX_RECENT_CHIP_THREADS))
     expect(recent).toHaveLength(MAX_RECENT_CHIP_THREADS)
+  })
+
+  it('barChipThreads pone el activo a la izquierda; el resto por recencia', () => {
+    const chips = barChipThreads(threads, 't3', ['t2'])
+    expect(chips.map(thread => thread.id)).toEqual(['t3', 't1', 't2', 't4', 't5', 't6'])
+  })
+
+  it('barChipThreads pone el activo primero aunque no sea el más reciente', () => {
+    const chips = barChipThreads(threads, 't6', [])
+    expect(chips.map(thread => thread.id)[0]).toBe('t6')
+    expect(chips.map(thread => thread.id).slice(1)).toEqual(['t1', 't2', 't3', 't4', 't5'])
   })
 
   it('threadHistoryCandidates excluye activo y chips recientes', () => {

@@ -8,6 +8,7 @@ import {
   sphereCameraLookTarget,
   sphereCameraPosition,
   sphereInteriorPoint,
+  spherePointerLookTarget,
   sphereRotationAxis,
   sphereYRotationSpeedRadPerSec,
   verticalFovForAspect,
@@ -40,6 +41,27 @@ describe('sphereCameraLookTarget', () => {
     const [x, y, z] = sphereCameraLookTarget()
     expect(x).toBeCloseTo(0)
     expect(y).toBeCloseTo(0)
+    expect(z).toBeGreaterThan(0)
+  })
+})
+
+describe('spherePointerLookTarget', () => {
+  it('en el centro mira +Z', () => {
+    const [x, y, z] = spherePointerLookTarget(0, 0)
+    expect(x).toBeCloseTo(0)
+    expect(y).toBeCloseTo(0)
+    expect(z).toBeCloseTo(1)
+  })
+
+  it('cursor a la derecha gira yaw hacia +X', () => {
+    const [x, , z] = spherePointerLookTarget(1, 0)
+    expect(x).toBeGreaterThan(0)
+    expect(z).toBeGreaterThan(0)
+  })
+
+  it('cursor arriba (ndcY+) mira hacia +Y para que la vista suba', () => {
+    const [, y, z] = spherePointerLookTarget(0, 1)
+    expect(y).toBeGreaterThan(0)
     expect(z).toBeGreaterThan(0)
   })
 })

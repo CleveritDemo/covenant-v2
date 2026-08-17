@@ -130,6 +130,8 @@ export interface TabAgenticPlaneProps {
   canAddTerminal?: boolean
   bootstrapAgentsLabel?: string
   bootstrapAgentsTitle?: string
+  /** Hint tipográfico bajo el CTA de crear equipo (idle). */
+  bootstrapAgentsHint?: string
   bootstrapAgentsDisabledTitle?: string
   showBootstrapAgents?: boolean
   canBootstrapAgents?: boolean
@@ -365,6 +367,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   canAddTerminal = true,
   bootstrapAgentsLabel,
   bootstrapAgentsTitle,
+  bootstrapAgentsHint,
   bootstrapAgentsDisabledTitle,
   showBootstrapAgents = false,
   canBootstrapAgents = false,
@@ -913,6 +916,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen
     && !brainstormOverlayOpen && !pulseOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
+  /** Sin agentes ni terminales no hay a quién hablar: el composer no se monta. */
+  const showPlaneComposer = entities.length > 0
 
   const composerWorking = Boolean(
     openChatAgentId
@@ -1267,9 +1272,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {showIdleGravity && (
         <PlaneIdleGravity
+          emptyTitle={entities.length === 0 ? emptyTitle : undefined}
           emptyHint={entities.length === 0 ? emptyHint : undefined}
+          selectFolderLabel={projectFolderSelectLabel}
+          selectFolderTitle={projectFolderEmptyHint}
+          onSelectProjectFolder={onSelectProjectFolder}
           bootstrapAgentsLabel={bootstrapAgentsLabel}
           bootstrapAgentsTitle={bootstrapAgentsTitle}
+          bootstrapAgentsHint={bootstrapAgentsHint}
           bootstrapAgentsDisabledTitle={bootstrapAgentsDisabledTitle}
           showBootstrapAgents={showBootstrapAgents && entities.length === 0}
           canBootstrapAgents={canBootstrapAgents}
@@ -1363,7 +1373,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onInsertCommand={onInsertCommand}
             />
           ) : null}
-          composer={(
+          composer={showPlaneComposer ? (
             <PlaneChatComposer
               agents={agents}
               contexts={tabContexts}
@@ -1394,7 +1404,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onContextSaved={onContextSaved}
               onLoadPromptHistory={onLoadPromptHistory}
             />
-          )}
+          ) : null}
         />
       )}
 

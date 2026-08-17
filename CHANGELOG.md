@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.80.1
+
+- Los chips de conversación del chat ya no dejan ver el texto de abajo: ahora tapan, y el chip activo recupera su borde y su brillo de acento.
+- «Bajar animaciones» apaga también las animaciones de Brainstorming rooms: el punto del chip, el cursor del asiento, el punto de la fila de salas, el resalte de acciones y el punto de espera del turno.
+- El botón flotante para crear un agente dibuja un agente, no unas chispas.
+
 ## v0.80.0
 
 - Agregar un archivo del repo como contexto ahora es un paso: «Agregar archivo…» en el listado abre el diálogo nativo y crea el contexto ya nombrado con el archivo.

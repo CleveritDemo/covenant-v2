@@ -1030,6 +1030,8 @@ const en = {
     planeContextRoleResult: 'Agent output',
     planeContextPoolTitle: 'Contexts',
     planeToolsRailLabel: 'Plane tools',
+    planeWorkspaceButton: 'Plane',
+    planeWorkspaceButtonHint: 'Agents and terminals',
     planeContextPoolEmpty: 'No contexts in .gravity',
     planeContextPoolChipHint: 'Click to open · right-click for options · drag onto an agent',
     planeContextPoolAssign: 'Assign to agents',

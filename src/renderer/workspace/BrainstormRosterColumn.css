@@ -20,6 +20,12 @@
   box-shadow: none;
 }
 
+/* Contexto encima: el mismo aviso que la mini del plano al recibir un drop. */
+.brainstorm-roster__item--drop {
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
 .brainstorm-roster__hint {
   font-size: 10.5px;
   color: var(--text-muted);

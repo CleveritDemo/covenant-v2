@@ -742,6 +742,8 @@ export const PaneWindow: React.FC<PaneWindowProps> = ({
     <div
       ref={rootRef}
       data-pane-id={paneId}
+      // Destino del haz de contextos; el mismo atributo marca a los asientos de la sala.
+      data-context-link-card={showAsMini && miniAgentCard ? paneId : undefined}
       className={[
         'pane-window',
         showAsMini ? 'pane-window--mini' : 'pane-window--full',

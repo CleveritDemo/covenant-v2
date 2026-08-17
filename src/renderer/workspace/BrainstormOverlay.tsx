@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { computePlaneColumnTiltDeg } from '@shared/paneWindows'
 import {
   brainstormSeatCellHeight,
   brainstormSeatTier,
@@ -76,6 +77,8 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
   const [cell, setCell] = useState(() => brainstormSeatCellHeight(800, seatCount || 1))
+  /* El mismo giro 3D que las columnas del plano, con su mismo corte por ancho. */
+  const [tiltDeg, setTiltDeg] = useState(0)
 
   // Escape cierra la vista — salvo que haya un modal portaled encima
   // (confirmaciones, pickers): ese Escape es del modal.
@@ -99,6 +102,7 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
     if (!node) return
     const measure = (): void => {
       setCell(brainstormSeatCellHeight(node.clientHeight, Math.max(1, seatCount)))
+      setTiltDeg(computePlaneColumnTiltDeg(node.clientWidth))
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
@@ -120,6 +124,7 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
       style={{
         zIndex: APP_OVERLAY_MODAL_Z,
         '--brainstorm-seat-cell': `${cell}px`,
+        '--brainstorm-col-tilt': `${tiltDeg}deg`,
       } as React.CSSProperties}
       data-seat-tier={tier}
     >

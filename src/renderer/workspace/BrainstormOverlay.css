@@ -23,11 +23,18 @@
   /* Canalón ambos rieles del plano: 28px + inset 8px + holgura; elevated no pisa columnas. */
   padding-inline: var(--brainstorm-rail-gutter);
 
-  /* Medidas del plano de codificación (src/shared/paneWindows.ts). */
-  --brainstorm-col-w: 216px;
+  /*
+   * Medidas del plano de codificación (src/shared/paneWindows.ts). La columna
+   * es PLANE_MINI_MAX_WIDTH (230) + sus 28 de padding: la ficha del agente cabe
+   * al mismo ancho que la mini del plano, no a uno propio más estrecho. El
+   * centro baja a PLANE_CHAT_BASE_WIDTH (640) por lo mismo —el acta no es más
+   * ancha que la columna de chat del plano— y el sitio que suelta se lo quedan
+   * los asientos y el riel de contextos.
+   */
+  --brainstorm-col-w: 258px;
   --brainstorm-col-gap: 20px;
   --brainstorm-nav-gutter: 48px;
-  --brainstorm-chat-w: 800px;
+  --brainstorm-chat-w: 640px;
   --brainstorm-rail-gutter: 44px;
 
   container-type: inline-size;
@@ -236,14 +243,23 @@
     minmax(0, var(--brainstorm-col-w));
 }
 
+/*
+ * Sin raya de separación: en el plano las minis flotan sobre el lienzo y el
+ * riel no se anuncia con un canto. La raya convertía la columna en «sidebar».
+ *
+ * El giro es el de las columnas del plano —perspectiva 1200 (COLUMN_PERSPECTIVE_PX
+ * en PlaneMap.tsx) y el ángulo que publica el overlay con `computePlaneColumnTiltDeg`,
+ * que ya se anula solo en anchos estrechos—: terminales/material hacia dentro por
+ * la izquierda, agentes por la derecha.
+ */
 .brainstorm-overlay__col--left {
   grid-column: 1;
-  border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  transform: perspective(1200px) rotateY(var(--brainstorm-col-tilt, 0deg));
 }
 
 .brainstorm-overlay__col--right {
   grid-column: 3;
-  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  transform: perspective(1200px) rotateY(calc(var(--brainstorm-col-tilt, 0deg) * -1));
 }
 
 .brainstorm-overlay__col::-webkit-scrollbar { width: 6px; }
@@ -288,17 +304,22 @@
   padding: 0 14px 6px;
 }
 
-/* Tarjeta de panel en la columna izquierda: no es clicable, solo agrupa. */
+/*
+ * Tarjeta de panel en la columna izquierda: no es clicable, solo agrupa. Mismo
+ * marco que la mini del plano y que el asiento —borde tenue, glass, sin sombra—:
+ * con `--surface` y borde entero se leían como cajas de otra interfaz al lado de
+ * las fichas de agente.
+ */
 .brainstorm-panel {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px 11px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: var(--plane-radius-sm, 10px);
-  background: var(--surface);
-  box-shadow: var(--plane-mini-card-shadow-left);
+  background: var(--plane-glass-strong);
+  box-shadow: none;
 }
 
 .brainstorm-panel__title {
@@ -375,6 +396,12 @@
     ),
     var(--plane-glass-strong);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--brainstorm-seat-color) 22%, transparent);
+}
+
+/* Contexto encima: mismo aviso que la mini del plano al recibir un drop. */
+.brainstorm-seat--context-drop {
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 /* Esperando turno: sigue legible, pero no compite con quien habla. */
@@ -574,6 +601,18 @@
  * aprietan las columnas; la izquierda solo desaparece cuando ya no queda sitio
  * para el acta. Los asientos no se van nunca: sin ellos no se sabe quién habla.
  */
+@container brainstorm-room (max-width: 1280px) {
+  .brainstorm-overlay--setup {
+    grid-template-columns:
+      minmax(0, 232px)
+      minmax(0, 1fr)
+      minmax(0, 216px);
+  }
+  .brainstorm-overlay {
+    --brainstorm-col-w: 216px;
+  }
+}
+
 @container brainstorm-room (max-width: 1100px) {
   .brainstorm-overlay--setup {
     grid-template-columns:

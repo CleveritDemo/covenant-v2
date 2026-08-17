@@ -6,6 +6,7 @@ import { useT } from '@i18n/useT'
 import { Tooltip } from '../components/ui/Tooltip'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneAgentContextNodes, type PlaneAgentContextChip } from './PlaneAgentContextNodes'
+import type { BrainstormContextDropHandlers } from './brainstormContextDrop'
 
 export interface BrainstormSeatCardProps {
   agentId: string
@@ -18,6 +19,13 @@ export interface BrainstormSeatCardProps {
   monogram?: string
   /** Salas vivas donde este agente ya tiene asiento (temas, para nombrarlas). */
   alsoInRooms?: readonly string[]
+  /**
+   * Recibir un contexto soltado desde el riel, como la mini del plano. Los arma
+   * `useBrainstormContextDrop`; sin ellos la ficha no es destino de nada.
+   */
+  contextDrop?: BrainstormContextDropHandlers
+  /** El contexto arrastrado está encima de esta ficha. */
+  contextDropActive?: boolean
 }
 
 export interface BrainstormInviteSeatCardProps extends BrainstormSeatCardProps {
@@ -90,6 +98,8 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
   provider,
   coordination,
   alsoInRooms = [],
+  contextDrop,
+  contextDropActive = false,
   onToggle,
 }) => {
   const { t } = useT()
@@ -102,7 +112,10 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
         'brainstorm-seat',
         'brainstorm-seat--invite',
         seated ? 'brainstorm-seat--seated' : '',
+        contextDropActive ? 'brainstorm-seat--context-drop' : '',
       ].filter(Boolean).join(' ')}
+      data-context-link-card={agentId}
+      {...contextDrop}
       style={{ '--brainstorm-seat-color': paletteColorForSeed(agentId) } as React.CSSProperties}
       aria-pressed={seated}
       onClick={onToggle}
@@ -163,6 +176,8 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
   tail,
   live = false,
   alsoInRooms = [],
+  contextDrop,
+  contextDropActive = false,
   onOpen,
 }) => {
   const { t } = useT()
@@ -183,7 +198,10 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
           'brainstorm-seat',
           'brainstorm-seat--live',
           `brainstorm-seat--${state}`,
-        ].join(' ')}
+          contextDropActive ? 'brainstorm-seat--context-drop' : '',
+        ].filter(Boolean).join(' ')}
+        data-context-link-card={agentId}
+        {...contextDrop}
         style={{ '--brainstorm-seat-color': paletteColorForSeed(agentId) } as React.CSSProperties}
         onClick={onOpen}
         onKeyDown={event => {

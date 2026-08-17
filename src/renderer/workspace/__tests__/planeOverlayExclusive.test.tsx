@@ -111,6 +111,38 @@ const wikiButton = (): HTMLElement =>
 const pulseButton = (): HTMLElement =>
   screen.getByRole('button', { name: 'pulse.button' })
 
+const workspaceButton = (): HTMLElement =>
+  screen.getByRole('button', { name: 'tabs.planeWorkspaceButton' })
+
+describe('el plano como módulo del riel', () => {
+  it('marcado mientras no hay overlay, y suelto cuando lo hay', () => {
+    render(<TabAgenticPlane {...baseProps} />)
+    expect(workspaceButton().getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(wikiButton())
+    expect(workspaceButton().getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('vuelve al plano cerrando el overlay abierto', () => {
+    const onBrainstormViewChange = vi.fn()
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        brainstormOverlayOpen
+        onBrainstormViewChange={onBrainstormViewChange}
+      />,
+    )
+
+    fireEvent.click(pulseButton())
+    expect(document.querySelector('.pulse-view')).not.toBeNull()
+
+    fireEvent.click(workspaceButton())
+    expect(document.querySelector('.pulse-view')).toBeNull()
+    expect(document.querySelector('.wiki-graph-view')).toBeNull()
+    expect(onBrainstormViewChange).toHaveBeenCalledWith(null)
+  })
+})
+
 describe('exclusión mutua de overlays del plano', () => {
   it('abrir el mapa de wiki y luego Pulse deja solo Pulse', () => {
     render(<TabAgenticPlane {...baseProps} />)

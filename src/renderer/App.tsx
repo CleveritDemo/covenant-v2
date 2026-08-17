@@ -14,6 +14,7 @@ import {
 import type { TabContext } from '@shared/tabContext'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { resolveContextColor } from '@shared/tabContextAppearance'
+import { addAgentContextId } from '@shared/tabContextAgentUsage'
 import { contextIconName } from './agent/tabContextKindIcons'
 import type { PresenceSnapshot } from './presence'
 import { setDiscordPresenceEnabled, startDiscordPresence } from './presence'
@@ -3590,6 +3591,28 @@ export const App: React.FC = () => {
     })
   }, [])
 
+  /**
+   * Contexto soltado sobre una ficha de la sala. El destino es el agente del
+   * catálogo (`.gravity/agents/<id>.json`) y no un pane, así que se escribe con
+   * `upsertProjectAgent`; la definición entera sale de aquí porque las vistas de
+   * la sala solo tienen media —guardar esa media borraría el resto del archivo.
+   */
+  const handleAssignContextToCatalogAgent = useCallback((
+    cwd: string,
+    agentId: string,
+    contextId: string,
+  ) => {
+    const root = cwd.trim()
+    if (!root) return
+    const agent = (projectAgentsByCwdRef.current[root] ?? []).find(item => item.id === agentId)
+    if (!agent) return
+    const next = addAgentContextId(agent, contextId)
+    if (!next) return
+    void window.api.upsertProjectAgent(root, next).then(result => {
+      if (result.ok) rememberProjectAgent(root, result.agent)
+    })
+  }, [rememberProjectAgent])
+
   const handleToggleAgentContext = useCallback((
     tabId: string,
     paneId: string,
@@ -6256,6 +6279,9 @@ export const App: React.FC = () => {
           onCreate={() => setView('setup')}
           onOpenRoom={openSavedRoom}
           onContextSaved={() => { void refreshTabContexts(tab.id) }}
+          onAssignContext={(agentId, contextId) => {
+            handleAssignContextToCatalogAgent(catalogKey, agentId, contextId)
+          }}
         />
         <BrainstormStartModal
           open={view === 'setup'}
@@ -6268,6 +6294,9 @@ export const App: React.FC = () => {
           onClose={() => setView(null)}
           onOpenRooms={() => setView('rooms')}
           onCreateAgent={() => requestAddAgent(tab.id, undefined)}
+          onAssignContext={(agentId, contextId) => {
+            handleAssignContextToCatalogAgent(catalogKey, agentId, contextId)
+          }}
           onStarted={room => {
             setBrainstormRoomsByTab(prev => ({
               ...prev,
@@ -6291,6 +6320,9 @@ export const App: React.FC = () => {
             onSwitchRoom={roomId => setView(roomId)}
             agentsInOtherRooms={roomsByAgent(room.id)}
             contexts={tabContextsByTab[tab.id] ?? []}
+            onAssignContext={(agentId, contextId) => {
+              handleAssignContextToCatalogAgent(catalogKey, agentId, contextId)
+            }}
             onClose={() => {
               // Cerrar la vista, no la sala: el runner sigue en main y el botón
               // de la barra mantiene su cuenta.
@@ -6982,6 +7014,14 @@ export const App: React.FC = () => {
                   }}
                   brainstormOverlayOpen={Boolean(brainstormViewByTab[tab.id])}
                   brainstormOverlays={renderBrainstormOverlays(tab)}
+                  /* El catálogo entero: la ficha que no esté en pantalla no
+                     tiene nodo y su arista simplemente no se dibuja. */
+                  brainstormContextLinkAgents={(
+                    projectAgentsByCwd[tabAgentCatalogKey(tab)] ?? []
+                  ).map(agent => ({
+                    paneId: agent.id,
+                    contextIds: agent.contextIds ?? [],
+                  }))}
                   loopChains={tab.planeLoopChains ?? []}
                   onLoopChainsChange={chains => handleLoopChainsChange(tab.id, chains)}
                   onStartLoopChain={chainId => handleStartLoopChain(tab.id, chainId)}

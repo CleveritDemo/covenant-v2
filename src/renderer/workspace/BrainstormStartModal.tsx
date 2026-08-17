@@ -30,6 +30,7 @@ import { BrainstormModuleTabs } from './BrainstormModuleTabs'
 import { BrainstormInviteSeatCard } from './BrainstormSeatCard'
 import { BrainstormSentence } from './BrainstormSentence'
 import { tryCreateBrainstormSession } from './brainstormUiGuards'
+import { useBrainstormContextDrop } from './brainstormContextDrop'
 import './BrainstormInviteGrid.css'
 import './BrainstormStartModal.css'
 
@@ -57,6 +58,8 @@ export interface BrainstormStartModalProps {
   onStarted: (room: BrainstormRoom) => void
   /** Abre el flujo de alta de agente ya existente en App (`requestAddAgent`). */
   onCreateAgent?: () => void
+  /** Soltar un contexto del riel sobre una tarjeta de invitación. */
+  onAssignContext?: (agentId: string, contextId: string) => void
 }
 
 /**
@@ -81,8 +84,10 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   onOpenRooms,
   onStarted,
   onCreateAgent,
+  onAssignContext,
 }) => {
   const { t } = useT()
+  const { dropAgentId, handlersFor } = useBrainstormContextDrop(onAssignContext)
   const [topic, setTopic] = useState('')
   const [participantIds, setParticipantIds] = useState<string[]>([])
   const [ceremony, setCeremony] = useState<CeremonyId>(DEFAULT_CEREMONY_ID)
@@ -302,6 +307,8 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
                       kind => t(`tabContexts.kind_${kind}`),
                     )}
                     alsoInRooms={agentsInLiveRooms[agent.id] ?? []}
+                    contextDrop={handlersFor(agent.id)}
+                    contextDropActive={dropAgentId === agent.id}
                     onToggle={() => toggleAgent(agent.id)}
                   />
                 )

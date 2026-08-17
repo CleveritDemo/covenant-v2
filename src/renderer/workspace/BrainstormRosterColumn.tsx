@@ -9,6 +9,7 @@ import { agentMonogram } from '@shared/tabContextAppearance'
 import { useT } from '@i18n/useT'
 import { PlaneMiniFace } from './PlaneMiniFace'
 import { PlaneAgentContextNodes } from './PlaneAgentContextNodes'
+import { useBrainstormContextDrop } from './brainstormContextDrop'
 import { NO_CONTEXT_USAGE, resolveAssignedContextChips } from './resolveAssignedContextChips'
 import './BrainstormRosterColumn.css'
 
@@ -17,6 +18,8 @@ export interface BrainstormRosterColumnProps {
   /** Catálogo del tab: chips de contexto en cada mini. */
   contexts?: readonly TabContext[]
   cwd: string
+  /** Soltar un contexto del riel sobre una ficha. Sin esto no acepta drops. */
+  onAssignContext?: (agentId: string, contextId: string) => void
 }
 
 /** Columna derecha de Saved rooms: catálogo invitables, solo lectura. */
@@ -24,9 +27,11 @@ export const BrainstormRosterColumn: React.FC<BrainstormRosterColumnProps> = ({
   agents,
   contexts = [],
   cwd,
+  onAssignContext,
 }) => {
   const { t } = useT()
   const invitable = filterBrainstormInvitableAgents(agents)
+  const { dropAgentId, handlersFor } = useBrainstormContextDrop(onAssignContext)
 
   return (
     <div className="brainstorm-roster">
@@ -47,7 +52,14 @@ export const BrainstormRosterColumn: React.FC<BrainstormRosterColumnProps> = ({
           {invitable.map(agent => {
             const label = brainstormCatalogAgentLabel(agent)
             return (
-              <div key={agent.id} className="brainstorm-roster__item">
+              <div
+                key={agent.id}
+                className={`brainstorm-roster__item${
+                  dropAgentId === agent.id ? ' brainstorm-roster__item--drop' : ''
+                }`}
+                data-context-link-card={agent.id}
+                {...handlersFor(agent.id)}
+              >
                 <PlaneMiniFace
                   name={label}
                   monogram={agent.monogram?.trim() || agentMonogram(label)}

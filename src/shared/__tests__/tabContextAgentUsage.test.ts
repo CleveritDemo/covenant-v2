@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectAgentDefinition } from '../projectAgentCatalog'
 import type { TabContext } from '../tabContext'
+import { agentResultContextIdForSlug } from '../projectAgentCatalog'
 import {
+  addAgentContextId,
   agentsAssignableToContext,
   agentsUsingContext,
   filterTabContexts,
@@ -94,6 +96,21 @@ describe('toggleAgentContextId', () => {
       .toEqual(['c:rules'])
     expect(toggleAgentContextId(agent('qa', ['c:folders']), 'c:folders'))
       .not.toHaveProperty('contextIds')
+  })
+})
+
+describe('addAgentContextId', () => {
+  it('adds the id, keeping the ones already there', () => {
+    expect(addAgentContextId(agent('qa', ['c:folders']), 'c:rules')?.contextIds)
+      .toEqual(['c:folders', 'c:rules'])
+    expect(addAgentContextId(agent('tl'), 'c:rules')?.contextIds).toEqual(['c:rules'])
+  })
+
+  /** Un drop es «además»: repetirlo no puede quitar lo que ya estaba. */
+  it('is null when there is nothing to write', () => {
+    expect(addAgentContextId(agent('qa', ['c:rules']), 'c:rules')).toBeNull()
+    expect(addAgentContextId(agent('qa'), '  ')).toBeNull()
+    expect(addAgentContextId(agent('qa'), agentResultContextIdForSlug('qa'))).toBeNull()
   })
 })
 

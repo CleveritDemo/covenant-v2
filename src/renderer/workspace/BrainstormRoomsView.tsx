@@ -49,6 +49,8 @@ export interface BrainstormRoomsViewProps {
   onOpenRoom: (room: BrainstormRoom) => void
   /** Una sala se registró como contexto: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
+  /** Soltar un contexto del riel sobre una ficha del roster. */
+  onAssignContext?: (agentId: string, contextId: string) => void
 }
 
 /** Filtro por estado: la pregunta frecuente es «¿cuáles cerraron?». */
@@ -118,6 +120,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
   onCreate,
   onOpenRoom,
   onContextSaved,
+  onAssignContext,
 }) => {
   const { t } = useT()
   const [rooms, setRooms] = useState<BrainstormRoomListing[]>([])
@@ -458,7 +461,14 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
             </section>
           </>
         )}
-        right={<BrainstormRosterColumn agents={agents} contexts={contexts} cwd={cwd} />}
+        right={(
+          <BrainstormRosterColumn
+            agents={agents}
+            contexts={contexts}
+            cwd={cwd}
+            onAssignContext={onAssignContext}
+          />
+        )}
       >
         <div className="brainstorm-rooms">
         {rooms.length > 0 ? (

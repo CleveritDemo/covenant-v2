@@ -1032,6 +1032,8 @@ const es = {
     planeContextRoleResult: 'Salida de agente',
     planeContextPoolTitle: 'Contextos',
     planeToolsRailLabel: 'Herramientas del plano',
+    planeWorkspaceButton: 'Plano',
+    planeWorkspaceButtonHint: 'Agentes y terminales',
     planeContextPoolEmpty: 'Sin contextos en .gravity',
     planeContextPoolChipHint: 'Clic para abrir · clic derecho para opciones · arrastra a un agente',
     planeContextPoolAssign: 'Asignar a agentes',

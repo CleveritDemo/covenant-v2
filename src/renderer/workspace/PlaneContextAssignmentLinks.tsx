@@ -20,10 +20,17 @@ export interface PlaneContextAssignmentLinksProps {
   agents: readonly { paneId: string; contextIds?: readonly string[] }[]
   colorByContextId: Readonly<Record<string, string>>
   hidden?: boolean
+  /** Sobre el overlay de la sala (z 670), bajo el pool elevado (675). */
+  elevated?: boolean
 }
 
 const POOL_CHIP_SELECTOR = '[data-context-pool-chip]'
-const AGENT_CARD_SELECTOR = '[data-pane-id].pane-window--agent-card'
+/*
+ * La card se marca con un atributo propio, no con la clase de la ventana del
+ * plano: los asientos de la sala son el mismo destino de un contexto —y el
+ * mismo haz— sin ser `pane-window`.
+ */
+const AGENT_CARD_SELECTOR = '[data-context-link-card]'
 const NO_FOCUS: ContextLinkFocus = { contextId: null, paneId: null }
 
 function focusFromEventTarget(target: EventTarget | null): ContextLinkFocus {
@@ -36,7 +43,7 @@ function focusFromEventTarget(target: EventTarget | null): ContextLinkFocus {
 
   const card = target.closest(AGENT_CARD_SELECTOR)
   if (card instanceof HTMLElement) {
-    return { contextId: null, paneId: card.dataset.paneId ?? null }
+    return { contextId: null, paneId: card.dataset.contextLinkCard ?? null }
   }
 
   return NO_FOCUS
@@ -56,9 +63,7 @@ function measureLinks(
 
   for (const edge of edges) {
     const chip = plane.querySelector(`[data-context-pool-chip="${edge.contextId}"]`)
-    const card = plane.querySelector(
-      `[data-pane-id="${edge.paneId}"].pane-window--agent-card`,
-    )
+    const card = plane.querySelector(`[data-context-link-card="${edge.paneId}"]`)
     if (!(chip instanceof HTMLElement) || !(card instanceof HTMLElement)) continue
 
     const chipRect = chip.getBoundingClientRect()
@@ -91,6 +96,7 @@ export const PlaneContextAssignmentLinks: React.FC<PlaneContextAssignmentLinksPr
   agents,
   colorByContextId,
   hidden = false,
+  elevated = false,
 }) => {
   const edges = useMemo(
     () => buildContextAssignmentEdges(agents, colorByContextId),
@@ -186,7 +192,13 @@ export const PlaneContextAssignmentLinks: React.FC<PlaneContextAssignmentLinksPr
   if (hidden || links.length === 0) return null
 
   return (
-    <svg className="plane-context-assignment-links" aria-hidden focusable="false">
+    <svg
+      className={`plane-context-assignment-links${
+        elevated ? ' plane-context-assignment-links--elevated' : ''
+      }`}
+      aria-hidden
+      focusable="false"
+    >
       {links.map(link => (
         <g key={link.key} className="plane-context-assignment-links__link">
           <path

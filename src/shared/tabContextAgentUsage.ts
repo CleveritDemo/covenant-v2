@@ -53,6 +53,23 @@ export function toggleAgentContextId(
   return { ...agent, contextIds: next }
 }
 
+/**
+ * Definición nueva con el contexto agregado, o null si no hay nada que escribir.
+ * Es lo que decide un drop —«además», nunca quitar—: repetido no cambia nada y
+ * el dueño de un results no se carga el suyo.
+ */
+export function addAgentContextId(
+  agent: ProjectAgentDefinition,
+  contextId: string,
+): ProjectAgentDefinition | null {
+  const id = contextId.trim()
+  if (!id) return null
+  if (agentResultContextIdForSlug(agent.id) === id) return null
+  const current = agent.contextIds ?? []
+  if (current.includes(id)) return null
+  return { ...agent, contextIds: [...current, id] }
+}
+
 export function filterTabContexts(
   contexts: readonly TabContext[],
   agents: readonly ProjectAgentDefinition[],

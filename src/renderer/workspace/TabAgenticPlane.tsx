@@ -32,6 +32,7 @@ import { PlaneGitButton } from './PlaneGitButton'
 import { PlanePulseButton } from './PlanePulseButton'
 import { PulseView } from './PulseView'
 import { PlaneWikiMapButton } from './PlaneWikiMapButton'
+import { PlaneWorkspaceButton } from './PlaneWorkspaceButton'
 import { WikiGraphView, wikiTypeLabelKey } from './WikiGraphView'
 import type { WikiGraphNodeScreenPosition } from './useWikiGraphScene'
 import { WikiCuratorComposer } from './WikiCuratorComposer'
@@ -258,6 +259,11 @@ export interface TabAgenticPlaneProps {
    */
   brainstormOverlays?: React.ReactNode
   /**
+   * Fichas de la sala que reciben haz de contextos, por id de agente. Se pasan
+   * de fuera porque la sala la monta App: aquí solo se sabe qué panes hay.
+   */
+  brainstormContextLinkAgents?: readonly { paneId: string; contextIds?: readonly string[] }[]
+  /**
    * Alguna sala ocupa el plano: la barra de navegación sube por encima y el
    * pool de contextos se retira, que es de quien hereda su esquina.
    */
@@ -426,6 +432,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onStopBrainstormRoom,
   onDiscardBrainstormRoom,
   brainstormOverlays,
+  brainstormContextLinkAgents = [],
   brainstormOverlayOpen = false,
   brainstormsListButtonLabel = 'Brainstorms',
   loopChains,
@@ -871,7 +878,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   ))
 
   // Los tres ocupan el mismo sitio del plano; cerrar la vista de una sala no para su runner, que sigue en main.
-  const closeOtherPlaneOverlays = useCallback((keep: 'wiki' | 'brainstorm' | 'pulse'): void => {
+  // `none` = volver al plano: cierra los tres.
+  const closeOtherPlaneOverlays = useCallback((
+    keep: 'wiki' | 'brainstorm' | 'pulse' | 'none',
+  ): void => {
     if (keep !== 'wiki') {
       setWikiMapOpen(false)
       setWikiNodeModals([])
@@ -990,6 +1000,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ariaLabel={t('tabs.planeToolsRailLabel')}
           elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen}
         >
+          {/* El plano primero: es el módulo por defecto y el sitio al que se
+              vuelve, así que se lee antes que sus herramientas. */}
+          <PlaneWorkspaceButton
+            label={t('tabs.planeWorkspaceButton')}
+            hint={t('tabs.planeWorkspaceButtonHint')}
+            pressed={!wikiMapOpen && !brainstormOverlayOpen && !pulseOpen}
+            onClick={() => closeOtherPlaneOverlays('none')}
+          />
           {canToggleExplorer ? (
             <PlaneExplorerButton
               label={explorerButtonLabel || explorerTitle || loopsButtonLabel}
@@ -1262,11 +1280,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           elevated={brainstormOverlayOpen}
         />
       )}
-      {!anyFullscreen && !wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && (
+      {/* Con la sala abierta el haz sigue: el riel es el mismo y los asientos
+          son destino igual que las minis, solo cambia de quién son las aristas. */}
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
         <PlaneContextAssignmentLinks
           planeRef={planeRef}
-          agents={contextPoolAgents}
+          agents={brainstormOverlayOpen ? brainstormContextLinkAgents : contextPoolAgents}
           colorByContextId={contextColorById}
+          elevated={brainstormOverlayOpen}
         />
       )}
 

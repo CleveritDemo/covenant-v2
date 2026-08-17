@@ -31,6 +31,7 @@ import { Button, Tooltip } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormLiveSeatCard } from './BrainstormSeatCard'
+import { useBrainstormContextDrop } from './brainstormContextDrop'
 import { BrainstormAgentPane } from './BrainstormAgentPane'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { TerminalModal } from '../components/TerminalModal'
@@ -98,6 +99,11 @@ export interface BrainstormRoomViewProps {
   contexts?: readonly TabContext[]
   /** El cierre se guardó como contexto en `.gravity`: refrescar la lista de la pestaña. */
   onContextSaved?: () => void
+  /**
+   * Soltar un contexto del riel sobre un asiento. La sala no lo relee a mitad
+   * de turno: entra en el catálogo del agente y cuenta desde su próximo turno.
+   */
+  onAssignContext?: (agentId: string, contextId: string) => void
 }
 
 function statusLabelKey(
@@ -130,8 +136,10 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   onSwitchRoom,
   agentsInOtherRooms = {},
   contexts = [],
+  onAssignContext,
 }) => {
   const { t } = useT()
+  const { dropAgentId, handlersFor } = useBrainstormContextDrop(onAssignContext)
   /** Asiento abierto en su propio pane: solo sus turnos, al 0.7 del plano. */
   const [paneAgentId, setPaneAgentId] = useState<string | null>(null)
   const [live, setLive] = useState(() => createInitialBrainstormLiveState(room))
@@ -771,6 +779,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                   : detail?.tail}
                 live={streaming}
                 alsoInRooms={agentsInOtherRooms[seat.agentId] ?? []}
+                contextDrop={handlersFor(seat.agentId)}
+                contextDropActive={dropAgentId === seat.agentId}
                 onOpen={() => setPaneAgentId(seat.agentId)}
               />
             )

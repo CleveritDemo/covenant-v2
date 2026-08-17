@@ -54,12 +54,26 @@
   background: var(--surface-hover);
 }
 
+/*
+ * Columna flex, no bloque: `.orgs-shell` y `.orgs-signin` llegan del modal con
+ * `flex: 1; min-height: 0`, que en un bloque normal no es nada. Las tres
+ * columnas medían lo que su contenido —el resto de la ventana en negro— y su
+ * `overflow-y` por columna no tenía altura que respetar, así que una lista
+ * larga estiraba la vista en vez de scrollear dentro.
+ *
+ * El cuerpo no scrollea entero, igual que en el modal: scrollea cada columna.
+ */
 .organizations-view__body {
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 8px 24px 32px;
 }
 
 .organizations-view__body > * {
+  width: 100%;
+  min-height: 0;
   max-width: 1180px;
   margin: 0 auto;
 }

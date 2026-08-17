@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.77.1
+
+- Los agentes Grok ya arrancan: se quitó un parámetro que su CLI no acepta y el modo automático ahora usa su propia aprobación de herramientas.
+- El armado de una sala de brainstorm ya no muestra la tarjeta punteada para crear un agente: el alta se hace con el botón redondo de la esquina.
+
 ## v0.77.0
 
 - **Grok ya es uno de los agentes disponibles**: aparece en la ventana de agente nuevo y en Ajustes junto a los demás CLIs. Necesita el comando `grok` instalado; en modo Plan todavía puede escribir, porque su CLI no ofrece un modo de solo lectura.

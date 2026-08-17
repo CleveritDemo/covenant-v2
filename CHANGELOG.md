@@ -4,6 +4,15 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.73.0
+
+- **El fondo del plano se enciende cuando los agentes trabajan**: la esfera de grilla sube su resplandor, opacidad y velocidad de giro, y las estrellas brillan más, con intensidad según cuántos agentes están activos (1→40%, 2→70%, 3+→100%). Encendido suave en ~1.5s y apagado gradual en ~4s al terminar el último; con reduce-motion el fondo queda estático.
+- **Estrellas musicales que respetan el tema**: al cambiar de tema, las partículas del fondo se recolorean al instante sin reiniciar su animación.
+- **Minis de agente más compactas**: espaciado interno unificado, sin línea divisoria entre secciones; la card queda ~13px más baja.
+- **Chrome más limpio**: el divisor entre pestañas y workspace es una sola línea (antes se duplicaba), y los bordes del pane se apagan en pantalla completa.
+- **Expandir deja el hueco vacío**: al abrir una terminal o agente desde su mini, el hueco que deja ya no muestra un placeholder.
+- **Terminales mini más altas**: 104px de alto con preview en cover, alineadas con las cards de agente.
+
 ## v0.72.0
 
 - **Salas de brainstorm con el fondo del plano**: las salas abiertas y la lista de salas guardadas comparten el mismo fondo del plano, incluida la cuadrícula 3D animada.

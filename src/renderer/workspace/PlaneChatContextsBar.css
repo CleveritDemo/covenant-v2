@@ -128,7 +128,7 @@
     0 0 14px var(--accent-glow);
 }
 
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip {
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip {
   flex: 0 0 auto;
   min-width: 0;
   max-width: none;
@@ -148,8 +148,8 @@
   transition: color 0.12s ease;
 }
 
-.plane-chat-contexts-bar__chip-host:hover > .plane-chat-contexts-bar__chip--active,
-.plane-chat-contexts-bar__chip-host:focus-within > .plane-chat-contexts-bar__chip--active {
+.plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip--active,
+.plane-chat-contexts-bar__chip-host:focus-within .plane-chat-contexts-bar__chip--active {
   color: color-mix(in srgb, var(--accent) 72%, var(--text));
 }
 
@@ -183,11 +183,11 @@
     padding-right var(--plane-chat-contexts-bar-expand-duration) var(--plane-chat-contexts-bar-expand-ease);
 }
 
-.plane-chat-contexts-bar__chip-host:hover > .plane-chat-contexts-bar__chip,
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip:hover,
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip--active,
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip--active:hover,
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip--menu-open {
+.plane-chat-contexts-bar__chip-host:hover .plane-chat-contexts-bar__chip,
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip:hover,
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip--active,
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip--active:hover,
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip--menu-open {
   border: none;
   background: transparent;
   backdrop-filter: none;
@@ -195,7 +195,7 @@
   box-shadow: none;
 }
 
-.plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip--active {
+.plane-chat-contexts-bar__chip-host .plane-chat-contexts-bar__chip--active {
   color: color-mix(in srgb, var(--accent) 68%, var(--text));
   font-weight: 600;
 }

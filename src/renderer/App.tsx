@@ -214,6 +214,7 @@ import {
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
+import { isNewTerminalShortcut } from './newTerminalShortcut'
 import { platformId } from './platform'
 import {
   contextIdsEqual,
@@ -6336,8 +6337,8 @@ export const App: React.FC = () => {
         return
       }
 
-      // ⌘Y / Ctrl+Y: nueva terminal en ventana (misma pestaña)
-      if (e.key === 'y' || e.key === 'Y' || e.code === 'KeyY') {
+      // ⌘Y / Ctrl+Y y ⌘J (macOS, convención VS Code/Cursor): nueva terminal en la pestaña activa
+      if (isNewTerminalShortcut(e)) {
         const target = e.target as HTMLElement | null
         if (target && !target.closest('.xterm')) {
           const tag = target.tagName

@@ -23,4 +23,9 @@ describe('plane thread chip opacity CSS', () => {
     expect(chipBlock).toContain('background: var(--plane-glass-strong);');
     expect(backgroundLine).not.toContain('%, transparent)');
   });
+
+  it('resetea el chip del host con descendiente, no hijo directo, para sobrevivir al Tooltip', () => {
+    expect(css).not.toContain('__chip-host > .plane-chat-contexts-bar__chip');
+    expect(css).toContain('__chip-host .plane-chat-contexts-bar__chip {');
+  });
 });

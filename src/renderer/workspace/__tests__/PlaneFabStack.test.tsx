@@ -2,11 +2,21 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneFabStack } from '../PlaneFabStack'
 
-afterEach(cleanup)
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  cleanup()
+})
+
+/** Hover con timers falsos: mouseEnter + avance del reloj dentro de act(). */
+function hover(el: HTMLElement, ms: number): void {
+  fireEvent.mouseEnter(el)
+  act(() => { vi.advanceTimersByTime(ms) })
+}
 
 const baseProps = {
   canAdd: true,
@@ -54,5 +64,27 @@ describe('PlaneFabStack', () => {
     fireEvent.click(btn, { detail: 0 })
     expect(onAddTerminal).toHaveBeenCalledTimes(1)
     expect(document.activeElement).toBe(btn)
+  })
+
+  it('el FAB de agente usa bot-plus a 22px (aspa en lugar del pie derecho)', () => {
+    const { container } = render(<PlaneFabStack {...baseProps} />)
+    const svg = container.querySelector('.plane-fab--agent svg')!
+    expect(svg.getAttribute('width')).toBe('22')
+    expect(svg.getAttribute('height')).toBe('22')
+    const paths = Array.from(svg.querySelectorAll('path')).map(p => p.getAttribute('d'))
+    expect(paths).toContain('M19 19v4')
+    expect(paths).toContain('M17 21h4')
+    expect(paths).not.toContain('M15 18v2')
+  })
+
+  it('muestra el hint del atajo en el Tooltip al hover del FAB de terminal', () => {
+    const { container } = render(
+      <PlaneFabStack {...baseProps} terminalHint="⌘Y · Terminal con explorador" />,
+    )
+    const anchor = container.querySelector('.plane-fab--terminal')!.closest('.ui-tooltip') as HTMLElement
+    hover(anchor, 400)
+    const tip = screen.getByRole('tooltip')
+    expect(tip.textContent).toContain('Agregar terminal')
+    expect(tip.textContent).toContain('⌘Y · Terminal con explorador')
   })
 })

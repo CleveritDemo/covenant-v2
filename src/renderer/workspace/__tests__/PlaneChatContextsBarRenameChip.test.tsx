@@ -144,4 +144,26 @@ describe('PlaneChatContextsBar active chip host no-shrink', () => {
     expect(screen.getByRole('option', { name: longTitle })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'agentPane.threadRename' })).toBeTruthy()
   })
+
+  it('el chip activo con título largo queda dentro de Tooltip dentro del host activo', () => {
+    const longTitle = 'creo que aca no hay nada que hacer'
+
+    const { container } = render(
+      <PlaneChatContextsBar
+        threads={[{ id: 't-long', title: longTitle, updatedAt: 2, createdAt: 1 }]}
+        activeThreadId="t-long"
+        onSelectThread={vi.fn()}
+        onRenameThread={vi.fn()}
+      />,
+    )
+
+    const host = container.querySelector('.plane-chat-contexts-bar__chip-host--active')
+    const activeChip = container.querySelector('.plane-chat-contexts-bar__chip--active')
+    const tooltip = activeChip?.closest('.ui-tooltip')
+
+    expect(host).toBeTruthy()
+    expect(activeChip).toBeTruthy()
+    expect(tooltip).toBeTruthy()
+    expect(host?.contains(tooltip)).toBe(true)
+  })
 })

@@ -15,6 +15,7 @@ import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatCompose
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
+import { fabHintWithShortcut } from './planeFabHint'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
@@ -67,6 +68,7 @@ import {
 } from '@shared/wikiModalPositions'
 import { mergeWikiNodeModalsOpen } from '@shared/wikiNodeModalOpen'
 import { AiMarkdown } from '../components/AiMarkdown'
+import { isMacOS } from '../platform'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
 import { TerminalModal } from '../components/TerminalModal'
 import { formatWikiPageBodyForHuman } from '@shared/wikiPagePlain'
@@ -1410,6 +1412,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           canAddTerminal={canAddTerminal}
           agentTitle={agentFabTitle}
           terminalTitle={terminalFabTitle}
+          agentHint={fabHintWithShortcut(agentFabHint ?? t('tabs.fabAgentHint'), 'A', isMacOS)}
+          terminalHint={fabHintWithShortcut(terminalFabHint ?? t('tabs.fabTerminalHint'), isMacOS ? 'J' : 'Y', isMacOS)}
           agentDisabledTitle={agentFabDisabledTitle}
           terminalDisabledTitle={terminalFabDisabledTitle}
           onAddAgent={onAddAgent}

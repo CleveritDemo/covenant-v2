@@ -33,6 +33,7 @@ export type IconName =
   | 'download'
   | 'more'
   | 'bot'
+  | 'bot-plus'
   | 'workspace'
   | 'users'
   | 'messages'
@@ -315,6 +316,20 @@ const ICONS: Record<IconName, IconRenderer> = {
       <path d="M15 18v2" />
       <path d="M5 12H3" />
       <path d="M21 12h-2" />
+    </svg>
+  ),
+  /** Bot con signo + : alta de agente. */
+  'bot-plus': size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="8" width="14" height="10" rx="3" />
+      <path d="M12 4v4" />
+      <path d="M9 13h.01" />
+      <path d="M15 13h.01" />
+      <path d="M9 18v2" />
+      <path d="M5 12H3" />
+      <path d="M21 12h-2" />
+      <path d="M19 19v4" />
+      <path d="M17 21h4" />
     </svg>
   ),
   /** Workspace: dos paneles solapados (el tab agrupa panes). */

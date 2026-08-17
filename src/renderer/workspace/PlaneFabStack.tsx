@@ -7,6 +7,12 @@ export interface PlaneFabStackProps {
   canAddTerminal?: boolean
   agentTitle: string
   terminalTitle: string
+  /** Hint del Tooltip del FAB de agente (atajo + pista). */
+  agentHint?: string
+  /** Hint del Tooltip del FAB de terminal. */
+  terminalHint?: string
+  /** Hint del Tooltip del FAB bootstrap (sin atajo). */
+  bootstrapHint?: string
   /** Motivo cuando el FAB de agente está deshabilitado por falta de cwd. */
   agentDisabledTitle?: string
   /** Motivo cuando el FAB de terminal está deshabilitado por falta de cwd. */
@@ -30,6 +36,9 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   canAddTerminal = true,
   agentTitle,
   terminalTitle,
+  agentHint,
+  terminalHint,
+  bootstrapHint,
   agentDisabledTitle,
   terminalDisabledTitle,
   onAddAgent,
@@ -50,6 +59,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
           <PlaneFab
             kind="terminal"
             label={terminalTitle}
+            hint={terminalHint}
             disabled={!canAddTerminal}
             disabledTitle={terminalDisabledTitle}
             onClick={onAddTerminal}
@@ -61,6 +71,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
           <PlaneFab
             kind="bootstrap"
             label={bootstrapAgentsTitle}
+            hint={bootstrapHint}
             disabled={!canBootstrapAgents}
             disabledTitle={bootstrapAgentsDisabledTitle}
             onClick={onBootstrapAgents}
@@ -69,6 +80,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
         <PlaneFab
           kind="agent"
           label={agentTitle}
+          hint={agentHint}
           disabled={!canAddAgent}
           disabledTitle={agentDisabledTitle}
           onClick={onAddAgent}

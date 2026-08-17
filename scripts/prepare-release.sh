@@ -36,12 +36,46 @@ if [ "${CREATE_GITHUB_RELEASE:-}" != "1" ]; then
   exit 0
 fi
 
+ensure_release() {
+  if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local out=""
+  local attempt
+  for attempt in 1 2 3; do
+    if ! out=$(gh release create "$@" 2>&1); then
+      if [[ "$out" == *"already exists"* ]]; then
+        return 0
+      fi
+      if [ "$attempt" -eq 1 ]; then
+        sleep 5
+      elif [ "$attempt" -eq 2 ]; then
+        sleep 15
+      fi
+    else
+      return 0
+    fi
+  done
+
+  if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+    return 0
+  fi
+  sleep 5
+  if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "ERROR: el release $TAG no existe tras 3 intentos de create" >&2
+  printf '%s\n' "$out" >&2
+  exit 1
+}
+
 case "${GITHUB_REF:-}" in
   refs/tags/v*)
     if [ -n "$(printf '%s' "$SECTION" | tr -d '[:space:]')" ]; then
-      gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" --draft || true
+      ensure_release "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$OUT" --draft
     else
-      gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes --draft || true
+      ensure_release "$TAG" --repo "$REPO" --title "$TAG" --generate-notes --draft
     fi
     ;;
   *)

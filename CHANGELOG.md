@@ -4,6 +4,11 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.75.0
+
+- **Organizaciones ocupa toda la ventana**: las tres columnas llegan hasta abajo en vez de cortarse a media pantalla, y una lista larga scrollea dentro de su columna en lugar de estirar la vista.
+- **Pulse ya no queda debajo del riel**: el contenido reserva el sitio del riel de herramientas, que antes flotaba sobre las tarjetas.
+
 ## v0.74.0
 
 - **Salas con las fichas del plano**: los asientos y el catálogo de agentes miden lo mismo que las minis del plano y se inclinan igual; el acta queda más angosta y el sitio que suelta va a los agentes y al riel de contextos.

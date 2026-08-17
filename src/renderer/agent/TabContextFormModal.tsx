@@ -51,6 +51,7 @@ function emptyContext(kind: TabContextKind = 'folderTree'): TabContext {
       icon: defaultIconForKind(kind),
       color: defaultColorForKind(kind),
       ...(kind === 'symbols' ? { symbolKinds: ['class', 'method'] as const } : {}),
+      ...(kind === 'files' || kind === 'spreadsheet' ? { referenceOnly: true } : {}),
     }),
     name: '',
   }

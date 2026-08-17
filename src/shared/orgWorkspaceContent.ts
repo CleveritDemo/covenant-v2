@@ -125,6 +125,7 @@ export function workspaceContextUpsertPayload(
   if (context.rootPath?.trim()) meta.rootPath = context.rootPath.trim()
   if (context.paths?.length) meta.paths = context.paths
   if (context.symbolKinds?.length) meta.symbolKinds = context.symbolKinds
+  if (context.referenceOnly) meta.referenceOnly = true
   return {
     kind: context.kind,
     name: context.name,
@@ -281,6 +282,7 @@ export function tabContextsFromWorkspaceContexts(
       const paths = meta.paths.filter((p): p is string => typeof p === 'string' && !!p.trim())
       if (paths.length) context.paths = paths
     }
+    if (meta.referenceOnly === true) context.referenceOnly = true
     out.push(context)
   }
   return out

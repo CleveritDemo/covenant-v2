@@ -491,6 +491,8 @@ const en = {
     rootOutsideProject: 'The folder must be inside the project.',
     paths: 'Files (one relative path per line; empty = scan root folder)',
     pathsPlaceholder: 'Empty = scan the selected folder\nsrc/App.tsx',
+    referenceOnly: 'Live reference',
+    referenceOnlyHint: 'The .md stores only the pointer; each turn reads the real file from disk.',
     symbolKinds: 'Symbols to extract',
     symbol_class: 'Classes',
     symbol_method: 'Methods / functions',

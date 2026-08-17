@@ -493,6 +493,8 @@ const es = {
     rootOutsideProject: 'La carpeta debe estar dentro del proyecto.',
     paths: 'Archivos (una ruta relativa por línea; vacío = escanear la carpeta raíz)',
     pathsPlaceholder: 'Vacío = escanear la carpeta elegida\nsrc/App.tsx',
+    referenceOnly: 'Referencia viva',
+    referenceOnlyHint: 'El .md guarda solo el puntero; cada turno lee el archivo real del disco.',
     symbolKinds: 'Símbolos a extraer',
     symbol_class: 'Clases',
     symbol_method: 'Métodos / funciones',

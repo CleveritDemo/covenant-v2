@@ -710,6 +710,7 @@ function serializeContextMetadata(context: TabContext): string {
     ...(context.symbolKinds ? { symbolKinds: context.symbolKinds } : {}),
     ...(context.issueKey ? { issueKey: context.issueKey } : {}),
     ...(context.refreshSeconds !== undefined ? { refreshSeconds: context.refreshSeconds } : {}),
+    ...(context.referenceOnly ? { referenceOnly: true } : {}),
   })
     // Evita que datos proporcionados por el usuario puedan cerrar el comentario.
     .replace(/</g, '\\u003c')
@@ -747,6 +748,18 @@ function rewriteFileContextMetadata(absolutePath: string, context: TabContext): 
 
 function maxAutoCharsForKind(kind: TabContextKind): number {
   return kind === 'symbols' ? MAX_SYMBOLS_CONTEXT_CHARS : MAX_CONTEXT_CHARS
+}
+
+/** Espejo corto para `files`/`spreadsheet` con `referenceOnly` al escribir a disco. */
+function referenceOnlyAutoStub(context: TabContext): string {
+  const rootPath = (context.rootPath ?? '').trim() || '.'
+  const pathLines = (context.paths ?? []).map(path => `- ${path}`)
+  return [
+    '_(referencia viva: el contenido se lee del disco en cada turno y no se copia aquí)_',
+    '',
+    `- rootPath: ${rootPath}`,
+    ...pathLines,
+  ].join('\n')
 }
 
 function composeDocument(context: TabContext, auto: string, notes: string): string {
@@ -821,6 +834,7 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
       ...(typeof value.refreshSeconds === 'number' && Number.isFinite(value.refreshSeconds)
         ? { refreshSeconds: value.refreshSeconds }
         : {}),
+      ...(value.referenceOnly === true ? { referenceOnly: true } : {}),
     }
   } catch {
     return null
@@ -1359,9 +1373,16 @@ export function materializeTabContext(
     }
 
     const existingNotes = readExistingNotes(filePath)
-    const auto = buildAutoContent(contextToWrite, cwd, options, filePath)
+    const referenceOnlyWrite = options.write === true
+      && contextToWrite.referenceOnly === true
+      && (contextToWrite.kind === 'files' || contextToWrite.kind === 'spreadsheet')
+    const auto = referenceOnlyWrite
+      ? referenceOnlyAutoStub(contextToWrite)
+      : buildAutoContent(contextToWrite, cwd, options, filePath)
     let notes: string
-    if (contextToWrite.kind === 'notes') {
+    if (referenceOnlyWrite) {
+      notes = existingNotes
+    } else if (contextToWrite.kind === 'notes') {
       notes = typeof options.content === 'string' ? options.content : (existingNotes || '')
     } else if (contextToWrite.kind === 'symbols' || contextToWrite.kind === 'files') {
       notes = reconcileNotesWithAuto(auto, existingNotes)

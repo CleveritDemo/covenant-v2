@@ -11,7 +11,7 @@ import { PROJECT_DIR } from '@shared/projectDir'
 import { sectionsForContext } from '@shared/contextSections'
 import { summarizeContextBudget } from '@shared/contextBudget'
 import { useT } from '@i18n/useT'
-import { Button, Input, SegmentedControl, TextArea, Toggle } from '../components/ui'
+import { Button, Input, SegmentedControl, SettingToggle, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { ContextReport } from '../workspace/ContextReport'
 import { JiraMentionPicker } from '../workspace/JiraMentionPicker'
@@ -227,6 +227,15 @@ export const TabContextsEditor: React.FC<Props> = ({
               onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
             />
           </label>
+        )}
+
+        {(draft.kind === 'files' || draft.kind === 'spreadsheet') && (
+          <SettingToggle
+            checked={draft.referenceOnly === true}
+            onChange={checked => onUpdate({ referenceOnly: checked || undefined })}
+            title={t('tabContexts.referenceOnly')}
+            description={t('tabContexts.referenceOnlyHint')}
+          />
         )}
 
         {draft.kind === 'symbols' && (

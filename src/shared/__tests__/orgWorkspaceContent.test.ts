@@ -296,4 +296,29 @@ describe('contextContentsForNotes', () => {
     forgetWorkspaceContextBody('iaterminal:notes:Empty')
     forgetWorkspaceContextBody('iaterminal:result:fe')
   })
+
+  it('round-trip de meta.referenceOnly', () => {
+    const context: TabContext = {
+      id: 'iaterminal:files:Docs',
+      name: 'Docs',
+      fileName: 'context/Docs.md',
+      kind: 'files',
+      paths: ['README.md'],
+      referenceOnly: true,
+    }
+    const payload = workspaceContextUpsertPayload(context, '')
+    expect(payload.meta?.referenceOnly).toBe(true)
+    expect(payload.meta?.paths).toEqual(['README.md'])
+    const [rehydrated] = tabContextsFromWorkspaceContexts([{
+      contextId: context.id,
+      kind: context.kind,
+      name: context.name,
+      body: '',
+      meta: payload.meta,
+    }])
+    expect(rehydrated.referenceOnly).toBe(true)
+    expect(rehydrated.paths).toEqual(['README.md'])
+    const withoutFlag = workspaceContextUpsertPayload({ ...context, referenceOnly: undefined }, '')
+    expect(withoutFlag.meta?.referenceOnly).toBeUndefined()
+  })
 })

@@ -260,7 +260,8 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
   return JSON.stringify({ kind: context.kind, stem })
 }
 
-/** Rellena id/fileName/name canónicos; fileName creatable siempre deriva del name. */
+/** Rellena id/fileName/name canónicos; fileName creatable siempre deriva del name.
+ * `referenceOnly` se copia tal cual (`...context`): no se inventa ni se defaulta. */
 export function applyCanonicalContextIdentity(context: TabContext): TabContext {
   const rootPath = context.rootPath
   const fileStem = contextFileStem(context.fileName)
@@ -415,6 +416,8 @@ export interface TabContext {
   issueKey?: string
   /** Override por contexto del refresco de `jira.json`; 0 lo desactiva. */
   refreshSeconds?: number
+  /** Solo aplica a `files`/`spreadsheet`; el `.md` guarda el puntero, no la copia. */
+  referenceOnly?: boolean
 }
 
 export function isProjectContext(context: Pick<TabContext, 'kind'>): boolean {

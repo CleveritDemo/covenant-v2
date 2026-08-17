@@ -21,6 +21,7 @@ import type {
   GitCommandResult,
   GitDiffForAiPayload,
   GitListedRepo,
+  GitRepoRemote,
   GitRepoStatus,
   GitTarget,
 } from '../src/shared/gitSessionTypes'
@@ -581,6 +582,10 @@ const api = {
 
   gitListRepos(dirPath: string): Promise<GitListedRepo[]> {
     return ipcRenderer.invoke(IPC.GIT_LIST_REPOS, dirPath)
+  },
+
+  gitListReposWithRemote(dirPath: string): Promise<GitRepoRemote[]> {
+    return ipcRenderer.invoke(IPC.GIT_LIST_REPOS_WITH_REMOTE, dirPath)
   },
 
   gitCollectUniqueRepos(paths: string[]): Promise<GitListedRepo[]> {

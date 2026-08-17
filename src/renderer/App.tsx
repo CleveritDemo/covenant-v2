@@ -248,6 +248,7 @@ import {
   type AgentChatRef,
   type AgentChatScope,
 } from '../shared/agentChatPersistence'
+import { composerHistoryFromEntries } from '@shared/composerHistory'
 import './styles/app.css'
 import { pruneDelegationThreadsForJob } from './delegationThreadPrune'
 import { COVENANT_REQUEST_LIMIT, mapWithConcurrency } from '@shared/boundedMap'
@@ -314,6 +315,16 @@ import {
   type OrgWorkspaceMaterializeDeps,
   type OrgWorkspaceSyncPhase,
 } from './orgWorkspaceMaterialize'
+import {
+  promoteLocalWorkspaceToOrg,
+  promoteReposFromDetected,
+  type PromotePhase,
+} from './orgWorkspacePromote'
+import type {
+  PromoteWorkspaceConfirmPayload,
+  PromoteWorkspaceOrgOption,
+  PromoteWorkspaceRepoOption,
+} from './components/PromoteWorkspaceModal'
 import {
   OrgWorkspaceRequirementModal,
   type OrgWorkspaceRequirementState,
@@ -417,6 +428,12 @@ export const App: React.FC = () => {
   const onboardingClisMissingLockedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
+  const [promoteWorkspaceTab, setPromoteWorkspaceTab] = useState<TabSession | null>(null)
+  const [promoteWorkspaceOrgs, setPromoteWorkspaceOrgs] = useState<PromoteWorkspaceOrgOption[]>([])
+  const [promoteWorkspaceRepos, setPromoteWorkspaceRepos] = useState<PromoteWorkspaceRepoOption[]>([])
+  const [promoteWorkspaceBusy, setPromoteWorkspaceBusy] = useState(false)
+  const [promoteWorkspacePhase, setPromoteWorkspacePhase] = useState<PromotePhase | undefined>()
+  const [promoteWorkspaceError, setPromoteWorkspaceError] = useState<string | undefined>()
   /** Tabs org cuyo resync manual está en curso. */
   const [resyncingWorkspaceTabs, setResyncingWorkspaceTabs] = useState<Set<string>>(() => new Set())
   const [uploadingWorkspaceTabs, setUploadingWorkspaceTabs] = useState<Set<string>>(() => new Set())
@@ -2701,6 +2718,241 @@ export const App: React.FC = () => {
       }
     }
   }, [clearWorkspaceUploadProgress, pushOrgWikiForScope, reportWorkspaceUploadProgress])
+
+  useEffect(() => {
+    if (!promoteWorkspaceTab) {
+      setPromoteWorkspaceOrgs([])
+      setPromoteWorkspaceRepos([])
+      setPromoteWorkspaceBusy(false)
+      setPromoteWorkspacePhase(undefined)
+      setPromoteWorkspaceError(undefined)
+      return
+    }
+    const folder = promoteWorkspaceTab.projectFolder?.trim() ?? ''
+    setPromoteWorkspaceError(undefined)
+    setPromoteWorkspacePhase(undefined)
+    let cancelled = false
+    void (async () => {
+      const nextOrgs: PromoteWorkspaceOrgOption[] = []
+      const covenant = getCovenantApi()
+      if (covenant && hasCovenantWorkspacesApi(covenant)) {
+        const status = await covenant.status()
+        if (cancelled) return
+        const login = status.ok ? (status.data.login?.trim() ?? '') : ''
+        if (status.ok && status.data.signedIn && login) {
+          const orgsResult = await covenant.orgsList()
+          if (cancelled) return
+          if (orgsResult.ok) {
+            for (const org of orgsResult.data) {
+              const slug = org.slug?.trim()
+              if (!slug) continue
+              const orgRole = org.role?.trim() ?? ''
+              let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
+              if (!isOrgAdmin && hasCovenantOrgAdminsApi(covenant)) {
+                const admins = await covenant.orgAdminsList(slug)
+                if (cancelled) return
+                if (admins.ok) isOrgAdmin = admins.data.some(a => sameGithubLogin(a, login))
+              }
+              if (!isOrgAdmin) continue
+              nextOrgs.push({ slug, name: org.name?.trim() || slug })
+            }
+          }
+        }
+      }
+      let nextRepos: PromoteWorkspaceRepoOption[] = []
+      if (folder) {
+        try {
+          const detected = await window.api.gitListReposWithRemote(folder)
+          if (!cancelled) {
+            nextRepos = detected.map(repo => ({
+              path: repo.path,
+              name: repo.name,
+              repoFullName: repo.repoFullName,
+              hasRemote: Boolean(repo.remoteUrl.trim() && repo.repoFullName.trim()),
+            }))
+          }
+        } catch {
+          nextRepos = []
+        }
+      }
+      if (cancelled) return
+      setPromoteWorkspaceOrgs(nextOrgs)
+      setPromoteWorkspaceRepos(nextRepos)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [promoteWorkspaceTab])
+
+  const handlePromoteLocalWorkspace = useCallback(async (
+    payload: PromoteWorkspaceConfirmPayload,
+  ) => {
+    const tab = promoteWorkspaceTab
+    const cwd = tab?.projectFolder?.trim() ?? ''
+    if (!tab || !cwd || promoteWorkspaceBusy) return
+    const covenant = getCovenantApi()
+    if (!covenant || !hasCovenantWorkspacesApi(covenant) || !hasCovenantWorkspaceContentApi(covenant)) {
+      setPromoteWorkspaceError('Covenant API unavailable')
+      return
+    }
+    setPromoteWorkspaceBusy(true)
+    setPromoteWorkspaceError(undefined)
+    setPromoteWorkspacePhase('create')
+    const opGen = ++orgWorkspaceSyncUploadGenRef.current
+    try {
+      const detected = await window.api.gitListReposWithRemote(cwd)
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      const selected = detected.filter(repo => payload.repoPaths.includes(repo.path))
+      const repos = promoteReposFromDetected(selected)
+      const orderedAgentIds = orderedAgentIdsFromTab(tab)
+      const result = await promoteLocalWorkspaceToOrg(
+        {
+          orgSlug: payload.orgSlug,
+          workspaceName: payload.workspaceName,
+          cwd,
+          repos,
+        },
+        {
+          createWorkspace: async (orgSlug, name) => {
+            const created = await covenant.workspaceCreate(orgSlug, name)
+            if (!created.ok) return { ok: false, error: created.error }
+            const workspaceId = created.data.id?.trim() ?? ''
+            if (!workspaceId) return { ok: false, error: 'missing workspace id' }
+            return { ok: true, workspaceId }
+          },
+          addRepo: async (orgSlug, workspaceId, repo) => {
+            if (!hasCovenantWorkspaceReposApi(covenant)) {
+              return { ok: false, error: 'repos API unavailable' }
+            }
+            const added = await covenant.workspaceRepoAdd(orgSlug, workspaceId, {
+              repoFullName: repo.repoFullName,
+              cloneUrl: repo.cloneUrl,
+              ...(repo.folderName?.trim() ? { folderName: repo.folderName.trim() } : {}),
+              position: repo.position,
+            })
+            return added.ok ? { ok: true } : { ok: false, error: added.error }
+          },
+          upload: async (orgSlug, workspaceId, uploadCwd) => {
+            const deps: OrgWorkspaceMaterializeDeps = {
+              listRemoteAgents: () => retryCovenantResult(
+                () => covenant.workspaceAgentsList(orgSlug, workspaceId),
+              ),
+              listRemoteContexts: () => retryCovenantResult(
+                () => covenant.workspaceContextsList(orgSlug, workspaceId),
+              ),
+              listLocalAgents: root => window.api.listProjectAgents(root),
+              upsertLocalAgent: async (root, definition) => {
+                const written = await window.api.upsertProjectAgent(root, definition)
+                return written.ok
+                  ? { ok: true, agent: written.agent }
+                  : { ok: false, error: written.error }
+              },
+              deleteLocalAgent: (root, agentId) => window.api.deleteProjectAgent(root, agentId),
+              discoverLocalContexts: async root => {
+                const result = await window.api.discoverTabContexts({ cwd: root })
+                return result.ok
+                  ? { ok: true, contexts: result.contexts }
+                  : { ok: false, error: result.error }
+              },
+              deleteLocalContext: (context, root) => window.api.deleteTabContext({ context, cwd: root }),
+              materializeLocalContext: async args => {
+                const result = await window.api.materializeTabContext({
+                  context: args.context,
+                  cwd: args.cwd,
+                  ...(args.content !== undefined ? { content: args.content } : {}),
+                })
+                return result.ok
+                  ? { ok: true, notesContent: result.notesContent }
+                  : { ok: false, error: result.error }
+              },
+              previewLocalContext: async args => {
+                const result = await window.api.previewTabContext({
+                  context: args.context,
+                  cwd: args.cwd,
+                })
+                return result.ok
+                  ? { ok: true, notesContent: result.notesContent }
+                  : { ok: false, error: result.error }
+              },
+              upsertRemoteAgent: (agentId, definition) => (
+                covenant.workspaceAgentUpsert(orgSlug, workspaceId, agentId, definition)
+              ),
+              deleteRemoteAgent: async agentId => {
+                const result = await covenant.workspaceAgentDelete(orgSlug, workspaceId, agentId)
+                return result.ok ? { ok: true, data: undefined } : result
+              },
+              upsertRemoteContext: (contextId, payload) => (
+                covenant.workspaceContextUpsert(orgSlug, workspaceId, contextId, payload)
+              ),
+              deleteRemoteContext: async contextId => {
+                const result = await covenant.workspaceContextDelete(orgSlug, workspaceId, contextId)
+                return result.ok ? { ok: true, data: undefined } : result
+              },
+            }
+            const uploaded = await uploadOrgWorkspaceFromLocal(uploadCwd, deps, {
+              ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
+              shouldCancel: () => opGen !== orgWorkspaceSyncUploadGenRef.current,
+            })
+            if (uploaded.cancelled) return { ok: false, cancelled: true }
+            if (!uploaded.ok) return { ok: false, error: uploaded.error ?? 'upload failed' }
+            return { ok: true }
+          },
+          pushWiki: (orgSlug, workspaceId, wikiCwd) => pushOrgWikiForScope(orgSlug, workspaceId, wikiCwd),
+          onPhase: setPromoteWorkspacePhase,
+          shouldCancel: () => opGen !== orgWorkspaceSyncUploadGenRef.current,
+        },
+      )
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      if (!result.ok) {
+        if (result.cancelled) {
+          setPromoteWorkspaceTab(null)
+          return
+        }
+        setPromoteWorkspaceError(
+          result.workspaceId
+            ? t('organizations.promoteFailedPartial', {
+              id: result.workspaceId,
+              error: result.error,
+            })
+            : result.error,
+        )
+        return
+      }
+      const next = tabsRef.current.map(item => (
+        item.id === tab.id
+          ? {
+              ...item,
+              title: payload.workspaceName.trim() || item.title,
+              titleLocked: true,
+              orgWorkspace: {
+                slug: payload.orgSlug,
+                workspaceId: result.workspaceId,
+                localDir: cwd,
+              },
+            }
+          : item
+      ))
+      tabsRef.current = next
+      setTabs(next)
+      handleOrgWorkspacesMutated()
+      await saveSessionNow()
+      setPromoteWorkspaceTab(null)
+    } catch (err) {
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      setPromoteWorkspaceError(err instanceof Error ? err.message : 'promote failed')
+    } finally {
+      if (opGen === orgWorkspaceSyncUploadGenRef.current) {
+        setPromoteWorkspaceBusy(false)
+      }
+    }
+  }, [
+    handleOrgWorkspacesMutated,
+    promoteWorkspaceBusy,
+    promoteWorkspaceTab,
+    pushOrgWikiForScope,
+    saveSessionNow,
+    t,
+  ])
 
   /** ⌘W: mismo modal que la cruz del panel (TerminalPane registra `openConfirm` por paneId). */
   const paneShortcutCloseInterceptors = useRef(new Map<string, () => void>())
@@ -5479,6 +5731,37 @@ export const App: React.FC = () => {
     return () => window.clearTimeout(timer)
   }, [agentPlaneStatus, humanSendFifoTick, orchestrationFifoTick, planeSendByPane])
 
+  const loadComposerPromptHistory = useCallback(async (
+    paneId: string,
+    threadId: string | null,
+  ): Promise<string[]> => {
+    if (!threadId?.trim()) return []
+    const tab = tabsRef.current.find(item => (
+      Boolean(item.agentByPane?.[paneId]) || (item.paneIds ?? []).includes(paneId)
+    ))
+    const agentId = tab?.agentByPane?.[paneId]?.agentId?.trim()
+    if (!tab || !agentId) return []
+    const cwd = tab.projectFolder?.trim() ?? ''
+    const slug = tab.orgWorkspace?.slug?.trim() ?? ''
+    const workspaceId = tab.orgWorkspace?.workspaceId?.trim() ?? ''
+    const ref = agentChatRefFor(
+      {
+        projectFolder: cwd,
+        ...(slug && workspaceId
+          ? { orgWorkspace: { slug, workspaceId } }
+          : {}),
+      },
+      agentId,
+      paneId,
+    )
+    try {
+      const entries = await window.api.loadAgentChat(ref, threadId)
+      return composerHistoryFromEntries(entries)
+    } catch {
+      return []
+    }
+  }, [])
+
   const handlePlaneRemoveQueuedTurn = useCallback((paneId: string, id: string) => {
     const target = agentPlaneStatusRef.current[paneId]?.queuedTurns?.find(item => item.id === id)
     planeQueueControlsByPaneRef.current.get(paneId)?.remove(id)
@@ -6638,6 +6921,7 @@ export const App: React.FC = () => {
                   tabContexts={tabContextBadges}
                   contextCatalog={discoveredContexts}
                   onContextSaved={() => { void refreshTabContexts(tab.id) }}
+                  onLoadPromptHistory={loadComposerPromptHistory}
                   onToggleAgentContext={(paneId, contextId) => {
                     handleToggleAgentContext(tab.id, paneId, contextId)
                   }}
@@ -6970,6 +7254,10 @@ export const App: React.FC = () => {
                   }
                   onCancelUploadWorkspace={cancelOrgWorkspaceSyncOrUpload}
                   onUploadWorkspace={() => { void handleUploadOrgWorkspace(tab) }}
+                  canPromoteWorkspace={Boolean(tab.projectFolder?.trim()) && !tab.orgWorkspace?.workspaceId?.trim()}
+                  promoteWorkspaceLabel={t('tabs.promoteWorkspaceButton')}
+                  promoteWorkspaceBusy={promoteWorkspaceBusy && promoteWorkspaceTab?.id === tab.id}
+                  onPromoteWorkspace={() => { setPromoteWorkspaceTab(tab) }}
                   loopsOpen={Boolean(planeLoopsOpenByTab[tab.id])}
                   onLoopsOpenChange={open => {
                     setPlaneLoopsOpenByTab(prev => ({ ...prev, [tab.id]: open }))
@@ -7166,6 +7454,22 @@ export const App: React.FC = () => {
           focusActiveTerminalTextarea()
         }}
         onConfirmOrgWorkspacePicker={handleOrgWorkspaceTabConfirm}
+        promoteWorkspaceOpen={promoteWorkspaceTab !== null}
+        promoteWorkspaceFolderPath={promoteWorkspaceTab?.projectFolder?.trim() ?? ''}
+        promoteWorkspaceOrgs={promoteWorkspaceOrgs}
+        promoteWorkspaceRepos={promoteWorkspaceRepos}
+        promoteWorkspaceBusy={promoteWorkspaceBusy}
+        promoteWorkspacePhase={promoteWorkspacePhase}
+        promoteWorkspaceError={promoteWorkspaceError}
+        onClosePromoteWorkspace={() => {
+          if (promoteWorkspaceBusy) orgWorkspaceSyncUploadGenRef.current += 1
+          setPromoteWorkspaceTab(null)
+          setPromoteWorkspaceBusy(false)
+          setPromoteWorkspacePhase(undefined)
+          setPromoteWorkspaceError(undefined)
+          focusActiveTerminalTextarea()
+        }}
+        onConfirmPromoteWorkspace={payload => { void handlePromoteLocalWorkspace(payload) }}
         onCloseThemePicker={() => {
           setThemePickerOpen(false)
           focusActiveTerminalTextarea()

@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { basename, dirname, join, normalize, resolve } from 'path'
 import { readdirSync, realpathSync, statSync } from 'fs'
 import type {
@@ -6,6 +6,7 @@ import type {
   GitDiffForAiPayload,
   GitListedRepo,
   GitPathEntry,
+  GitRepoRemote,
   GitRepoStatus,
 } from '../src/shared/gitSessionTypes'
 import {
@@ -13,6 +14,7 @@ import {
   GIT_MAX_OUTPUT_BYTES,
 } from '../src/shared/gitSessionTypes'
 import { GIT_ERROR_CODES } from '../src/shared/gitErrorCodes'
+import { repoFullNameFromCloneUrl } from '../src/shared/repoFullName'
 
 export const TIMEOUT_LOCAL_MS = 120_000
 const TIMEOUT_NETWORK_MS = 900_000
@@ -61,6 +63,28 @@ export function gitListRepos(dirPathRaw: string): GitListedRepo[] {
     out.push({ name: basename(child), path: child })
   }
   return out
+}
+
+export function gitListReposWithRemote(dirPathRaw: string): GitRepoRemote[] {
+  return gitListRepos(dirPathRaw).map(repo => {
+    let remoteUrl = ''
+    try {
+      remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
+        cwd: repo.path,
+        encoding: 'utf8',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }).trim()
+    } catch {
+      remoteUrl = ''
+    }
+    return {
+      name: repo.name,
+      path: repo.path,
+      remoteUrl,
+      repoFullName: repoFullNameFromCloneUrl(remoteUrl),
+    }
+  })
 }
 
 function normalizeRepoPath(pathRaw: string): string {

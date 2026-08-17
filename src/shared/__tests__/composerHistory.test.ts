@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_COMPOSER_HISTORY,
+  composerHistoryFromEntries,
   recallStep,
   rememberComposerEntry,
 } from '../composerHistory'
@@ -22,6 +23,49 @@ describe('rememberComposerEntry', () => {
     expect(next).toHaveLength(MAX_COMPOSER_HISTORY)
     expect(next[0]).toBe('m1')
     expect(next[next.length - 1]).toBe('nuevo')
+  })
+})
+
+describe('composerHistoryFromEntries', () => {
+  it('solo toma entradas de usuario', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'assistant', content: 'hola' },
+      { role: 'user', content: 'pregunta' },
+      { role: 'system', content: 'sys' },
+    ])).toEqual(['pregunta'])
+  })
+
+  it('descarta presentation delegationResult', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: 'humano' },
+      { role: 'user', content: 'tarjeta', presentation: 'delegationResult' },
+    ])).toEqual(['humano'])
+  })
+
+  it('colapsa duplicados consecutivos', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'b' },
+    ])).toEqual(['a', 'b'])
+  })
+
+  it('recorta al tope de 50', () => {
+    const entries = Array.from({ length: 52 }, (_, i) => ({
+      role: 'user',
+      content: `m${i}`,
+    }))
+    const next = composerHistoryFromEntries(entries)
+    expect(next).toHaveLength(MAX_COMPOSER_HISTORY)
+    expect(next[0]).toBe('m2')
+    expect(next[next.length - 1]).toBe('m51')
+  })
+
+  it('descarta vacíos tras trim', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: '   ' },
+      { role: 'user', content: 'ok' },
+    ])).toEqual(['ok'])
   })
 })
 

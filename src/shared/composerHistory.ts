@@ -33,6 +33,24 @@ export function rememberComposerEntry(entries: string[], text: string): string[]
 }
 
 /**
+ * Siembra el historial desde el transcript persistido. Solo texto humano:
+ * `role === 'user'` y nunca `presentation === 'delegationResult'` (tarjetas
+ * inyectadas por el host). Recorre en orden cronológico y reusa
+ * `rememberComposerEntry` para heredar colapso de duplicado y tope.
+ */
+export function composerHistoryFromEntries(
+  entries: readonly Array<{ role: string; content: string; presentation?: string }>,
+): string[] {
+  let history: string[] = []
+  for (const entry of entries) {
+    if (entry.role !== 'user') continue
+    if (entry.presentation === 'delegationResult') continue
+    history = rememberComposerEntry(history, entry.content)
+  }
+  return history
+}
+
+/**
  * Resuelve una tecla contra el historial. Devuelve `null` cuando la tecla no le
  * corresponde al historial y debe seguir su camino normal en el textarea.
  *

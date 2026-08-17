@@ -61,6 +61,16 @@ export interface GitListedRepo {
   path: string
 }
 
+/** Repo local con su remoto origin, para publicar un workspace en una org. */
+export interface GitRepoRemote {
+  name: string
+  path: string
+  /** URL de `git remote get-url origin`; '' si no hay origin. */
+  remoteUrl: string
+  /** `owner/repo` normalizado desde remoteUrl; '' si no se pudo parsear. */
+  repoFullName: string
+}
+
 /** Objetivo de operaciones git vía IPC: path directo o cwd de sesión. */
 export interface GitTarget {
   sessionId?: string

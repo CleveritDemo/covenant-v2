@@ -146,4 +146,18 @@ describe('chrome org del plano', () => {
     expect(screen.getByRole('button', { name: 'Sincronizar workspace' })).toBeTruthy()
     expect(screen.queryByRole('progressbar')).toBeNull()
   })
+
+  it('muestra publicar a org en un tab local con carpeta', () => {
+    const { container } = render(
+      <TabAgenticPlane
+        {...baseProps}
+        canPromoteWorkspace
+        promoteWorkspaceLabel="Publicar en organización"
+        onPromoteWorkspace={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Publicar en organización' })).toBeTruthy()
+    expect(container.querySelector('.plane-top-left-workspace-actions')).toBeTruthy()
+  })
 })

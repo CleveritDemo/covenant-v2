@@ -22,6 +22,7 @@ import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneLoopsButton } from './PlaneLoopsButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
+import { PlanePromoteButton } from './PlanePromoteButton'
 import { PlaneWorkspaceUploadProgressSlot } from './PlaneWorkspaceUploadProgress'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneBrainstormDock } from './PlaneBrainstormDock'
@@ -72,7 +73,7 @@ import { TerminalModal } from '../components/TerminalModal'
 import { formatWikiPageBodyForHuman } from '@shared/wikiPagePlain'
 import './TabAgenticPlane.css'
 
-type PendingWorkspaceAction = 'resync' | 'upload'
+type PendingWorkspaceAction = 'resync' | 'upload' | 'promote'
 
 type WikiNodeModalState = {
   slug: string
@@ -157,6 +158,10 @@ export interface TabAgenticPlaneProps {
    * `TabContextsModal`/`BrainstormRoom` — refrescar el catálogo del tab.
    */
   onContextSaved?: () => void
+  /**
+   * Carga el historial ↑/↓ del composer desde el transcript del hilo.
+   */
+  onLoadPromptHistory?: (paneId: string, threadId: string | null) => Promise<string[]>
   onSendChat: (
     paneId: string,
     text: string,
@@ -227,6 +232,11 @@ export interface TabAgenticPlaneProps {
   uploadWorkspaceProgress?: number | null
   onCancelUploadWorkspace?: () => void
   canUploadWorkspace?: boolean
+  /** Publica la carpeta local en una organización (tabs sin binding org). */
+  onPromoteWorkspace?: () => void
+  promoteWorkspaceLabel?: string
+  promoteWorkspaceBusy?: boolean
+  canPromoteWorkspace?: boolean
   loopsOpen: boolean
   onLoopsOpenChange: (open: boolean) => void
   loopsButtonLabel: string
@@ -373,6 +383,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onAssignContext,
   onOpenResultsPreview,
   onContextSaved,
+  onLoadPromptHistory,
   onSendChat,
   onStopChat,
   onAbortDelegation,
@@ -417,6 +428,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   uploadWorkspaceProgress = null,
   onCancelUploadWorkspace,
   canUploadWorkspace = false,
+  onPromoteWorkspace,
+  promoteWorkspaceLabel = '',
+  promoteWorkspaceBusy = false,
+  canPromoteWorkspace = false,
   loopsOpen,
   onLoopsOpenChange,
   loopsButtonLabel,
@@ -967,7 +982,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             />
           </div>
           {(canResyncWorkspace && onResyncWorkspace)
-            || (canUploadWorkspace && onUploadWorkspace) ? (
+            || (canUploadWorkspace && onUploadWorkspace)
+            || (canPromoteWorkspace && onPromoteWorkspace) ? (
             <div className="plane-top-left-workspace-actions">
               {canResyncWorkspace && onResyncWorkspace ? (
                 <PlaneResyncButton
@@ -981,6 +997,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   label={uploadWorkspaceLabel || ''}
                   busy={Boolean(uploadWorkspaceBusy)}
                   onClick={() => setPendingWorkspaceAction('upload')}
+                />
+              ) : null}
+              {canPromoteWorkspace && onPromoteWorkspace ? (
+                <PlanePromoteButton
+                  label={promoteWorkspaceLabel || ''}
+                  busy={Boolean(promoteWorkspaceBusy)}
+                  onClick={() => setPendingWorkspaceAction('promote')}
                 />
               ) : null}
             </div>
@@ -1366,6 +1389,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               systemSoundsEnabled={systemSoundsEnabled}
               cwd={projectFolder}
               onContextSaved={onContextSaved}
+              onLoadPromptHistory={onLoadPromptHistory}
             />
           )}
         />
@@ -1448,18 +1472,23 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         message={
           pendingWorkspaceAction === 'upload'
             ? t('tabs.uploadWorkspaceConfirmMessage')
-            : t('tabs.resyncWorkspaceConfirmMessage')
+            : pendingWorkspaceAction === 'promote'
+              ? t('tabs.promoteWorkspaceConfirmMessage')
+              : t('tabs.resyncWorkspaceConfirmMessage')
         }
         detail={
           pendingWorkspaceAction === 'upload'
             ? t('tabs.uploadWorkspaceConfirmDetail')
-            : t('tabs.resyncWorkspaceConfirmDetail')
+            : pendingWorkspaceAction === 'promote'
+              ? t('tabs.promoteWorkspaceConfirmDetail')
+              : t('tabs.resyncWorkspaceConfirmDetail')
         }
         onConfirm={() => {
           const action = pendingWorkspaceAction
           setPendingWorkspaceAction(null)
           if (action === 'upload') onUploadWorkspace?.()
           else if (action === 'resync') onResyncWorkspace?.()
+          else if (action === 'promote') onPromoteWorkspace?.()
         }}
         onCancel={() => setPendingWorkspaceAction(null)}
       />

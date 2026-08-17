@@ -187,6 +187,7 @@ import {
   gitDiscardFile,
   gitGetRepoStatus,
   gitListRepos,
+  gitListReposWithRemote,
   gitCollectUniqueRepos,
   repoAndBranch,
   gitPull,
@@ -929,6 +930,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.GIT_LIST_REPOS, (_e, dirPath: string) => {
     return gitListRepos(dirPath)
   })
+  ipcMain.handle(IPC.GIT_LIST_REPOS_WITH_REMOTE, (_e, dirPath: string) => gitListReposWithRemote(dirPath))
   ipcMain.handle(IPC.GIT_COLLECT_UNIQUE_REPOS, (_e, paths: string[]) => {
     return gitCollectUniqueRepos(Array.isArray(paths) ? paths : [])
   })

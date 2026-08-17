@@ -159,6 +159,7 @@ export const IPC = {
   GIT_STATUS: 'git:status',
   /** Renderer → main (invoke): repos git a 1 nivel bajo una carpeta */
   GIT_LIST_REPOS: 'git:listRepos',
+  GIT_LIST_REPOS_WITH_REMOTE: 'git:listReposWithRemote',
   /** Renderer → main (invoke): unión dedupeada de repos bajo varias raíces */
   GIT_COLLECT_UNIQUE_REPOS: 'git:collectUniqueRepos',
   /** Renderer → main (invoke): texto truncado para sugerir mensaje de commit (IA) */

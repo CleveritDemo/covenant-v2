@@ -14,6 +14,12 @@ import {
   type OrgWorkspaceSelection,
 } from './OrgWorkspaceTabPickerModal'
 import { ThemePickerModal } from './ThemePickerModal'
+import {
+  PromoteWorkspaceModal,
+  type PromoteWorkspaceConfirmPayload,
+  type PromoteWorkspaceOrgOption,
+  type PromoteWorkspaceRepoOption,
+} from './PromoteWorkspaceModal'
 import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
 import type { OrchestratorPath } from '@shared/onboarding'
 import type { OnboardingStepId } from '@shared/onboardingSteps'
@@ -36,6 +42,15 @@ interface Props {
   onOrgWorkspacesMutated?: () => void
   onCloseOrgWorkspacePicker: () => void
   onConfirmOrgWorkspacePicker: (selection: OrgWorkspaceSelection) => void
+  promoteWorkspaceOpen: boolean
+  promoteWorkspaceFolderPath: string
+  promoteWorkspaceOrgs: PromoteWorkspaceOrgOption[]
+  promoteWorkspaceRepos: PromoteWorkspaceRepoOption[]
+  promoteWorkspaceBusy: boolean
+  promoteWorkspacePhase?: 'create' | 'repos' | 'upload' | 'wiki'
+  promoteWorkspaceError?: string
+  onClosePromoteWorkspace: () => void
+  onConfirmPromoteWorkspace: (payload: PromoteWorkspaceConfirmPayload) => void
   onCloseThemePicker: () => void
   onCloseAgentPicker: () => void
   onCloseAgentCreate: () => void
@@ -84,6 +99,15 @@ export const AppModals: React.FC<Props> = ({
   onOrgWorkspacesMutated,
   onCloseOrgWorkspacePicker,
   onConfirmOrgWorkspacePicker,
+  promoteWorkspaceOpen,
+  promoteWorkspaceFolderPath,
+  promoteWorkspaceOrgs,
+  promoteWorkspaceRepos,
+  promoteWorkspaceBusy,
+  promoteWorkspacePhase,
+  promoteWorkspaceError,
+  onClosePromoteWorkspace,
+  onConfirmPromoteWorkspace,
   onCloseThemePicker,
   onCloseAgentPicker,
   onCloseAgentCreate,
@@ -160,6 +184,18 @@ export const AppModals: React.FC<Props> = ({
         onClose={onCloseOrgWorkspacePicker}
         onConfirm={onConfirmOrgWorkspacePicker}
         catalog={orgWorkspaceCatalogEntries}
+      />
+
+      <PromoteWorkspaceModal
+        open={promoteWorkspaceOpen}
+        folderPath={promoteWorkspaceFolderPath}
+        orgs={promoteWorkspaceOrgs}
+        repos={promoteWorkspaceRepos}
+        busy={promoteWorkspaceBusy}
+        phase={promoteWorkspacePhase}
+        error={promoteWorkspaceError}
+        onClose={onClosePromoteWorkspace}
+        onConfirm={onConfirmPromoteWorkspace}
       />
 
       <ThemePickerModal

@@ -141,6 +141,11 @@ export interface PlaneChatComposerProps {
    * y `BrainstormRoom`: refrescar el catálogo del proyecto en el padre.
    */
   onContextSaved?: () => void
+  /**
+   * Carga el historial ↑/↓ del hilo activo desde el transcript persistido.
+   * Vacío si no hay hilo o falla la lectura: el composer no debe romperse.
+   */
+  onLoadPromptHistory?: (paneId: string, threadId: string | null) => Promise<string[]>
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -167,6 +172,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   systemSoundsEnabled = true,
   cwd = '',
   onContextSaved,
+  onLoadPromptHistory,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -185,9 +191,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
   /**
-   * Historial ↑/↓ del chat. Vive en memoria y por chat: no se persiste en
-   * session.json a propósito. `historyIndex === null` es el estado idle, donde
-   * las flechas siguen siendo del textarea.
+   * Historial ↑/↓ del chat. Vive en un ref por conversación: al cambiar de
+   * agente/hilo se vacía y se siembra del transcript persistido (CT-129).
+   * Enviar un mensaje sigue añadiendo con `rememberComposerEntry`.
+   * `historyIndex === null` es idle: las flechas siguen siendo del textarea.
    */
   const historyRef = useRef<string[]>([])
   const stashRef = useRef('')
@@ -261,10 +268,19 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     if (el) {
       el.style.height = 'auto'
     }
+    let cancelled = false
+    if (onLoadPromptHistory && selectedAgentId) {
+      const threadId = activeThreadId || null
+      void onLoadPromptHistory(selectedAgentId, threadId).then(entries => {
+        if (cancelled) return
+        historyRef.current = entries
+      })
+    }
     return () => {
+      cancelled = true
       if (key) draftsRef.current[key] = draftRef.current
     }
-  }, [selectedAgentId, activeThreadId])
+  }, [selectedAgentId, activeThreadId, onLoadPromptHistory])
 
   // Si el turno editado ya no está en la cola (p. ej. tras merge), cerrar el modal.
   useEffect(() => {

@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.78.0
+
+- **El fondo del plano sigue al ratón sin trabar la interfaz**: el parallax mueve la grilla con un desplazamiento ligero; la esfera ya no se redibuja en cada movimiento del mouse.
+- **El cursor ya no parpadea al pasar por cosas arrastrables**: pestañas, minis, contextos, loops, salas, explorador y toolbar solo activan el drag al pulsar.
+- **Chips de conversación más claros**: al abrir un hilo queda anclado a la izquierda y reordenar la barra se siente más fluido.
+- **Pantalla vacía del plano más directa**: el logo Gravity pide elegir carpeta o crear el equipo con un botón ghost, sin la tarjeta deshabilitada de antes.
+- **Grilla un poco más discreta** y las minis de agente se apilan desde arriba, igual que las terminales.
+
 ## v0.77.1
 
 - Los agentes Grok ya arrancan: se quitó un parámetro que su CLI no acepta y el modo automático ahora usa su propia aprobación de herramientas.

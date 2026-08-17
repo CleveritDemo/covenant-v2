@@ -14,7 +14,7 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   padding: 1px 0;
@@ -129,7 +129,7 @@
 }
 
 .plane-chat-contexts-bar__chip-host > .plane-chat-contexts-bar__chip {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: none;
   min-height: 0;
@@ -266,12 +266,16 @@
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }
 
-.plane-chat-contexts-bar__chip-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.plane-chat-contexts-bar__chip-host > .ui-tooltip {
+  flex: 0 0 auto;
   min-width: 0;
-  line-height: 1;
+  max-width: none;
+}
+
+.plane-chat-contexts-bar__chip-label {
+  flex: 0 0 auto;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .plane-chat-contexts-bar__chip-label--placeholder {

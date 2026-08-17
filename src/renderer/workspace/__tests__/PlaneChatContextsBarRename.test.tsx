@@ -24,7 +24,7 @@ describe('PlaneChatContextsBar rename', () => {
       />,
     )
 
-    expect(screen.getByText('agentPane.threadUntitled')).toBeTruthy()
+    expect(screen.getByText('agentPane.threa...')).toBeTruthy()
     expect(
       document.querySelector('.plane-chat-contexts-bar__chip-label--placeholder'),
     ).not.toBeNull()

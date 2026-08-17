@@ -27,6 +27,7 @@ import {
   threadTitleFrom,
   threadTitleHasVisibleText,
   threadDisplayTitleOr,
+  truncateThreadChipLabel,
   touchActiveThread,
 } from '../agentThreads'
 
@@ -50,6 +51,14 @@ describe('threadDisplayTitleOr', () => {
     expect(threadTitleHasVisibleText('')).toBe(false)
     expect(threadTitleHasVisibleText('\u200B')).toBe(false)
     expect(threadTitleHasVisibleText('a')).toBe(true)
+  })
+})
+
+describe('truncateThreadChipLabel', () => {
+  it('deja cortos intactos y trunca a 15 con tres puntos', () => {
+    expect(truncateThreadChipLabel('Mi hilo')).toBe('Mi hilo')
+    expect(truncateThreadChipLabel('abcdefghijklmnop')).toBe('abcdefghijklmno...')
+    expect(truncateThreadChipLabel('  hola   mundo largo  ')).toBe('hola mundo larg...')
   })
 })
 

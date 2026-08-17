@@ -37,7 +37,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--plane-thread-history-list-gap);
-  padding: var(--plane-thread-history-list-pad-top) 0 0;
+  padding: var(--plane-thread-history-list-pad-top) 0 3px;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;

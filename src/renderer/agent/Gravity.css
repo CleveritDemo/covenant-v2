@@ -242,24 +242,3 @@
     filter: blur(0);
   }
 }
-
-html[data-reduce-motion="true"] {
-  .gravity,
-  .gravity__core,
-  .gravity__particle {
-    animation: none;
-  }
-
-  .gravity__core {
-    box-shadow:
-      0 0 calc(var(--gravity-core) * 0.35) color-mix(in srgb, var(--accent) 20%, transparent);
-  }
-
-  .gravity__particle {
-    opacity: 0.7;
-    transform:
-      rotate(var(--gravity-angle))
-      translateY(calc(var(--gravity-orbit) * -0.45))
-      scale(0.55, 0.9);
-  }
-}

@@ -107,6 +107,21 @@ describe('PlaneChatContextsBar: chips de hilos recientes', () => {
     expect(onSelectThread).toHaveBeenCalledWith('t-2')
   })
 
+  it('título largo en chip se trunca a 15 caracteres con puntos suspensivos', () => {
+    const longTitle = 'Conversación muy larga para el chip'
+    const { container } = render(
+      <PlaneChatContextsBar
+        threads={[{ id: 't-1', title: longTitle, updatedAt: 1 }]}
+        activeThreadId="t-1"
+        onSelectThread={() => undefined}
+      />,
+    )
+    expect(chipTitles(container)[0]).toBe('Conversación mu...')
+    expect(
+      container.querySelector('.plane-chat-contexts-bar__chip--active')?.getAttribute('aria-label'),
+    ).toBe(longTitle)
+  })
+
   it('hilo delegación sin título: chip muestra threadDelegationTitle', () => {
     const delegationThreads = [
       { id: 't-1', title: 'One', updatedAt: 1, createdAt: 1 },
@@ -129,8 +144,8 @@ describe('PlaneChatContextsBar: chips de hilos recientes', () => {
       />,
     )
     expect(chipTitles(container)[0]).toBe('One')
-    expect(chipTitles(container)[1]).toBe('agentPane.threadDelegationTitle')
+    expect(chipTitles(container)[1]).toBe('agentPane.threa...')
     const chip = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chip--recent')
-    expect(chip?.textContent).toContain('agentPane.threadDelegationTitle')
+    expect(chip?.textContent).toContain('agentPane.threa...')
   })
 })

@@ -1,7 +1,7 @@
 import React, { useId, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
-import { barChipThreads, threadDisplayTitleOr, threadTitleHasVisibleText, type AgentThread } from '@shared/agentThreads'
+import { barChipThreads, threadDisplayTitleOr, threadTitleHasVisibleText, truncateThreadChipLabel, type AgentThread } from '@shared/agentThreads'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import { resolveThreadChipActivityDot } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
@@ -61,6 +61,10 @@ function threadChipShowsPlaceholder(
 ): boolean {
   if (thread.origin === 'delegation') return false
   return !threadTitleHasVisibleText(thread.title.trim())
+}
+
+function threadChipLabelText(title: string): string {
+  return truncateThreadChipLabel(title)
 }
 
 /** Controles encima del chat (conversaciones). */
@@ -154,33 +158,45 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
       )
     }
 
+    const label = threadChipLabelText(title)
+
+    const activeChip = (
+      <span
+        className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--active"
+        role="option"
+        aria-selected={true}
+        aria-current="true"
+        aria-label={title}
+      >
+        {chipDot ? (
+          <PlaneBusyDot size="sm" variant={chipDot} />
+        ) : null}
+        <span
+          className={[
+            'plane-chat-contexts-bar__chip-label',
+            threadChipShowsPlaceholder(thread)
+              ? 'plane-chat-contexts-bar__chip-label--placeholder'
+              : '',
+          ].filter(Boolean).join(' ')}
+        >
+          {label}
+        </span>
+      </span>
+    )
+
     return (
       <div
         key={thread.id}
         data-thread-chip-id={thread.id}
         className="plane-chat-contexts-bar__chip-host plane-chat-contexts-bar__chip-host--active"
       >
-        <span
-          className="plane-chat-contexts-bar__chip plane-chat-contexts-bar__chip--active"
-          role="option"
-          aria-selected={true}
-          aria-current="true"
-          aria-label={title}
-        >
-          {chipDot ? (
-            <PlaneBusyDot size="sm" variant={chipDot} />
-          ) : null}
-          <span
-            className={[
-              'plane-chat-contexts-bar__chip-label',
-              threadChipShowsPlaceholder(thread)
-                ? 'plane-chat-contexts-bar__chip-label--placeholder'
-                : '',
-            ].filter(Boolean).join(' ')}
-          >
-            {title}
-          </span>
-        </span>
+        {label !== title ? (
+          <Tooltip content={title} hint={title}>
+            {activeChip}
+          </Tooltip>
+        ) : (
+          activeChip
+        )}
         {onRenameThread ? (
           <button
             type="button"
@@ -252,7 +268,7 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                   : '',
               ].filter(Boolean).join(' ')}
             >
-              {title}
+              {threadChipLabelText(title)}
             </span>
           </button>
         </Tooltip>

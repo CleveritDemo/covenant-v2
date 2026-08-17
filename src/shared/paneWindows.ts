@@ -264,12 +264,12 @@ export function estimatePlaneAgentMiniHeight(
   const n = Math.max(0, Math.floor(contextCount))
   if (n === 0) return PLANE_MINI_AGENT_BASE_HEIGHT
   const iconsPerRow = computePlaneAgentContextIconsPerRow(cellWidth)
-  // padding-y 8+8, header 22, status ~17, y el mismo hueco de sección entre header/estado
+  // padding-y 8+10, header 22, status ~17, y el mismo hueco de sección entre header/estado
   // y entre estado/nodos. No modela el hueco inputs↔results: el RO lo corrige.
   const content = 8 + 22 + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT + 17
     + PLANE_MINI_AGENT_CONTEXT_SECTION_HEIGHT
     + estimatePlaneAgentContextGridHeight(n, iconsPerRow)
-    + 8
+    + 10
   return Math.max(
     PLANE_MINI_AGENT_BASE_HEIGHT,
     2 + Math.max(82, content),

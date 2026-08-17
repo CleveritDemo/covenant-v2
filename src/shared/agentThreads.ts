@@ -35,6 +35,8 @@ export const MAX_THREADS_PER_PANE = 20
 /** Hilos recientes visibles en chips junto al activo (el activo no cuenta). */
 export const MAX_RECENT_CHIP_THREADS = 5
 export const THREAD_TITLE_MAX = 48
+/** Máximo de caracteres visibles en chips del composer (sin contar el «...»). */
+export const THREAD_CHIP_LABEL_MAX = 15
 
 /** Los ids terminan en un path (`agent-chats/<pane>/<thread>.json`). */
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
@@ -61,6 +63,16 @@ export function threadDisplayTitleOr(title: string, fallback: string): string {
   const raw = title.trim()
   if (!threadTitleHasVisibleText(raw)) return fallback
   return raw
+}
+
+/** Texto del chip en la barra del composer: 15 caracteres y «...» si sobra. */
+export function truncateThreadChipLabel(
+  text: string,
+  max = THREAD_CHIP_LABEL_MAX,
+): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= max) return flat
+  return `${flat.slice(0, max)}...`
 }
 
 export function activeThreadOf(state: AgentThreadState): AgentThread | undefined {

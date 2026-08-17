@@ -42,10 +42,11 @@
   gap: 6px;
   width: 100%;
   margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   background: transparent;
+  box-sizing: border-box;
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 9px;
@@ -55,14 +56,22 @@
   text-align: left;
   cursor: pointer;
   user-select: none;
-  transition: color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .plane-agent-thread-nodes__row--delegation {
   cursor: default;
 }
 
-.plane-agent-thread-nodes__row:hover {
+.plane-agent-thread-nodes__row--delegation:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.plane-agent-thread-nodes__row:hover:not(.plane-agent-thread-nodes__row--delegation) {
+  background: transparent;
+  border-color: transparent;
   color: var(--text);
 }
 

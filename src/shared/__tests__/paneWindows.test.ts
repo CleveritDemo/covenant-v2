@@ -196,11 +196,11 @@ describe('paneWindows', () => {
 
   it('estimates mini agent height from CSS chrome, not AABB', () => {
     expect(estimatePlaneAgentMiniHeight(0)).toBe(84)
-    expect(estimatePlaneAgentMiniHeight(1)).toBe(84)
-    expect(estimatePlaneAgentMiniHeight(3)).toBe(84)
-    expect(estimatePlaneAgentMiniHeight(6)).toBe(84)
+    expect(estimatePlaneAgentMiniHeight(1)).toBe(85)
+    expect(estimatePlaneAgentMiniHeight(3)).toBe(85)
+    expect(estimatePlaneAgentMiniHeight(6)).toBe(85)
     // Mismo hueco de sección arriba y abajo del estado: header 4 + nodos 4.
-    expect(estimatePlaneAgentMiniHeight(6, 128)).toBe(2 + 8 + 22 + 4 + 17 + 4 + 40 + 8)
+    expect(estimatePlaneAgentMiniHeight(6, 128)).toBe(2 + 8 + 22 + 4 + 17 + 4 + 40 + 10)
   })
 
   it('readPlaneMiniAgentLayoutHeight uses offsetHeight, not getBoundingClientRect', () => {

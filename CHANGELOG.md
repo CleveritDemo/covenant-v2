@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.78.6
+
+- **Chips de conversación más cortos**: en la barra del chat se ven hasta 15 caracteres y «...»; el título completo sigue en tooltip y accesibilidad.
+- **Logo Gravity siempre animado**: con «reducir movimiento» activo el logo del splash, el idle del plano y el hero siguen con la misma animación.
+- **Mini del agente refinada**: contextos pegados abajo sin recorte; filas de hilo y delegación con contenedor invisible (área de clic sin caja visible).
+
 ## v0.78.5
 
 - **Renombrar una conversación ya se ve**: el chip del hilo activo mantiene su ancho y muestra el campo con el título seleccionado; antes se aplastaba a un círculo con el lápiz medio fuera y no dejaba escribir.

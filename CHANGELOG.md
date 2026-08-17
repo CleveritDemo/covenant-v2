@@ -4,6 +4,14 @@ El contenido de cada sección `## vX.Y.Z` acaba en dos sitios: en la página del
 release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-updater
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
+## v0.72.0
+
+- **Salas de brainstorm con el fondo del plano**: las salas abiertas y la lista de salas guardadas comparten el mismo fondo del plano, incluida la cuadrícula 3D animada.
+- **Cinta de color a lo ancho de la sala**: la cinta cromática del composer cruza toda la sala y se enciende mientras un agente tiene el turno.
+- **Campo de escritura con el cristal del plano**: escribir en la sala usa el mismo cristal que el composer del plano.
+- **Catálogo de agentes como en el plano**: en la lista de salas guardadas, la columna derecha muestra los agentes invitables con las mismas tarjetas del plano.
+- **Crear agente con la sala abierta**: el botón de crear agente sigue a mano aunque haya una sala abierta.
+
 ## v0.71.0
 
 - **Plano: grilla más densa y discreta**: celdas a 42.5px; notoriedad bajada un 20% en oscuros y otros 20% solo en temas claros (Interstellar Light ≈0.249).

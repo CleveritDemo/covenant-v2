@@ -148,11 +148,11 @@ describe('exclusión mutua de overlays del plano', () => {
     render(<TabAgenticPlane {...baseProps} />)
 
     fireEvent.click(wikiButton())
-    expect(document.querySelector('.wiki-graph-view')).not.toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeNull()
 
     fireEvent.click(pulseButton())
     expect(document.querySelector('.pulse-view')).not.toBeNull()
-    expect(document.querySelector('.wiki-graph-view')).toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
   })
 
   it('abrir Pulse y luego el mapa de wiki deja solo el mapa', () => {
@@ -162,7 +162,7 @@ describe('exclusión mutua de overlays del plano', () => {
     expect(document.querySelector('.pulse-view')).not.toBeNull()
 
     fireEvent.click(wikiButton())
-    expect(document.querySelector('.wiki-graph-view')).not.toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeNull()
     expect(document.querySelector('.pulse-view')).toBeNull()
   })
 

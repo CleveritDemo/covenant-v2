@@ -360,14 +360,14 @@ html[data-reduce-motion="true"] {
 }
 
 /* Mapa wiki: encima de grilla/partículas, debajo del stage (oculto con
-   stage-hidden). Así el fondo del plano queda visible sin depender de alpha
-   WebGL a través de un overlay modal de z-index alto. */
+   stage-hidden). Wrapper siempre montado: pointer-events none para no
+   bloquear el plano; el root .wiki-graph-view recupera auto. */
 .plane-map__wiki-overlay {
   position: absolute;
   inset: 0;
   z-index: 16;
   overflow: hidden;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 /* Solo fondo (mapa wiki abierto): el stage de ventanas se oculta sin

@@ -47,6 +47,7 @@ const getWikiGraph = vi.fn<(cwd: string) => Promise<WikiGraphResult>>()
 
 beforeEach(() => {
   getWikiGraph.mockReset()
+  getWikiGraph.mockResolvedValue({ ok: true, data: { nodes: [], edges: [] } })
   ;(window as unknown as { api: Record<string, unknown> }).api = {
     getWikiGraph,
     ensureWiki: vi.fn(async () => ({ ok: true })),
@@ -56,6 +57,10 @@ beforeEach(() => {
     isWikiCuratorTurnActive: vi.fn(async () => false),
     getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
     setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
+    listAgentCliModels: vi.fn(async () => ({ models: [], source: 'fallback' as const })),
+    startWikiSweep: vi.fn(),
+    stopWikiSweep: vi.fn(),
+    onWikiSweepEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),
   }
 })
 
@@ -80,7 +85,7 @@ const baseProps = {
   loopChains: [],
   loopsOpen: false,
   loopsButtonLabel: 'loops',
-  projectFolder: '',
+  projectFolder: '/tmp/wiki-toggle',
   projectFolderSelectLabel: '',
   projectFolderChangeLabel: '',
   projectFolderEmptyHint: '',
@@ -110,18 +115,22 @@ const wikiView = (): HTMLElement | null =>
 describe('toggle del mapa de wiki en TabAgenticPlane', () => {
   it('el botón abre la vista sobre el plano y vuelve a cerrarla', async () => {
     render(<TabAgenticPlane {...baseProps} />)
-    expect(wikiView()).toBeNull()
+    const hiddenRoot = document.querySelector('.wiki-graph-view')
+    expect(hiddenRoot).not.toBeNull()
+    expect(hiddenRoot!.classList.contains('wiki-graph-view--hidden')).toBe(true)
+    expect(document.querySelector('.wiki-curator-composer')).toBeTruthy()
     expect(wikiButton().getAttribute('aria-pressed')).toBe('false')
 
     fireEvent.click(wikiButton())
-    const view = wikiView()
+    const view = document.querySelector('.wiki-graph-view') as HTMLElement | null
     expect(view).not.toBeNull()
+    expect(view!.classList.contains('wiki-graph-view--hidden')).toBe(false)
     expect(wikiButton().getAttribute('aria-pressed')).toBe('true')
     // Dentro del plano del workspace (no body): montado en PlaneMap sobre el backdrop.
     expect(view!.closest('.tab-agentic-plane')).toBeTruthy()
     expect(view!.closest('[data-testid="plane-map"]')).toBeTruthy()
     expect(view!.parentElement).not.toBe(document.body)
-    // Sin cwd el grafo resuelve vacío tras el fetch local: empty state, no spinner ni WebGL.
+    // Sin pages el grafo resuelve vacío: empty state, no spinner ni WebGL.
     expect(await screen.findByText('tabs.wikiMapEmpty')).toBeTruthy()
     expect(screen.queryByText('tabs.wikiMapNoWebgl')).toBeNull()
     expect(document.querySelector('.wiki-graph-view__loading')).toBeNull()
@@ -129,9 +138,11 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     expect(screen.queryByTestId('plane-chat-dock')).toBeNull()
 
     fireEvent.click(wikiButton())
-    // Al cerrar, el overlay se desmonta del plano.
-    expect(wikiView()).toBeNull()
-    expect(document.querySelector('.wiki-graph-view')).toBeNull()
+    // Al cerrar, el overlay sigue montado (hidden) y el curador no se desmonta.
+    const closed = document.querySelector('.wiki-graph-view')
+    expect(closed).not.toBeNull()
+    expect(closed!.classList.contains('wiki-graph-view--hidden')).toBe(true)
+    expect(document.querySelector('.wiki-curator-composer')).toBeTruthy()
     // El plano sigue montado debajo en todo momento.
     expect(screen.getByTestId('plane-map')).toBeTruthy()
   })
@@ -154,13 +165,14 @@ describe('toggle del mapa de wiki en TabAgenticPlane', () => {
     render(<TabAgenticPlane {...baseProps} />)
 
     fireEvent.click(wikiButton())
-    expect(wikiView()).not.toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeNull()
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(wikiView()).toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
+    expect(document.querySelector('.wiki-curator-composer')).toBeTruthy()
 
     fireEvent.click(wikiButton())
     fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapClose' }))
-    expect(wikiView()).toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
     expect(screen.getByTestId('plane-map')).toBeTruthy()
     expect(wikiButton().getAttribute('aria-pressed')).toBe('false')
   })

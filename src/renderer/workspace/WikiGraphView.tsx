@@ -39,6 +39,11 @@ export interface WikiGraphViewProps {
    * `wikiMapOpen` sin auto-cerrar al cambiar de workspace.
    */
   active?: boolean
+  /**
+   * Si false, el mapa sigue montado (curador y sweep vivos) pero oculto
+   * con CSS y sin escena WebGL.
+   */
+  visible?: boolean
   /** Barrido secuencial de la wiki (cinco pases del curador). */
   sweep?: {
     running: boolean
@@ -79,7 +84,8 @@ const WIKI_MAP_ENTER_MS = 2400
  * y se cierra con Escape o su botón. Vive dentro de `.tab-agentic-plane` para
  * no tapar otros workspaces al cambiar de tab. Se monta dentro de PlaneMap
  * (`.plane-map__wiki-overlay`) sobre el backdrop de grilla y partículas.
- * El render 3D vive en `useWikiGraphScene`; aquí solo el chrome HTML.
+ * Cerrado: sigue montado (`visible=false`, CSS hidden) sin WebGL; el curador
+ * conserva estado. El render 3D vive en `useWikiGraphScene`; aquí el chrome HTML.
  */
 export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   data,
@@ -92,6 +98,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   onNodeScreenPositions,
   curator,
   active = true,
+  visible = true,
   sweep,
 }) => {
   const { t } = useT()
@@ -141,15 +148,17 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
     [onNodeScreenPositions],
   )
 
+  const sceneActive = active && visible
+
   const { webglAvailable } = useWikiGraphScene(containerRef, graphData, {
     onHover: setHover,
     onPick: (slug, screen) => onOpenNode(slug, screen),
     onNodeScreenPositions: handleNodeScreenPositions,
-  }, active)
+  }, sceneActive)
 
   // Implode enter del canvas al abrir el mapa.
   useEffect(() => {
-    if (!active) {
+    if (!sceneActive) {
       setMapEntering(true)
       return
     }
@@ -163,7 +172,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
       WIKI_MAP_ENTER_MS,
     )
     return () => window.clearTimeout(timer)
-  }, [active])
+  }, [sceneActive])
 
   // Tras ensureWiki ok el padre refetchea (data=null); mantener spinner hasta que llegue data.
   useEffect(() => {
@@ -175,7 +184,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
   // Escape cierra la vista — salvo que haya un modal portaled encima
   // (el placeholder de nodo u otro): ese Escape es del modal.
   useEffect(() => {
-    if (!active) return
+    if (!active || !visible) return
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       if (document.querySelector('.terminal-modal-root')) return
@@ -184,7 +193,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [active, onClose])
+  }, [active, visible, onClose])
 
   const hoverNode = useMemo(
     () => (hover ? graphData.nodes.find(node => node.slug === hover.slug) ?? null : null),
@@ -206,7 +215,10 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
 
   return (
     <div
-      className="wiki-graph-view"
+      className={[
+        'wiki-graph-view',
+        !visible ? 'wiki-graph-view--hidden' : '',
+      ].filter(Boolean).join(' ')}
       role="region"
       aria-label={t('tabs.wikiMapTitle')}
     >
@@ -414,7 +426,6 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
               ) : null}
             </div>
           ) : null}
-          {curator}
           {hover && hoverNode ? (
             <div
               className="wiki-graph-view__tooltip"
@@ -431,6 +442,7 @@ export const WikiGraphView: React.FC<WikiGraphViewProps> = ({
           ) : null}
         </>
       ) : null}
+      {curator}
     </div>
   )
 }

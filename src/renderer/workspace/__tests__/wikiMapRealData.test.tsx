@@ -127,7 +127,7 @@ describe('mapa de wiki con pages reales vía IPC', () => {
     expect(screen.queryByText('tabs.wikiMapNoWebgl')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'tabs.wikiMapClose' }))
-    expect(screen.queryByRole('region', { name: 'tabs.wikiMapTitle' })).toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
     expect(screen.getByTestId('plane-map')).toBeTruthy()
   })
 
@@ -168,14 +168,14 @@ describe('mapa de wiki con pages reales vía IPC', () => {
     render(<TabAgenticPlane {...baseProps} />)
 
     fireEvent.click(wikiButton())
-    await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(2))
     // Con datos, en jsdom se muestra el aviso de WebGL (no el empty state).
     expect(await screen.findByText('tabs.wikiMapNoWebgl')).toBeTruthy()
     expect(screen.queryByText('tabs.wikiMapEmpty')).toBeNull()
 
     fireEvent.click(wikiButton())
     fireEvent.click(wikiButton())
-    await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(3))
   })
 })
 
@@ -194,14 +194,7 @@ describe('CTA Crear wiki en el empty state', () => {
   })
 
   it('mientras corre queda deshabilitado con spinner y al ok refetchea sin cerrar el mapa', async () => {
-    getWikiGraph.mockResolvedValueOnce({ ok: true, data: { nodes: [], edges: [] } })
-    getWikiGraph.mockResolvedValueOnce({
-      ok: true,
-      data: {
-        nodes: [{ slug: 'overview', title: 'Overview', type: 'concept', linkCount: 0, body: 'Seed.' }],
-        edges: [],
-      },
-    })
+    getWikiGraph.mockResolvedValue({ ok: true, data: { nodes: [], edges: [] } })
     let resolveEnsure: (value: { ok: boolean }) => void = () => {}
     ensureWiki.mockReturnValue(new Promise(resolve => { resolveEnsure = resolve }))
     render(<TabAgenticPlane {...baseProps} />)
@@ -211,8 +204,15 @@ describe('CTA Crear wiki en el empty state', () => {
     expect(ensureWiki).toHaveBeenCalledWith('/tmp/proyecto-wiki')
     await waitFor(() => expect(document.querySelector('.wiki-graph-view__loading')).toBeTruthy())
 
+    getWikiGraph.mockResolvedValue({
+      ok: true,
+      data: {
+        nodes: [{ slug: 'overview', title: 'Overview', type: 'concept', linkCount: 0, body: 'Seed.' }],
+        edges: [],
+      },
+    })
     resolveEnsure({ ok: true })
-    await waitFor(() => expect(getWikiGraph).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(getWikiGraph.mock.calls.length).toBeGreaterThanOrEqual(3))
     // El mapa sigue abierto; con la page overview ya no hay empty state.
     expect(screen.getByRole('region', { name: 'tabs.wikiMapTitle' })).toBeTruthy()
     await waitFor(() => expect(screen.queryByText('tabs.wikiMapEmpty')).toBeNull())
@@ -225,7 +225,7 @@ describe('CTA Crear wiki en el empty state', () => {
 
     fireEvent.click(await createButton())
     expect(await screen.findByText('tabs.wikiMapCreateError')).toBeTruthy()
-    expect(getWikiGraph).toHaveBeenCalledTimes(1)
+    expect(getWikiGraph).toHaveBeenCalledTimes(2)
     // Se puede reintentar: el botón vuelve a quedar habilitado.
     const button = screen.getByRole('button', { name: /tabs\.wikiMapCreate/ })
     expect(button.hasAttribute('disabled')).toBe(false)

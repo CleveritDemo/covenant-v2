@@ -10,9 +10,28 @@ vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key, i18n: { language: 'es' } }),
 }))
 
-vi.mock('../useWikiGraphScene', () => ({
-  useWikiGraphScene: () => ({ webglAvailable: false }),
-}))
+vi.mock('../useWikiGraphScene', () => {
+  const { useEffect } = require('react') as typeof import('react')
+  return {
+    useWikiGraphScene: (
+      containerRef: { current: HTMLDivElement | null },
+      _data: unknown,
+      _cb: unknown,
+      active = true,
+    ) => {
+      useEffect(() => {
+        const el = containerRef.current
+        if (!el || !active) return
+        const canvas = document.createElement('canvas')
+        el.appendChild(canvas)
+        return () => {
+          canvas.remove()
+        }
+      }, [containerRef, active])
+      return { webglAvailable: false }
+    },
+  }
+})
 
 const baseProps = {
   data: { nodes: [], edges: [] },
@@ -81,6 +100,21 @@ describe('WikiGraphView map implode enter', () => {
 
     rerender(<WikiGraphView {...baseProps} active={false} />)
     rerender(<WikiGraphView {...baseProps} active />)
+    expect(document.querySelector('.wiki-graph-view__canvas--entering')).toBeTruthy()
+  })
+
+  it('visible=false oculta el root, no cierra con Escape y no crea la escena', () => {
+    const { rerender } = render(<WikiGraphView {...baseProps} active visible={false} />)
+    const root = document.querySelector('.wiki-graph-view')
+    expect(root).not.toBeNull()
+    expect(root!.classList.contains('wiki-graph-view--hidden')).toBe(true)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(baseProps.onClose).not.toHaveBeenCalled()
+    expect(document.querySelector('.wiki-graph-view__canvas canvas')).toBeNull()
+
+    rerender(<WikiGraphView {...baseProps} active visible />)
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeNull()
+    expect(document.querySelector('.wiki-graph-view__canvas canvas')).not.toBeNull()
     expect(document.querySelector('.wiki-graph-view__canvas--entering')).toBeTruthy()
   })
 })

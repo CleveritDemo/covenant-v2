@@ -14,6 +14,10 @@
   pointer-events: auto;
 }
 
+.wiki-graph-view--hidden {
+  display: none;
+}
+
 .wiki-graph-view__canvas {
   position: absolute;
   inset: 0;

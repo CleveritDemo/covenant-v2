@@ -798,7 +798,6 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
     && !anyWindowOpen
     && !reorderActive
     && !stageHidden
-    && !wikiOverlay
   useLayoutEffect(() => {
     if (!agentHitTestActive) return
     const onPointerDown = (event: PointerEvent): void => {

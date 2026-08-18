@@ -716,4 +716,43 @@ describe('TabAgenticPlane barrido (eventos IPC)', () => {
 
     expect(screen.queryByText('tabs.wikiSweepSnapshotTitle')).toBeNull()
   })
+
+  it('pass_start con mapa cerrado actualiza estado; al abrir se ve el progreso y cerrar no lo resetea', async () => {
+    render(<TabAgenticPlane {...planeBaseProps} tabActive />)
+
+    expect(wikiSweepEventHandler).toBeDefined()
+    act(() => {
+      wikiSweepEventHandler?.({
+        type: 'pass_start',
+        pass: 'health',
+        index: 1,
+        total: 5,
+      })
+    })
+
+    const mapButton = screen.getByRole('button', { name: 'tabs.wikiMapButton' })
+    expect(mapButton.getAttribute('aria-pressed')).toBe('false')
+    expect(mapButton.querySelector('.plane-busy-dot')).toBeTruthy()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
+    expect(document.querySelector('.wiki-curator-composer')).toBeTruthy()
+
+    fireEvent.click(mapButton)
+    await waitFor(() => {
+      expect(screen.getByText('tabs.wikiSweepPassHealth')).toBeTruthy()
+    })
+    expect(screen.getByText('tabs.wikiSweepProgress:1/5')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'tabs.wikiSweepStop' })).toBeTruthy()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeNull()
+    expect(mapButton.querySelector('.plane-busy-dot')).toBeNull()
+
+    fireEvent.click(mapButton)
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
+    expect(document.querySelector('.wiki-curator-composer')).toBeTruthy()
+    expect(mapButton.querySelector('.plane-busy-dot')).toBeTruthy()
+
+    fireEvent.click(mapButton)
+    expect(screen.getByText('tabs.wikiSweepPassHealth')).toBeTruthy()
+    expect(screen.getByText('tabs.wikiSweepProgress:1/5')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'tabs.wikiSweepStop' })).toBeTruthy()
+  })
 })

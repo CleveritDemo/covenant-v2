@@ -645,14 +645,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     }
   }, [projectFolder])
 
-  // Pages reales vía IPC, refetch en cada apertura: la wiki puede haber
-  // cambiado entre una y otra. ok:false o error → overlay de error.
+  // Pages reales vía IPC al montar y en cada refresh duro (CTA, retry, fin de barrido).
   useEffect(() => {
-    if (!wikiMapOpen) return
     let cancelled = false
     setWikiGraphData(null)
     setWikiGraphError(null)
-    setWikiNodeModals([])
     void loadWikiGraph().then(({ data, error }) => {
       if (cancelled) return
       if (error !== null) {
@@ -664,12 +661,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       }
     })
     return () => { cancelled = true }
-  }, [wikiMapOpen, loadWikiGraph, wikiGraphRefreshToken])
+  }, [loadWikiGraph, wikiGraphRefreshToken])
 
-  // Camino suave: el curador aplicó ops — los nodos se actualizan en vivo,
-  // sin resetear la escena ni cerrar los modales abiertos.
+  // Camino suave: apertura del mapa o ingest del curador — swap sin flash de loading.
   useEffect(() => {
-    if (!wikiMapOpen || wikiGraphSoftToken === 0) return
+    if (!wikiMapOpen) return
     let cancelled = false
     void loadWikiGraph().then(({ data, error }) => {
       if (cancelled || error || !data) return
@@ -679,20 +675,8 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   }, [wikiMapOpen, loadWikiGraph, wikiGraphSoftToken])
 
   useEffect(() => {
-    if (!wikiMapOpen) {
-      setSweepRunning(false)
-      setSweepPass(null)
-      setSweepIndex(0)
-      setSweepTotal(WIKI_SWEEP_TOTAL)
-      setSweepOpsApplied(0)
-      setSweepErrors([])
-      setSweepSnapshotPath(null)
-    }
-  }, [wikiMapOpen])
-
-  useEffect(() => {
     const cwd = projectFolder.trim()
-    if (!cwd || !wikiMapOpen) return
+    if (!cwd) return
     return window.api.onWikiSweepEvent(cwd, event => {
       if (event.type === 'pass_start') {
         setSweepRunning(true)
@@ -727,7 +711,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         onWikiMutated?.(cwd)
       }
     })
-  }, [projectFolder, wikiMapOpen, onWikiMutated])
+  }, [projectFolder, onWikiMutated])
 
   const handleWikiSweepStart = useCallback((): void => {
     const cwd = projectFolder.trim()
@@ -1155,6 +1139,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           <PlaneWikiMapButton
             label={t('tabs.wikiMapButton')}
             pressed={wikiMapOpen}
+            busy={sweepRunning || curatorThinking}
             onClick={() => {
               if (wikiMapOpen) { setWikiMapOpen(false); setWikiNodeModals([]); return }
               closeOtherPlaneOverlays('wiki')
@@ -1192,13 +1177,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         tabActive={tabActive}
         seatDragEnabled={brainstormView === 'setup'}
         stageHidden={wikiMapOpen}
-        wikiOverlay={wikiMapOpen ? (
+        wikiOverlay={(
           <WikiGraphView
             data={wikiGraphData}
             error={wikiGraphError}
             onRetry={() => setWikiGraphRefreshToken(token => token + 1)}
             cwd={projectFolder.trim()}
             active={tabActive}
+            visible={wikiMapOpen}
             onClose={() => {
               setWikiMapOpen(false)
               setWikiNodeModals([])
@@ -1241,7 +1227,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               />
             ) : null}
           />
-        ) : null}
+        )}
         configLabel={configLabel}
         deleteLabel={deleteLabel}
         maximizeLabel={maximizeLabel}

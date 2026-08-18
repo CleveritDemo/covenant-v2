@@ -5,6 +5,18 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.92.0
+
+### Añadido
+- Al añadir un repo a un workspace de organización ya no hace falta pegar la URL: se busca entre tus repos de GitHub, se elige uno y solo queda nombrar la carpeta. Pegar la URL de clonado sigue disponible como alternativa.
+- Elegir un archivo de fuera del proyecto como contexto lo copia a `.gravity/files` y lo adjunta desde ahí, en vez de devolver un error.
+
+### Corregido
+- El visor de git muestra estados vacíos claros (nada que ver, carpeta sin seguimiento) en vez de errores crudos de git. Una carpeta sin seguimiento ya no intenta abrir un diff.
+
+### Cambiado
+- La pantalla de Organizaciones usa todo el ancho de la ventana.
+
 ## v0.91.0
 
 ### Añadido

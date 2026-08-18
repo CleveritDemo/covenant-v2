@@ -138,7 +138,7 @@ describe('el plano como módulo del riel', () => {
 
     fireEvent.click(workspaceButton())
     expect(document.querySelector('.pulse-view')).toBeNull()
-    expect(document.querySelector('.wiki-graph-view')).toBeNull()
+    expect(document.querySelector('.wiki-graph-view--hidden')).toBeTruthy()
     expect(onBrainstormViewChange).toHaveBeenCalledWith(null)
   })
 })

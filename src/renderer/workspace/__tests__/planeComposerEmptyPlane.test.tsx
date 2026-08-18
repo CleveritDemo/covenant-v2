@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { TabAgenticPlane, type TabAgenticPlaneProps } from '../TabAgenticPlane'
 import type { PlaneMapEntity } from '../PlaneMap'
@@ -42,6 +42,29 @@ vi.mock('../PlaneBrainstormTable', () => ({ PlaneBrainstormTable: () => null }))
 vi.mock('../TabFileExplorerWindow', () => ({ TabFileExplorerWindow: () => null }))
 vi.mock('../PulseView', () => ({ PulseView: () => null }))
 vi.mock('../../components/ConfirmTerminalModal', () => ({ ConfirmTerminalModal: () => null }))
+
+beforeEach(() => {
+  ;(window as unknown as { api: Record<string, unknown> }).api = {
+    getWikiGraph: vi.fn(async () => ({ ok: true, data: { nodes: [], edges: [] } })),
+    ensureWiki: vi.fn(async () => ({ ok: true })),
+    onWikiCuratorEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),
+    startWikiCuratorTurn: vi.fn(),
+    stopWikiCuratorTurn: vi.fn(),
+    isWikiCuratorTurnActive: vi.fn(async () => false),
+    getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
+    setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
+    listAgentCliModels: vi.fn(async () => ({ models: [], source: 'fallback' as const })),
+    resolveAgentCli: vi.fn(async (provider: string) => ({
+      provider,
+      command: provider,
+      path: `/usr/local/bin/${provider}`,
+      version: null,
+    })),
+    startWikiSweep: vi.fn(),
+    stopWikiSweep: vi.fn(),
+    onWikiSweepEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),
+  }
+})
 
 afterEach(cleanup)
 

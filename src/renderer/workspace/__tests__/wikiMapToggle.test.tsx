@@ -58,6 +58,12 @@ beforeEach(() => {
     getWikiCuratorConfig: vi.fn(async () => ({ ok: true as const, config: {} })),
     setWikiCuratorConfig: vi.fn(async () => ({ ok: true as const })),
     listAgentCliModels: vi.fn(async () => ({ models: [], source: 'fallback' as const })),
+    resolveAgentCli: vi.fn(async (provider: string) => ({
+      provider,
+      command: provider,
+      path: `/usr/local/bin/${provider}`,
+      version: null,
+    })),
     startWikiSweep: vi.fn(),
     stopWikiSweep: vi.fn(),
     onWikiSweepEvent: vi.fn((_cwd: string, _cb: (event: unknown) => void) => () => undefined),

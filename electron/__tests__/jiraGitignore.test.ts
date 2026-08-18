@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { PROJECT_DIR } from '../../src/shared/projectDir'
-import { ensureJiraGitignore } from '../jiraGitignore'
+import { ensureIssueSnapshotsGitignore, ensureJiraGitignore } from '../jiraGitignore'
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'gravity-jira-gitignore-'))
@@ -94,5 +94,17 @@ describe('ensureJiraGitignore', () => {
     writeFileSync(notADir, 'x', 'utf8')
 
     expect(ensureJiraGitignore(join(notADir, 'sub'))).toBe('skipped')
+  })
+})
+
+describe('ensureIssueSnapshotsGitignore github', () => {
+  it('añade la regla github/ sin duplicar la de jira', () => {
+    const dir = repo()
+    writeFileSync(join(dir, '.gitignore'), 'node_modules\n', 'utf8')
+    expect(ensureIssueSnapshotsGitignore(dir, 'jira')).toBe('appended')
+    expect(ensureIssueSnapshotsGitignore(dir, 'github')).toBe('appended')
+    const content = readFileSync(join(dir, '.gitignore'), 'utf8')
+    expect(content).toContain(`${PROJECT_DIR}/jira/`)
+    expect(content).toContain(`${PROJECT_DIR}/github/`)
   })
 })

@@ -4,9 +4,10 @@ import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { hasPlaneContextDrag, readPlaneContextDragData } from './planeContextDrag'
 import type { PlaneContextPoolItem } from './PlaneContextPool'
 import type { GitListedRepo } from '@shared/gitSessionTypes'
-import type { JiraIssueRef } from '@shared/jiraIssue'
+import type { IssueMentionPicked } from '@shared/issueMention'
+import { githubIssueDraftFromRef } from '@shared/githubIssueDraft'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
-import { useJiraMention } from './useJiraMention'
+import { useIssueMention } from './useIssueMention'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
@@ -326,8 +327,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
    * prompt se queda con el texto truncado mientras el chip adjunto apunta a
    * otra cosa, y ese token sobreviviente reabre el picker en la próxima tecla.
    */
-  const attachJiraMention = useCallback((issue: JiraIssueRef): void => {
-    const context = jiraDraftFromKey(issue.key)
+  const attachIssueMention = useCallback((picked: IssueMentionPicked): void => {
+    const context = picked.source === 'jira'
+      ? jiraDraftFromKey(picked.issue.key)
+      : githubIssueDraftFromRef(picked.issue)
     if (!context || !cwd.trim()) return
     void window.api.materializeTabContext({ context, cwd }).then(result => {
       if (!result.ok) return
@@ -340,12 +343,12 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     })
   }, [cwd, onContextSaved])
 
-  const mention = useJiraMention({
+  const mention = useIssueMention({
     cwd,
     value: draft,
     onValueChange: setDraft,
     inputRef: composerInputRef,
-    onPicked: attachJiraMention,
+    onPicked: attachIssueMention,
   })
 
   const appendPendingImages = useCallback((images: ComposerPendingImage[]): void => {

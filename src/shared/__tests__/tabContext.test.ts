@@ -48,6 +48,7 @@ describe('canonical context identity', () => {
     expect(contextFileStem('CONTEXT\\Front-Rules.MD')).toBe('Front-Rules')
     expect(contextFileStem('results/fullstack.md')).toBe('fullstack')
     expect(contextFileStem('jira/GRAV-412.md')).toBe('GRAV-412')
+    expect(contextFileStem('github/acme-app-12.md')).toBe('acme-app-12')
     expect(contextFileStem('front-rules.md')).toBe('front-rules')
     expect(contextFileStem(null)).toBe('')
   })

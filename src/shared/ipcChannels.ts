@@ -420,6 +420,14 @@ export const IPC = {
   /** Markdown de una issue para la vista previa del formulario; no escribe disco. */
   JIRA_PREVIEW_ISSUE: 'jira:previewIssue',
 
+  // ─── GitHub issues ──────────────────────────────────────────────────────────
+  /** Renderer → main (invoke): ¿hay repo GitHub + token para este cwd? */
+  GITHUB_ISSUE_STATUS: 'githubIssue:status',
+  /** Renderer → main (invoke): buscar issues (número exacto o texto) para el picker */
+  GITHUB_ISSUE_SEARCH: 'githubIssue:search',
+  /** Markdown de una issue para la vista previa; no escribe disco. */
+  GITHUB_ISSUE_PREVIEW: 'githubIssue:preview',
+
   // ─── Motor LSP (code intelligence) ─────────────────────────────────────────
   /** Renderer → main (invoke): estado de instalación + runtime de un lenguaje */
   LSP_SERVER_STATUS: 'lsp:serverStatus',

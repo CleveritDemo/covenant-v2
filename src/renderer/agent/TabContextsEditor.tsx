@@ -16,7 +16,8 @@ import { useT } from '@i18n/useT'
 import { Button, Input, SegmentedControl, SettingToggle, TextArea, Toggle } from '../components/ui'
 import { Icon } from '../components/ui/Icon'
 import { ContextReport } from '../workspace/ContextReport'
-import { JiraMentionPicker } from '../workspace/JiraMentionPicker'
+import { IssueMentionPicker } from '../workspace/IssueMentionPicker'
+import { useIssueMentionSearch } from '../workspace/useIssueMention'
 import { KIND_ICONS } from './tabContextKindIcons'
 import { TabContextAppearancePopup } from './TabContextAppearancePopup'
 import { TabContextBudgetMeter } from './TabContextBudgetMeter'
@@ -116,6 +117,9 @@ export const TabContextsEditor: React.FC<Props> = ({
   const [jiraInputEl, setJiraInputEl] = useState<HTMLInputElement | null>(null)
   /** Término para el que el usuario ya cerró la lista (Escape o elección). */
   const [pickerDismissedFor, setPickerDismissedFor] = useState<string | null>(null)
+  const mentionSearchEnabled = draft.kind === 'jira'
+    && Boolean(projectCwd.trim() && jiraKeyDraft.trim() && jiraKeyDraft !== pickerDismissedFor)
+  const mentionSearch = useIssueMentionSearch(projectCwd, jiraKeyDraft, mentionSearchEnabled)
 
   /**
    * Copia los archivos elegidos dentro del proyecto y agrega sus rutas. Los
@@ -416,19 +420,21 @@ export const TabContextsEditor: React.FC<Props> = ({
                   onJiraKeyDraftChange(event.target.value)
                 }}
               />
-              {projectCwd.trim() && jiraKeyDraft.trim() && jiraKeyDraft !== pickerDismissedFor
+              {mentionSearchEnabled
                 ? (
-                  <JiraMentionPicker
-                    cwd={projectCwd}
+                  <IssueMentionPicker
+                    rows={mentionSearch.rows}
+                    searching={mentionSearch.searching}
+                    error={mentionSearch.error}
                     query={jiraKeyDraft}
                     placement="down"
                     showEmptyState
                     focusElement={jiraInputEl}
-                    onPick={issue => {
+                    onPick={row => {
                       // La clave elegida cerraría y reabriría la lista con ese
                       // mismo término: se marca como descartada para ese valor.
-                      setPickerDismissedFor(issue.key)
-                      onJiraKeyDraftChange(issue.key)
+                      setPickerDismissedFor(row.label)
+                      onJiraKeyDraftChange(row.label)
                     }}
                     onDismiss={() => setPickerDismissedFor(jiraKeyDraft)}
                   />

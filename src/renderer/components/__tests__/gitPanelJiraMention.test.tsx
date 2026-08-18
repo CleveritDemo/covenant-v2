@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useJiraMention } from '../../workspace/useJiraMention'
+import { useIssueMention } from '../../workspace/useIssueMention'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key }),
@@ -43,7 +43,7 @@ afterEach(cleanup)
 const CommitBox: React.FC = () => {
   const [message, setMessage] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
-  const mention = useJiraMention({
+  const mention = useIssueMention({
     cwd: '/repo',
     value: message,
     onValueChange: setMessage,
@@ -107,7 +107,7 @@ describe('mención de Jira en el mensaje de commit', () => {
     const NoProject: React.FC = () => {
       const [message, setMessage] = useState('')
       const ref = useRef<HTMLTextAreaElement>(null)
-      const mention = useJiraMention({
+      const mention = useIssueMention({
         cwd: '',
         value: message,
         onValueChange: setMessage,

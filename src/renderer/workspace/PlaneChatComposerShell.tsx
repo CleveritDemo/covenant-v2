@@ -122,7 +122,7 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
           onSelect={event => onInputSelect?.(event.currentTarget)}
           onPaste={onPaste}
           onKeyDown={event => {
-            // Con resultados visibles, `JiraMentionPicker` intercepta
+            // Con resultados visibles, `IssueMentionPicker` intercepta
             // ArrowUp/Down/Enter/Escape en captura y hace stopPropagation —
             // este handler ni los ve. Sin resultados, Enter/Escape siguen.
             if (event.key === 'Enter' && !event.shiftKey) {

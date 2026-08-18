@@ -55,7 +55,7 @@ afterEach(cleanup)
 
 /** Los `<select>` del modal también son `listbox`: hay que ir por el nombre. */
 async function pickerOption(): Promise<HTMLElement> {
-  const list = await screen.findByRole('listbox', { name: 'jira.mentionListLabel' })
+  const list = await screen.findByRole('listbox', { name: 'issueMention.listLabel' })
   return within(list).getByRole('option')
 }
 

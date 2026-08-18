@@ -155,6 +155,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   agentResult: 'bot',
   skill: 'sparkles',
   jira: 'jira',
+  githubIssue: 'git-branch',
   wiki: 'book',
 }
 
@@ -172,6 +173,7 @@ const KIND_DEFAULT_COLOR: Record<TabContextKind, TabContextColor> = {
   agentResult: '#94a3b8',
   skill: '#e879f9',
   jira: '#2684ff',
+  githubIssue: '#94a3b8',
   wiki: '#2dd4bf',
 }
 

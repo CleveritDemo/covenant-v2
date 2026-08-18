@@ -1,5 +1,6 @@
 import { describeFetchError, httpFetch } from './httpFetch'
 import type { GitHubActionsRun, GitHubJob } from '../src/shared/githubActionsTypes'
+import type { GithubIssueRef, GithubIssueSnapshot } from '../src/shared/githubIssue'
 
 export class GitHubApiError extends Error {
   readonly status: number
@@ -171,4 +172,127 @@ export async function fetchWorkflowRuns(
   }
 
   return runs
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function stringField(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function mapGithubIssueState(raw: unknown): 'open' | 'closed' {
+  return raw === 'closed' ? 'closed' : 'open'
+}
+
+function mapLabelNames(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(entry => typeof entry === 'string' ? entry : stringField(asRecord(entry).name))
+    .filter(Boolean)
+}
+
+function mapIssueRef(raw: unknown, repoFullName: string): GithubIssueRef | null {
+  const item = asRecord(raw)
+  const number = Number(item.number)
+  if (!Number.isInteger(number) || number <= 0) return null
+  if (item.pull_request) return null
+  return {
+    number,
+    title: stringField(item.title),
+    state: mapGithubIssueState(item.state),
+    repoFullName,
+    updated: stringField(item.updated_at),
+    author: stringField(asRecord(item.user).login),
+    labels: mapLabelNames(item.labels),
+  }
+}
+
+/**
+ * Busca issues (nunca PRs) en un repo. `q = repo:<fullName> is:issue <query>`.
+ */
+export async function searchGithubIssues(
+  token: string,
+  fullName: string,
+  query: string,
+  limit = 8,
+): Promise<GithubIssueRef[]> {
+  const [owner, name] = fullName.split('/')
+  if (!owner || !name) return []
+  const perPage = Math.min(Math.max(limit, 1), 100)
+  const q = [`repo:${fullName}`, 'is:issue', query.trim()].filter(Boolean).join(' ')
+  const url = new URL('https://api.github.com/search/issues')
+  url.searchParams.set('q', q)
+  url.searchParams.set('sort', 'updated')
+  url.searchParams.set('order', 'desc')
+  url.searchParams.set('per_page', String(perPage))
+
+  const response = await githubFetch(token, url.toString())
+  const body = asRecord(await response.json())
+  const items = Array.isArray(body.items) ? body.items : []
+  const issues: GithubIssueRef[] = []
+  for (const item of items) {
+    const mapped = mapIssueRef(item, fullName)
+    if (mapped) issues.push(mapped)
+  }
+  return issues
+}
+
+function mapComment(raw: unknown): { author: string; created: string; body: string } {
+  const comment = asRecord(raw)
+  return {
+    author: stringField(asRecord(comment.user).login),
+    created: stringField(comment.created_at),
+    body: stringField(comment.body),
+  }
+}
+
+/**
+ * Issue + comentarios. `maxComments` 0 es cero comentarios, no «todos».
+ */
+export async function githubGetIssue(
+  token: string,
+  fullName: string,
+  number: number,
+  maxComments = 20,
+): Promise<GithubIssueSnapshot> {
+  const [owner, name] = fullName.split('/')
+  if (!owner || !name) {
+    throw new GitHubApiError('Repositorio de GitHub no válido.', 0)
+  }
+  const issueResponse = await githubFetch(
+    token,
+    `https://api.github.com/repos/${owner}/${name}/issues/${number}`,
+  )
+  const raw = asRecord(await issueResponse.json())
+  const ref = mapIssueRef({ ...raw, pull_request: undefined }, fullName)
+  if (!ref) {
+    throw new GitHubApiError(`Issue #${number} no encontrada.`, 404)
+  }
+
+  let comments: GithubIssueSnapshot['comments'] = []
+  if (maxComments > 0) {
+    const commentsUrl = new URL(
+      `https://api.github.com/repos/${owner}/${name}/issues/${number}/comments`,
+    )
+    commentsUrl.searchParams.set('per_page', '100')
+    const commentsResponse = await githubFetch(token, commentsUrl.toString())
+    const page = await commentsResponse.json()
+    const list = Array.isArray(page) ? page.map(mapComment) : []
+    comments = list.slice(-maxComments)
+  }
+
+  return {
+    ...ref,
+    url: stringField(raw.html_url) || `https://github.com/${fullName}/issues/${number}`,
+    body: stringField(raw.body),
+    assignees: Array.isArray(raw.assignees)
+      ? raw.assignees.map(entry => stringField(asRecord(entry).login)).filter(Boolean)
+      : [],
+    milestone: raw.milestone ? (stringField(asRecord(raw.milestone).title) || null) : null,
+    comments,
+  }
 }

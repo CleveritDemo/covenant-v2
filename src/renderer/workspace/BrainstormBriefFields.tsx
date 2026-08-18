@@ -13,9 +13,10 @@ import {
   type CeremonyId,
   type CeremonyRoleCandidate,
 } from '@shared/agileCeremonies'
-import type { JiraIssueRef } from '@shared/jiraIssue'
+import type { IssueMentionPicked } from '@shared/issueMention'
+import { githubIssueDraftFromRef } from '@shared/githubIssueDraft'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
-import { useJiraMention } from './useJiraMention'
+import { useIssueMention } from './useIssueMention'
 import { useT } from '@i18n/useT'
 import { SegmentedControl, TextArea } from '../components/ui'
 import { BrainstormRoundsSlider } from './BrainstormRoundsSlider'
@@ -69,8 +70,10 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
    * La issue elegida entra en el working set además de escribirse en el tema:
    * la sala arranca con el ticket ya adjunto, sin pegarlo a mano.
    */
-  const attachIssue = useCallback((issue: JiraIssueRef): void => {
-    const context = jiraDraftFromKey(issue.key)
+  const attachIssue = useCallback((picked: IssueMentionPicked): void => {
+    const context = picked.source === 'jira'
+      ? jiraDraftFromKey(picked.issue.key)
+      : githubIssueDraftFromRef(picked.issue)
     if (!context || !cwd.trim()) return
     void window.api.materializeTabContext({ context, cwd }).then(result => {
       if (!result.ok) return
@@ -83,7 +86,7 @@ export const BrainstormBriefFields: React.FC<BrainstormBriefFieldsProps> = ({
     })
   }, [contextIds, cwd, filePaths, onWorkingSetChange])
 
-  const mention = useJiraMention({
+  const mention = useIssueMention({
     cwd,
     value: topic,
     onValueChange: onTopicChange,

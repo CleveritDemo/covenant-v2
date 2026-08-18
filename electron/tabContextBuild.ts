@@ -24,6 +24,8 @@ import {
 } from '../src/shared/tabContext'
 import { jiraContextMetadataLine, withJiraAutoBlock } from '../src/shared/jiraIssueDoc'
 import { issueKeyFor } from '../src/shared/jiraIssue'
+import { githubContextMetadataLine, withGithubAutoBlock } from '../src/shared/githubIssueDoc'
+import { githubIssueFileStem, githubIssueRefFor } from '../src/shared/githubIssue'
 import {
   defaultColorForKind,
   defaultIconForKind,
@@ -148,6 +150,7 @@ const CONTEXT_ENRICHMENT_RULES: Record<TabContextKind, string> = {
   agentResult: 'Host-owned agent results; do not rewrite via annotations.',
   skill: 'Host-installed skill; do not rewrite via annotations.',
   jira: 'Host-owned Jira snapshot; do not rewrite via annotations.',
+  githubIssue: 'Host-owned GitHub issue snapshot; do not rewrite via annotations.',
   wiki: 'Read-only; never annotate.',
 }
 
@@ -563,6 +566,9 @@ function contextFilePath(context: TabContext, cwd: string): string {
     // sola `issueKeyFor` en `src/shared/jiraIssue.ts` (ver su comentario).
     return join(dir, 'jira', normalizeContextFileName(issueKeyFor(context), 'issue'))
   }
+  if (context.kind === 'githubIssue') {
+    return join(dir, 'github', normalizeContextFileName(githubIssueFileStem(context), 'issue'))
+  }
   return join(
     dir,
     CONTEXT_SUBDIR,
@@ -577,7 +583,9 @@ function displayContextRelFile(context: TabContext, cwd: string): string {
     ? 'results'
     : context.kind === 'jira'
       ? 'jira'
-      : CONTEXT_SUBDIR
+      : context.kind === 'githubIssue'
+        ? 'github'
+        : CONTEXT_SUBDIR
   return `${projectDirName(cwd)}/${folder}/${normalizeContextFileName(contextFileStem(raw) || raw, context.id)}`
 }
 
@@ -693,7 +701,14 @@ function serializeContextMetadata(context: TabContext): string {
           (context.issueKey || context.fileName || context.name).replace(/^jira[/\\]/i, ''),
           'issue',
         )}`)
-      : `${CONTEXT_SUBDIR}/${normalizeContextFileName(
+      : context.kind === 'githubIssue'
+        ? (context.fileName.replace(/\\/g, '/').startsWith('github/')
+          ? context.fileName.replace(/\\/g, '/')
+          : `github/${normalizeContextFileName(
+            githubIssueFileStem(context),
+            'issue',
+          )}`)
+        : `${CONTEXT_SUBDIR}/${normalizeContextFileName(
         contextFileStem(context.fileName) || context.name,
         context.id,
       )}`
@@ -709,6 +724,8 @@ function serializeContextMetadata(context: TabContext): string {
     ...(context.paths ? { paths: context.paths } : {}),
     ...(context.symbolKinds ? { symbolKinds: context.symbolKinds } : {}),
     ...(context.issueKey ? { issueKey: context.issueKey } : {}),
+    ...(typeof context.issueNumber === 'number' ? { issueNumber: context.issueNumber } : {}),
+    ...(context.repoFullName ? { repoFullName: context.repoFullName } : {}),
     ...(context.refreshSeconds !== undefined ? { refreshSeconds: context.refreshSeconds } : {}),
     ...(context.referenceOnly ? { referenceOnly: true } : {}),
   })
@@ -830,6 +847,12 @@ function contextFromMetadata(raw: string, fileName: string): TabContext | null {
       ...(symbolKinds ? { symbolKinds } : {}),
       ...(typeof value.issueKey === 'string' && value.issueKey.trim()
         ? { issueKey: value.issueKey.trim().slice(0, 60) }
+        : {}),
+      ...(typeof value.issueNumber === 'number' && Number.isInteger(value.issueNumber) && value.issueNumber > 0
+        ? { issueNumber: value.issueNumber }
+        : {}),
+      ...(typeof value.repoFullName === 'string' && value.repoFullName.trim()
+        ? { repoFullName: value.repoFullName.trim().slice(0, 120) }
         : {}),
       ...(typeof value.refreshSeconds === 'number' && Number.isFinite(value.refreshSeconds)
         ? { refreshSeconds: value.refreshSeconds }
@@ -1018,6 +1041,16 @@ export function discoverTabContexts(cwd: string): TabContextDiscoveryResult {
       }
     }
 
+    const githubDir = join(dir, 'github')
+    if (existsSync(githubDir) && statSync(githubDir).isDirectory()) {
+      for (const entry of readdirSync(githubDir, { withFileTypes: true })
+        .filter(item => item.isFile() && extname(item.name).toLowerCase() === '.md')
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        const relativeFileName = `github/${normalizeContextFileName(entry.name)}`
+        ingestFile(join(githubDir, entry.name), relativeFileName)
+      }
+    }
+
     // Remap result ids con stem no normalizado en contextIds de agentes.
     for (const agent of listProjectAgents(cwd)) {
       for (const id of agent.contextIds ?? []) {
@@ -1074,7 +1107,7 @@ export function deleteTabContext(
     if (diskName) {
       candidates.add(contextFilePath({ ...normalized, fileName: diskName }, cwd))
     }
-    if (normalized.kind !== 'agentResult' && normalized.kind !== 'jira') {
+    if (normalized.kind !== 'agentResult' && normalized.kind !== 'jira' && normalized.kind !== 'githubIssue') {
       const stem = contextFileStem(diskName || normalized.fileName) || normalized.name
       candidates.add(join(dir, normalizeContextFileName(stem, normalized.id)))
     }
@@ -1372,6 +1405,35 @@ export function materializeTabContext(
       }
     }
 
+    if (contextToWrite.kind === 'githubIssue') {
+      const ref = githubIssueRefFor(contextToWrite)
+      if (!existsSync(filePath)) {
+        if (options.write && ref.number) {
+          const metadataLine = githubContextMetadataLine(ref.repoFullName, ref.number)
+          const placeholder = withGithubAutoBlock('', metadataLine, (options.content ?? '').trim())
+          mkdirSync(projectDirPath(cwd, 'github'), { recursive: true })
+          writeFileSync(filePath, placeholder, 'utf8')
+          return {
+            ok: true,
+            content: placeholder,
+            notesContent: readExistingNotes(filePath),
+            filePath,
+          }
+        }
+        return {
+          ok: false,
+          content: '',
+          error: `No snapshot for ${ref.number ? `#${ref.number}` : 'this issue'} yet.`,
+        }
+      }
+      return {
+        ok: true,
+        content: readFileSync(filePath, 'utf8'),
+        notesContent: readExistingNotes(filePath),
+        filePath,
+      }
+    }
+
     const existingNotes = readExistingNotes(filePath)
     const referenceOnlyWrite = options.write === true
       && contextToWrite.referenceOnly === true
@@ -1518,6 +1580,8 @@ function cacheSourcePaths(context: TabContext, cwd: string): string[] | null {
     case 'skill':
       return [skillSourcePath(context, root)]
     case 'jira':
+      return [contextFilePath(context, cwd)]
+    case 'githubIssue':
       return [contextFilePath(context, cwd)]
     case 'wiki': {
       const wikiRoot = wikiRootPath(cwd)

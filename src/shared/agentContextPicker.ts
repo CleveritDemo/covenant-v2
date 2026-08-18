@@ -25,6 +25,7 @@ const GROUP_BY_KIND: Record<TabContextKind, ContextGroupId> = {
   mcp: 'repo',
   spreadsheet: 'repo',
   jira: 'repo',
+  githubIssue: 'repo',
   agentResult: 'results',
 }
 

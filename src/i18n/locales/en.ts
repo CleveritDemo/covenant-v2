@@ -1869,6 +1869,12 @@ const en = {
     },
   },
 
+  issueMention: {
+    searching: 'Searching…',
+    noMatches: 'No issues match that search.',
+    listLabel: 'Jira issues',
+  },
+
   jira: {
     section: 'Jira',
     siteLabel: 'Site',

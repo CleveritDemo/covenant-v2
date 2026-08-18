@@ -1,4 +1,4 @@
-.jira-mention__list {
+.issue-mention__list {
   position: absolute;
   left: 0;
   right: 0;
@@ -12,19 +12,19 @@
   border-radius: 8px;
 }
 
-.jira-mention__list--up {
+.issue-mention__list--up {
   bottom: 100%;
   margin: 0 0 6px;
 }
 
-.jira-mention__list--down {
+.issue-mention__list--down {
   top: 100%;
   margin: 6px 0 0;
 }
 
 /* Mismo hueco que la lista: «buscando…» y «sin coincidencias» ocupan donde
    estarían los resultados, para que la caja no salte al aparecer. */
-.jira-mention__empty {
+.issue-mention__empty {
   position: absolute;
   left: 0;
   right: 0;
@@ -39,11 +39,11 @@
   overflow-wrap: anywhere;
 }
 
-.jira-mention__empty--up { bottom: 100%; margin-bottom: 6px; }
-.jira-mention__empty--down { top: 100%; margin-top: 6px; }
-.jira-mention__empty--error { color: var(--danger); }
+.issue-mention__empty--up { bottom: 100%; margin-bottom: 6px; }
+.issue-mention__empty--down { top: 100%; margin-top: 6px; }
+.issue-mention__empty--error { color: var(--danger); }
 
-.jira-mention__item {
+.issue-mention__item {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -58,31 +58,31 @@
   font: inherit;
 }
 
-.jira-mention__item--active,
-.jira-mention__item:focus-visible { background: var(--tab-active-bg); }
+.issue-mention__item--active,
+.issue-mention__item:focus-visible { background: var(--tab-active-bg); }
 
-/* Primera línea: clave, resumen y, a la derecha, cuándo se tocó. */
-.jira-mention__line {
+/* Primera línea: origen, clave, resumen y, a la derecha, cuándo se tocó. */
+.issue-mention__line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
 /* Sin `--font-mono`: la clave no es código, y la fuente mono del usuario puede
    ser cualquier cosa. Se distingue por color y peso, en la tipografía de la UI. */
-.jira-mention__key { flex: 0 0 auto; font-weight: 600; color: var(--accent); }
-.jira-mention__summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.issue-mention__key { flex: 0 0 auto; font-weight: 600; color: var(--accent); }
+.issue-mention__summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* La coincidencia: `<mark>` da el significado, el color lo pone el tema — el
    amarillo por defecto del navegador no existe en ninguna paleta de la app. */
-.jira-mention__match {
+.issue-mention__match {
   background: none;
   color: inherit;
   font-weight: 700;
 }
 
-.jira-mention__when {
+.issue-mention__when {
   flex: 0 0 auto;
   font-size: 11px;
   color: var(--text-muted);
@@ -90,7 +90,7 @@
 }
 
 /* Segunda línea: de dónde sale y qué es. */
-.jira-mention__meta {
+.issue-mention__meta {
   font-size: 11px;
   color: var(--text-muted);
   overflow: hidden;

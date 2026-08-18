@@ -79,9 +79,10 @@ import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
 import { AgentPaneMessages } from './AgentPaneMessages'
-import { useJiraMention } from '../workspace/useJiraMention'
+import { useIssueMention } from '../workspace/useIssueMention'
 import { jiraDraftFromKey } from './TabContextFormModal'
-import type { JiraIssueRef } from '@shared/jiraIssue'
+import type { IssueMentionPicked } from '@shared/issueMention'
+import { githubIssueDraftFromRef } from '@shared/githubIssueDraft'
 import { AgentPaneFooter } from './AgentPaneFooter'
 import type { AgentChatBubblesHandle } from './AgentChatBubbles'
 import { QueuedTurnEditModal } from './QueuedTurnEditModal'
@@ -992,11 +993,13 @@ export const AgentPane: React.FC<Props> = ({
   /** Carpeta BASE del proyecto: usar para todo lo relacionado con `.gravity/` (contexts, results, catálogo de agentes). Nunca el worktree. */
   /**
    * Mención de issues en el chat propio del pane. Misma mecánica que el chat
-   * del plano — se extrajo a `useJiraMention` justo para no tener dos copias
+   * del plano — se extrajo a `useIssueMention` justo para no tener dos copias
    * que diverjan a la primera corrección.
    */
-  const attachJiraMention = useCallback((issue: JiraIssueRef): void => {
-    const context = jiraDraftFromKey(issue.key)
+  const attachIssueMention = useCallback((picked: IssueMentionPicked): void => {
+    const context = picked.source === 'jira'
+      ? jiraDraftFromKey(picked.issue.key)
+      : githubIssueDraftFromRef(picked.issue)
     if (!context || !cwd.trim()) return
     void window.api.materializeTabContext({ context, cwd }).then(result => {
       if (!result.ok) return
@@ -1008,12 +1011,12 @@ export const AgentPane: React.FC<Props> = ({
     })
   }, [cwd])
 
-  const jiraMention = useJiraMention({
+  const jiraMention = useIssueMention({
     cwd,
     value: input,
     onValueChange: setInput,
     inputRef: composerInputRef,
-    onPicked: attachJiraMention,
+    onPicked: attachIssueMention,
   })
 
   const resolveWorkingCwd = useCallback(async (): Promise<string> => {

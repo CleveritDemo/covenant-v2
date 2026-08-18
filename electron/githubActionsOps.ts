@@ -101,14 +101,14 @@ function spawnCapture(
   })
 }
 
-async function getRepoRoot(sessionCwd: string): Promise<string | null> {
+export async function getRepoRoot(sessionCwd: string): Promise<string | null> {
   const r = await spawnCapture('git', ['rev-parse', '--show-toplevel'], { cwd: sessionCwd, timeoutMs: TIMEOUT_MS })
   if (r.exitCode !== 0) return null
   const root = r.stdout.trim().split('\n')[0]?.trim()
   return root || null
 }
 
-async function resolveGitHubRepo(repoRoot: string): Promise<GitHubRepoRef | null> {
+export async function resolveGitHubRepo(repoRoot: string): Promise<GitHubRepoRef | null> {
   const r = await spawnCapture('git', ['remote', 'get-url', 'origin'], { cwd: repoRoot, timeoutMs: TIMEOUT_MS })
   if (r.exitCode !== 0) return null
   const url = r.stdout.trim().split('\n')[0]?.trim() ?? ''

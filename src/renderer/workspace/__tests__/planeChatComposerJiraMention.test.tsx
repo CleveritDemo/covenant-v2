@@ -77,7 +77,7 @@ describe('PlaneChatComposer — mención de Jira', () => {
     // si no, `mentionRangeAt` no reconoce `GRAV-` como proyecto propio.
     await waitFor(() => expect(jiraStatus).toHaveBeenCalledWith('/repo'))
     // El picker ignora el teclado si el foco real no está en el textarea
-    // (ver JiraMentionPicker.tsx) — igual que en el uso real.
+    // (ver IssueMentionPicker.tsx) — igual que en el uso real.
     input().focus()
 
     // `#` es el disparador en los chats: una clave suelta en prosa no interrumpe.

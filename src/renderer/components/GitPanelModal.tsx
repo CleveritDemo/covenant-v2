@@ -22,7 +22,7 @@ import { shortPathTail, splitGitFilesByArea } from './git/gitPathUtils'
 import { gitWorktreeOptions } from './git/gitWorktreeOptions'
 import { gitAreaTotals, parseGitNumStat } from './git/gitDiffNumStat'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
-import { useJiraMention } from '../workspace/useJiraMention'
+import { useIssueMention } from '../workspace/useIssueMention'
 import './GitPanelModal.css'
 
 interface GitPanelModalProps {
@@ -233,7 +233,7 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
    * más veces al día se teclea a mano y donde equivocarse es silencioso —
    * `CT-218` por `CT-128` rompe la trazabilidad sin que nada falle.
    */
-  const mention = useJiraMention({
+  const mention = useIssueMention({
     cwd: projectCwd,
     value: commitMsg,
     onValueChange: setCommitMsg,

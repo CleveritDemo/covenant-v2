@@ -116,6 +116,7 @@ import {
   getContextDeliveryMetrics,
 } from './agentCliRuntime'
 import { refreshStaleJiraContexts } from './jiraContextRefresh'
+import { refreshStaleGithubIssueContexts } from './githubIssueContextRefresh'
 import {
   jiraStatusFor,
   connectJira,
@@ -124,6 +125,11 @@ import {
   searchJiraQuick,
   DISCONNECTED as JIRA_DISCONNECTED,
 } from './jiraIpcOps'
+import {
+  githubIssueStatusFor,
+  previewGithubIssue,
+  searchGithubIssuesQuick,
+} from './githubIssueOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -1089,6 +1095,30 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud de vista previa no válida.' }
     }
     return previewJiraIssue(cwd, issueKey)
+  })
+
+  // ─── GitHub issues ──────────────────────────────────────────────────────
+  ipcMain.handle(IPC.GITHUB_ISSUE_STATUS, async (_e, cwd: unknown) => {
+    if (typeof cwd !== 'string') {
+      return { connected: false, repoFullName: '', error: 'No es un repositorio git.' }
+    }
+    const token = await resolveGithubToken(readConfig(), { cwd })
+    return githubIssueStatusFor(cwd, token)
+  })
+
+  ipcMain.handle(IPC.GITHUB_ISSUE_SEARCH, async (_e, cwd: unknown, query: unknown) => {
+    if (typeof cwd !== 'string' || typeof query !== 'string') return { issues: [] }
+    const token = await resolveGithubToken(readConfig(), { cwd })
+    return searchGithubIssuesQuick(cwd, token, query)
+  })
+
+  ipcMain.handle(IPC.GITHUB_ISSUE_PREVIEW, async (_e, cwd: unknown, number: unknown) => {
+    const n = typeof number === 'number' ? number : typeof number === 'string' ? Number(number) : NaN
+    if (typeof cwd !== 'string' || !Number.isInteger(n) || n <= 0) {
+      return { ok: false, error: 'Solicitud de vista previa no válida.' }
+    }
+    const token = await resolveGithubToken(readConfig(), { cwd })
+    return previewGithubIssue(cwd, token, n)
   })
 
   // ─── LSP ────────────────────────────────────────────────────────────────
@@ -2272,17 +2302,21 @@ function registerIpc(): void {
    * así que se corre también aquí. Si el llamador ya trae el snapshot (el
    * formulario lo pidió para la vista previa) no hay nada que buscar.
    */
-  const fillJiraSnapshot = async (request: TabContextPreviewRequest): Promise<void> => {
-    if (request.context?.kind !== 'jira') return
+  const fillHostOwnedSnapshots = async (request: TabContextPreviewRequest): Promise<void> => {
     if ((request.content ?? '').trim()) return
-    // Nunca debería rechazar, pero abrir un contexto no puede caerse por Jira.
-    await refreshStaleJiraContexts([request.context], request.cwd).catch(() => {})
+    if (request.context?.kind === 'jira') {
+      await refreshStaleJiraContexts([request.context], request.cwd).catch(() => {})
+    }
+    if (request.context?.kind === 'githubIssue') {
+      const token = await resolveGithubToken(readConfig(), { cwd: request.cwd }).catch(() => '')
+      await refreshStaleGithubIssueContexts([request.context], request.cwd, token ?? '').catch(() => {})
+    }
   }
   ipcMain.handle(IPC.TAB_CONTEXT_PREVIEW, async (_event, request: TabContextPreviewRequest) => {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
-    await fillJiraSnapshot(request)
+    await fillHostOwnedSnapshots(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
     })
@@ -2291,7 +2325,7 @@ function registerIpc(): void {
     if (!request || typeof request.cwd !== 'string' || !request.context) {
       return { ok: false, content: '', error: 'Solicitud inválida.' }
     }
-    await fillJiraSnapshot(request)
+    await fillHostOwnedSnapshots(request)
     return materializeTabContext(request.context, request.cwd, {
       content: request.content,
       write: true,
@@ -2621,8 +2655,13 @@ function registerIpc(): void {
     // `.gravity` vive en el proyecto, nunca en el worktree: el refresco necesita
     // el cwd del proyecto (`projectCwd`), no el cwd del spawn del turno (`cwd`).
     const projectCwd = resolveProjectCwd(request, home)
-    void refreshStaleJiraContexts(request.contexts ?? [], projectCwd)
-      .catch(() => { /* refreshStaleJiraContexts no debería rechazar, pero el turno no depende de ello */ })
+    void Promise.all([
+      refreshStaleJiraContexts(request.contexts ?? [], projectCwd),
+      resolveGithubToken(readConfig(), { cwd: projectCwd })
+        .then(token => refreshStaleGithubIssueContexts(request.contexts ?? [], projectCwd, token ?? ''))
+        .catch(() => {}),
+    ])
+      .catch(() => { /* los refreshers no deberían rechazar, pero el turno no depende de ello */ })
       .finally(() => {
         if (win.isDestroyed()) return
         // Si Stop (u otro turno para el mismo pane) invalidó la reserva mientras

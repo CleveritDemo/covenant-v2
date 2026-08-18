@@ -38,7 +38,7 @@ export interface AgentPaneFooterProps {
   onComposerCaret?: (element: HTMLTextAreaElement) => void
   /**
    * La lista de issues de Jira, ya posicionada. El footer solo la coloca: quién
-   * la abre y qué pasa al elegir lo decide `AgentPane` con `useJiraMention`.
+   * la abre y qué pasa al elegir lo decide `AgentPane` con `useIssueMention`.
    */
   mentionPicker?: React.ReactNode
   onRemovePendingImage: (id: string) => void

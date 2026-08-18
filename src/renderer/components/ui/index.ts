@@ -30,6 +30,9 @@ export type { TooltipProps } from './Tooltip'
 export { Badge } from './Badge'
 export type { BadgeProps, BadgeVariant } from './Badge'
 
+export { IssueSourceBadge } from './IssueSourceBadge'
+export type { IssueSourceBadgeProps } from './IssueSourceBadge'
+
 export { Spinner } from './Spinner'
 export type { SpinnerProps } from './Spinner'
 

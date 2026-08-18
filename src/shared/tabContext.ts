@@ -12,12 +12,13 @@ export type TabContextKind =
   | 'agentResult'
   | 'skill'
   | 'jira'
+  | 'githubIssue'
   | 'wiki'
 
 /** Kinds que el host materializa solo; no hay contextos de mantenimiento humano. */
 export const HOST_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'jira',
+  'jira', 'githubIssue',
 ] as const
 
 /** Markdown libre del usuario o resultados de agente; se adjunta entero (sin catálogo / need-sections). */
@@ -26,24 +27,24 @@ export const CUSTOM_CONTEXT_KINDS: readonly TabContextKind[] = ['notes', 'agentR
 /** Kinds que el usuario puede crear desde el gestor (no incluye resultados de agente). */
 export const CREATABLE_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'skill', 'jira',
+  'skill', 'jira', 'githubIssue',
 ] as const
 
 /** Todos los kinds válidos en disco / UI (host + personalizados). */
 export const ALL_CONTEXT_KINDS: readonly TabContextKind[] = [
   'folderTree', 'files', 'symbols', 'notes', 'git', 'deps', 'readme', 'changelog', 'mcp', 'spreadsheet',
-  'agentResult', 'skill', 'jira', 'wiki',
+  'agentResult', 'skill', 'jira', 'githubIssue', 'wiki',
 ] as const
 
 export type TabContextSymbolKind = 'class' | 'method' | 'variable'
 
 export const CONTEXT_SUBDIR = 'context'
 
-/** Stem de identidad: recorta `context/` / `results/` / `jira/` y `.md`. Nunca aplana `/`. */
+/** Stem de identidad: recorta `context/` / `results/` / `jira/` / `github/` y `.md`. Nunca aplana `/`. */
 export function contextFileStem(fileName?: string | null): string {
   return (fileName ?? '')
     .replace(/\\/g, '/')
-    .replace(/^(context|results|jira)\//i, '')
+    .replace(/^(context|results|jira|github)\//i, '')
     .replace(/\.md$/i, '')
     .trim()
 }
@@ -85,6 +86,28 @@ export interface CanonicalContextOptions {
   name?: string
   /** Clave de la issue (`GRAV-412`) para el kind `jira`. */
   issueKey?: string
+  /** Número de la issue para el kind `githubIssue`. */
+  issueNumber?: number
+  /** `owner/repo` de la issue para el kind `githubIssue`. */
+  repoFullName?: string
+}
+
+function trailingIssueNumber(source: string): number {
+  const match = /-(\d+)$/.exec(source.trim()) || /^(\d+)$/.exec(source.trim())
+  return match ? Number(match[1]) : 0
+}
+
+function githubIssueIdentityStem(options: CanonicalContextOptions): string {
+  const repo = (options.repoFullName ?? '').trim()
+  const number = typeof options.issueNumber === 'number' && Number.isInteger(options.issueNumber)
+    ? options.issueNumber
+    : 0
+  if (repo && number > 0) return `${repo.replace(/\//g, '-')}-${number}`
+  const fromFile = contextFileStem(options.fileStem)
+  if (fromFile) return fromFile
+  const fromName = (options.name ?? '').trim()
+  if (fromName) return fromName.replace(/^#/, '').replace(/\//g, '-')
+  return number > 0 ? String(number) : 'issue'
 }
 
 function isCreatableContextKind(kind: TabContextKind): boolean {
@@ -120,6 +143,8 @@ function defaultCreatableStem(kind: TabContextKind, options: CanonicalContextOpt
       return 'skill'
     case 'jira':
       return (options.issueKey ?? '').trim().toLowerCase() || 'issue'
+    case 'githubIssue':
+      return githubIssueIdentityStem(options)
     default:
       return kind
   }
@@ -160,6 +185,10 @@ export function canonicalContextId(
     ).toLowerCase() || 'issue'
     return `iaterminal:jira:${issueKey}`
   }
+  if (kind === 'githubIssue') {
+    const stem = githubIssueIdentityStem(options).toLowerCase() || 'issue'
+    return `iaterminal:githubissue:${stem}`
+  }
   if (isCreatableContextKind(kind)) {
     return `iaterminal:${kind}:${creatableContextStem(kind, options)}`
   }
@@ -178,6 +207,9 @@ export function canonicalContextFileName(
   if (kind === 'jira') {
     const issueKey = (options.issueKey ?? '').trim().toUpperCase()
     return `jira/${normalizeContextFileName(issueKey, 'issue')}`
+  }
+  if (kind === 'githubIssue') {
+    return `github/${normalizeContextFileName(githubIssueIdentityStem(options), 'issue')}`
   }
   const base = isCreatableContextKind(kind)
     ? normalizeContextFileName(
@@ -222,13 +254,21 @@ export function canonicalContextName(
       return (options.name ?? '').trim() || (options.agentId ?? 'agent')
     case 'jira':
       return (options.issueKey ?? '').trim().toUpperCase() || 'Jira issue'
+    case 'githubIssue': {
+      const repo = (options.repoFullName ?? '').trim()
+      const number = typeof options.issueNumber === 'number' && options.issueNumber > 0
+        ? options.issueNumber
+        : trailingIssueNumber(githubIssueIdentityStem(options))
+      if (repo && number) return `${repo}#${number}`
+      return number ? `#${number}` : 'GitHub issue'
+    }
     default:
       return kind
   }
 }
 
 /** Firma de definición para deduplicar creatables por kind+stem (mismo archivo). */
-export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id' | 'issueKey'>): string | null {
+export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPath' | 'paths' | 'symbolKinds' | 'fileName' | 'name' | 'id' | 'issueKey' | 'issueNumber' | 'repoFullName'>): string | null {
   if (context.kind === 'agentResult') {
     const agentId = context.id.replace(/^iaterminal:result:/, '')
       || contextFileStem(context.fileName)
@@ -250,6 +290,21 @@ export function contextDefinitionKey(context: Pick<TabContext, 'kind' | 'rootPat
     // clave distinta de la que de verdad ocupa el archivo en disco.
     const issueKey = normalizeContextFileName(rawIssueKey, 'issue').replace(/\.md$/i, '').toLowerCase()
     return JSON.stringify({ kind: 'jira', issueKey })
+  }
+  if (context.kind === 'githubIssue') {
+    const fromId = context.id.startsWith('iaterminal:githubissue:')
+      ? context.id.slice('iaterminal:githubissue:'.length)
+      : ''
+    const stem = normalizeContextFileName(
+      githubIssueIdentityStem({
+        repoFullName: context.repoFullName,
+        issueNumber: context.issueNumber,
+        fileStem: context.fileName,
+        name: fromId || context.name,
+      }),
+      'issue',
+    ).replace(/\.md$/i, '').toLowerCase()
+    return JSON.stringify({ kind: 'githubIssue', stem })
   }
   if (!isCreatableContextKind(context.kind)) return null
   const stem = creatableContextStem(context.kind, {
@@ -284,12 +339,29 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
         || contextFileStem(context.fileName)
         || undefined)
     : undefined
+  const githubStem = context.kind === 'githubIssue'
+    ? (
+        context.id.startsWith('iaterminal:githubissue:')
+          ? context.id.slice('iaterminal:githubissue:'.length)
+          : contextFileStem(context.fileName)
+      )
+    : ''
+  const issueNumber = context.kind === 'githubIssue'
+    ? (typeof context.issueNumber === 'number' && context.issueNumber > 0
+        ? context.issueNumber
+        : trailingIssueNumber(githubStem) || undefined)
+    : undefined
+  const repoFullName = context.kind === 'githubIssue'
+    ? ((context.repoFullName ?? '').trim() || undefined)
+    : undefined
   const id = canonicalContextId(context.kind, {
     rootPath,
     fileStem,
     agentId,
     name: identityName,
     issueKey,
+    issueNumber,
+    repoFullName,
   })
   const fileName = canonicalContextFileName(context.kind, {
     rootPath,
@@ -297,15 +369,21 @@ export function applyCanonicalContextIdentity(context: TabContext): TabContext {
     agentId,
     name: identityName,
     issueKey,
+    issueNumber,
+    repoFullName,
   })
   const resolvedName = context.name.trim()
-    || canonicalContextName(context.kind, { rootPath, name: context.name, agentId, issueKey })
+    || canonicalContextName(context.kind, {
+      rootPath, name: context.name, agentId, issueKey, issueNumber, repoFullName,
+    })
   return {
     ...context,
     id,
     fileName,
     name: resolvedName,
     ...(issueKey ? { issueKey } : {}),
+    ...(issueNumber ? { issueNumber } : {}),
+    ...(repoFullName ? { repoFullName } : {}),
     ...(rootPath !== undefined
       ? { rootPath: normalizeContextRootPath(rootPath) === '.' ? undefined : normalizeContextRootPath(rootPath) }
       : {}),
@@ -345,6 +423,18 @@ export function synthesizeTabContextFromId(contextId: string): TabContext | null
       name: agentId,
       fileName: canonicalContextFileName('agentResult', { agentId }),
       kind: 'agentResult',
+    }
+  }
+
+  if (kindSegment === 'githubissue') {
+    const fileStem = stem.trim() || 'issue'
+    const issueNumber = trailingIssueNumber(fileStem)
+    return {
+      id: trimmed,
+      name: issueNumber ? `#${issueNumber}` : 'GitHub issue',
+      fileName: canonicalContextFileName('githubIssue', { fileStem, issueNumber: issueNumber || undefined }),
+      kind: 'githubIssue',
+      ...(issueNumber ? { issueNumber } : {}),
     }
   }
 
@@ -394,6 +484,9 @@ export function isCanonicalContextId(context: Pick<TabContext, 'id' | 'kind' | '
     rootPath: context.rootPath,
     fileStem: contextFileStem(context.fileName),
     name: context.name,
+    issueKey: 'issueKey' in context ? context.issueKey : undefined,
+    issueNumber: 'issueNumber' in context ? context.issueNumber : undefined,
+    repoFullName: 'repoFullName' in context ? context.repoFullName : undefined,
   })
   return context.id === expected
 }
@@ -414,6 +507,10 @@ export interface TabContext {
   symbolKinds?: TabContextSymbolKind[]
   /** Clave de la issue para el kind `jira`; la usa el refresco. */
   issueKey?: string
+  /** Número de la issue para el kind `githubIssue`; la usa el refresco. */
+  issueNumber?: number
+  /** `owner/repo` para el kind `githubIssue`. Vacío = resolver por el origin. */
+  repoFullName?: string
   /** Override por contexto del refresco de `jira.json`; 0 lo desactiva. */
   refreshSeconds?: number
   /** Solo aplica a `files`/`spreadsheet`; el `.md` guarda el puntero, no la copia. */

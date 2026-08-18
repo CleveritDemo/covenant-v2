@@ -7,6 +7,7 @@ import type { McpServersListRequest, McpServersListResult } from '../src/shared/
 import type { PersistedSession, ChatEntry } from './persistence'
 import type { PulseScope, PulseSnapshot } from '../src/shared/pulseEvents'
 import type { JiraIssueRef } from '../src/shared/jiraIssue'
+import type { GithubIssueRef } from '../src/shared/githubIssue'
 import type { RendererErrorReport } from '../src/shared/rendererErrorReport'
 import type { ProcessMemoryReading, RendererVitals } from '../src/shared/rendererVitals'
 import type {
@@ -1285,6 +1286,24 @@ const api = {
     issueKey: string,
   ): Promise<{ ok: boolean; content?: string; error?: string }> {
     return ipcRenderer.invoke(IPC.JIRA_PREVIEW_ISSUE, cwd, issueKey)
+  },
+
+  githubIssueStatus(
+    cwd: string,
+  ): Promise<{ connected: boolean; repoFullName: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_ISSUE_STATUS, cwd)
+  },
+  githubIssueSearch(
+    cwd: string,
+    query: string,
+  ): Promise<{ issues: GithubIssueRef[]; error?: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_ISSUE_SEARCH, cwd, query)
+  },
+  githubIssuePreview(
+    cwd: string,
+    number: number,
+  ): Promise<{ ok: boolean; content?: string; error?: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_ISSUE_PREVIEW, cwd, number)
   },
 
   // ─── LSP (code intelligence) ───────────────────────────────────────────────

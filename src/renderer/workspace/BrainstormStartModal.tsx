@@ -21,9 +21,10 @@ import type { TabContext } from '@shared/tabContext'
 import { useT } from '@i18n/useT'
 import { NO_CONTEXT_USAGE, resolveAssignedContextChips } from './resolveAssignedContextChips'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
-import type { JiraIssueRef } from '@shared/jiraIssue'
+import type { IssueMentionPicked } from '@shared/issueMention'
+import { githubIssueDraftFromRef } from '@shared/githubIssueDraft'
 import { jiraDraftFromKey } from '../agent/TabContextFormModal'
-import { useJiraMention } from './useJiraMention'
+import { useIssueMention } from './useIssueMention'
 import { Button, TextArea } from '../components/ui'
 import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormModuleTabs } from './BrainstormModuleTabs'
@@ -164,8 +165,10 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
    * La issue elegida entra en el material de la sala además de escribirse en el
    * objetivo: la sala arranca con el ticket adjunto, sin pegarlo a mano.
    */
-  const attachIssue = useCallback((issue: JiraIssueRef): void => {
-    const context = jiraDraftFromKey(issue.key)
+  const attachIssue = useCallback((picked: IssueMentionPicked): void => {
+    const context = picked.source === 'jira'
+      ? jiraDraftFromKey(picked.issue.key)
+      : githubIssueDraftFromRef(picked.issue)
     if (!context || !cwd.trim()) return
     void window.api.materializeTabContext({ context, cwd }).then(result => {
       if (!result.ok) return
@@ -177,7 +180,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
     })
   }, [cwd])
 
-  const mention = useJiraMention({
+  const mention = useIssueMention({
     cwd,
     value: topic,
     onValueChange: setTopic,

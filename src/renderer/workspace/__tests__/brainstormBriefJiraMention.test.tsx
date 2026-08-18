@@ -52,7 +52,7 @@ afterEach(cleanup)
  */
 async function pickerOption(): Promise<HTMLElement> {
   // Los `<select>` nativos del brief también son `listbox`: hay que ir por el nombre.
-  const list = await screen.findByRole('listbox', { name: 'jira.mentionListLabel' })
+  const list = await screen.findByRole('listbox', { name: 'issueMention.listLabel' })
   return within(list).getByRole('option')
 }
 

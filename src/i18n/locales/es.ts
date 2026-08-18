@@ -1871,6 +1871,12 @@ const es = {
     },
   },
 
+  issueMention: {
+    searching: 'Buscando…',
+    noMatches: 'Ninguna issue coincide con esa búsqueda.',
+    listLabel: 'Issues de Jira',
+  },
+
   jira: {
     section: 'Jira',
     siteLabel: 'Sitio',

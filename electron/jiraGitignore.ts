@@ -1,17 +1,15 @@
 /**
  * Gobernanza del dato: los `.md` de las issues caen dentro del repo del
- * usuario, así que descripciones y comentarios de Jira acabarían commiteados
- * por el primer `git add .` que pase.
+ * usuario, así que descripciones y comentarios acabarían commiteados por el
+ * primer `git add .` que pase.
  *
- * Decisión: ignorar por defecto al conectar. Quien quiera compartir los
- * snapshots con su equipo borra la línea — es una línea, en su repo, visible
- * en el diff del propio connect. Lo contrario (compartir por defecto) filtra
- * datos que nadie eligió publicar y no se puede deshacer con un `git rm`.
+ * Decisión: ignorar por defecto. Quien quiera compartir los snapshots con su
+ * equipo borra la línea — es una línea, en su repo, visible en el diff.
+ * Lo contrario (compartir por defecto) filtra datos que nadie eligió publicar
+ * y no se puede deshacer con un `git rm`.
  *
- * Alcance deliberadamente mínimo: se AÑADE una línea al final, nunca se
- * reescribe el `.gitignore` existente, y no se crea uno donde el proyecto no
- * tiene repo git (ahí no hay nada de lo que protegerse y el archivo sería
- * basura ajena). Nada fuera del proyecto se toca.
+ * Parametrizado por subdir (`jira` | `github`): el monorepo no duplica el
+ * helper; cada kind ignora su carpeta.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs'
@@ -26,17 +24,16 @@ export type JiraGitignoreOutcome =
   /** Sin `.gitignore` y sin repo git, o el archivo no se pudo leer/escribir. */
   | 'skipped'
 
-/**
- * ¿Alguna línea ya cubre los snapshots? Cuentan tanto `<dir>/jira` como el
- * `<dir>` entero: si el proyecto ignora `.gravity/` completo, añadir una
- * segunda regla más específica sería ruido sin efecto.
- *
- * Se normalizan las barras de inicio y fin porque `.gravity/jira/`,
- * `/.gravity/jira` y `.gravity/jira` son la misma regla para git. Las líneas
- * de comentario y las negaciones (`!`) no cuentan como cobertura.
- */
-function alreadyIgnores(content: string, dirName: string): boolean {
-  const targets = new Set([`${dirName}/jira`, dirName])
+export type IssueSnapshotSubdir = 'jira' | 'github'
+
+function snapshotComment(subdir: IssueSnapshotSubdir): string {
+  return subdir === 'github'
+    ? '# Snapshots de issues de GitHub: descripciones y comentarios del ticket.'
+    : '# Snapshots de issues de Jira: descripciones y comentarios del ticket.'
+}
+
+function alreadyIgnores(content: string, dirName: string, subdir: IssueSnapshotSubdir): boolean {
+  const targets = new Set([`${dirName}/${subdir}`, dirName])
   return content.split(/\r?\n/).some(line => {
     const entry = line.trim()
     if (!entry || entry.startsWith('#') || entry.startsWith('!')) return false
@@ -45,44 +42,44 @@ function alreadyIgnores(content: string, dirName: string): boolean {
 }
 
 /**
- * Asegura que `<projectDir>/jira/` esté ignorado. Nunca lanza: esto corre
- * dentro de `connectJira`, y un `.gitignore` de solo lectura no puede tumbar
- * una conexión que ya se probó contra Jira.
+ * Asegura que `<projectDir>/<subdir>/` esté ignorado. Nunca lanza.
  */
-export function ensureJiraGitignore(cwd: string): JiraGitignoreOutcome {
+export function ensureIssueSnapshotsGitignore(
+  cwd: string,
+  subdir: IssueSnapshotSubdir,
+): JiraGitignoreOutcome {
   const root = (cwd ?? '').trim()
   if (!root) return 'skipped'
   try {
     const projectRoot = resolve(root)
     const dirName = projectDirName(projectRoot)
     const gitignorePath = join(projectRoot, '.gitignore')
-    const rule = `${dirName}/jira/`
+    const rule = `${dirName}/${subdir}/`
 
     if (!existsSync(gitignorePath)) {
-      // Sin `.gitignore` y sin `.git`: no es un repo, no hay commit accidental
-      // que evitar, y dejar un archivo nuevo en una carpeta que no versiona
-      // nadie es ensuciar el proyecto de otro.
       if (!existsSync(join(projectRoot, '.git'))) return 'skipped'
       writeFileSync(
         gitignorePath,
-        `# Snapshots de issues de Jira: descripciones y comentarios del ticket.\n${rule}\n`,
+        `${snapshotComment(subdir)}\n${rule}\n`,
         'utf8',
       )
       return 'appended'
     }
 
     const content = readFileSync(gitignorePath, 'utf8')
-    if (alreadyIgnores(content, dirName)) return 'already-ignored'
-    // `\n` de guarda solo si hace falta: un `.gitignore` que ya termina en
-    // salto no gana una línea en blanco por pasar por aquí.
+    if (alreadyIgnores(content, dirName, subdir)) return 'already-ignored'
     const separator = !content || content.endsWith('\n') ? '' : '\n'
     writeFileSync(
       gitignorePath,
-      `${content}${separator}\n# Snapshots de issues de Jira: descripciones y comentarios del ticket.\n${rule}\n`,
+      `${content}${separator}\n${snapshotComment(subdir)}\n${rule}\n`,
       'utf8',
     )
     return 'appended'
   } catch {
     return 'skipped'
   }
+}
+
+export function ensureJiraGitignore(cwd: string): JiraGitignoreOutcome {
+  return ensureIssueSnapshotsGitignore(cwd, 'jira')
 }

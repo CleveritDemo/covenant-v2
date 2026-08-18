@@ -5,6 +5,20 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.93.0
+
+### Añadido
+- El riel de una sala de brainstorm lista, por ronda, quién habló y la primera frase de su turno. Pulsar una línea lleva el acta a ese mensaje.
+- Los enlaces del chat traen un botón para copiar su URL y un tooltip que la muestra antes de abrirla.
+
+### Corregido
+- El Delete del menú del explorador de archivos vuelve a funcionar: su confirmación ya no queda oculta detrás de la ventana.
+- Al guardar un brainstorm como contexto, el diálogo muestra la ruta real `.gravity/context/<nombre>.md`.
+
+### Cambiado
+- El botón de brainstorm del plano ya no muestra un badge. Mientras una sala corre, lo avisa el punto de actividad de la pestaña.
+- Hay más aire alrededor del conmutador Report/Source de los paneles de contexto.
+
 ## v0.92.0
 
 ### Añadido

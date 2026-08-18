@@ -25,7 +25,7 @@ export const TAB_CONTEXT_ICON_GROUPS = [
   },
   {
     id: 'ops',
-    icons: ['settings', 'wrench', 'lock', 'key', 'shield-check', 'eye', 'plug', 'compass', 'jira', 'atlassian', 'datadog', 'port', 'mcp'],
+    icons: ['settings', 'wrench', 'lock', 'key', 'shield-check', 'eye', 'plug', 'compass', 'jira', 'github', 'atlassian', 'datadog', 'port', 'mcp'],
   },
 ] as const
 
@@ -92,6 +92,7 @@ const ICON_KEYWORDS: Partial<Record<TabContextIconName, string>> = {
   plug: 'integracion conector enchufe api',
   compass: 'guia direccion norte principios',
   jira: 'jira ticket issue atlassian tablero',
+  github: 'github issue repositorio pull request octocat',
   atlassian: 'atlassian confluence jira',
   datadog: 'datadog observabilidad monitoreo apm logs metricas alertas dashboard',
   port: 'port puerto servicio',
@@ -155,7 +156,7 @@ const KIND_DEFAULT_ICON: Record<TabContextKind, TabContextIconName> = {
   agentResult: 'bot',
   skill: 'sparkles',
   jira: 'jira',
-  githubIssue: 'git-branch',
+  githubIssue: 'github',
   wiki: 'book',
 }
 

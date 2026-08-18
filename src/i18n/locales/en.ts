@@ -658,6 +658,7 @@ const en = {
     kind_mcp: 'MCP servers',
     kind_skill: 'Skill',
     kind_jira: 'Jira issue',
+    kind_githubIssue: 'GitHub issue',
     jiraKeyLabel: 'Issue key',
     jiraKeyPlaceholder: 'GRAV-412',
     jiraKeyHint: 'For example GRAV-412. The snapshot refreshes before each turn.',

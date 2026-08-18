@@ -214,18 +214,14 @@ function buildFiles(context: TabContext, root: string): string {
   return sections.join('\n\n')
 }
 
-/**
- * Tope de filas por hoja. Un backlog de PO puede traer miles y el prompt se lo
- * comería entero; cuando se recorta se dice cuántas quedaron fuera, porque un
- * corte silencioso se lee como «esas historias no existen».
- */
-const SPREADSHEET_MAX_ROWS_PER_SHEET = 400
+// El techo real del cuerpo es MAX_CONTEXT_CHARS (45k) vía maxAutoCharsForKind; este tope solo evita que una hoja gigante se coma el presupuesto de las demás en un libro multi-hoja.
+const SPREADSHEET_MAX_ROWS_PER_SHEET = 5_000
 
 /**
  * Hojas de cálculo (.xlsx/.xlsm/.csv…) como texto para el prompt. Sale CSV y no
  * tabla Markdown: la tabla gasta el triple de tokens en tuberías y guiones, y el
  * modelo lee CSV igual de bien. `xlsx` ya estaba en el proyecto para la vista
- * previa del explorador.
+ * previa del explorador. Un `.csv` se copia verbatim: ya es el formato de destino.
  */
 function buildSpreadsheet(context: TabContext, root: string): string {
   const requested = (context.paths ?? []).map(path => path.trim()).filter(Boolean)
@@ -236,6 +232,27 @@ function buildSpreadsheet(context: TabContext, root: string): string {
     const path = safeFile(root, relPath)
     if (!path) {
       sections.push(`### ${relPath}\n${unavailableReason(root, relPath)}`)
+      continue
+    }
+    if (extname(path).toLowerCase() === '.csv') {
+      try {
+        let text = readFileSync(path, 'utf8')
+        if (text.startsWith('\uFEFF')) text = text.slice(1)
+        text = text.trimEnd()
+        if (!text) {
+          sections.push(`### ${relPath}\n(empty file)`)
+          continue
+        }
+        const rows = text.split('\n')
+        const kept = rows.slice(0, SPREADSHEET_MAX_ROWS_PER_SHEET)
+        const dropped = rows.length - kept.length
+        const note = dropped > 0
+          ? `\n(${dropped} more row(s) not included; raise the limit or split the sheet)`
+          : ''
+        sections.push(`### ${relPath}\n\`\`\`csv\n${kept.join('\n')}\n\`\`\`${note}`)
+      } catch (error) {
+        sections.push(`### ${relPath}\n(could not read: ${(error as Error).message})`)
+      }
       continue
     }
     try {

@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.87.0
+
+- Escribir `#` en el chat ahora también busca issues de GitHub del repositorio del workspace, no solo las de Jira.
+- Lo que escribís decide dónde busca: un número como `#123` va directo a esa issue de GitHub, una clave como `#CT-12` va a Jira, y el texto libre consulta ambas fuentes mostrando el origen de cada resultado.
+- Al elegir una issue de GitHub se adjunta como contexto del turno y se mantiene actualizada antes de cada envío, igual que las de Jira; el archivo queda en la carpeta del proyecto y se ignora en git.
+- La búsqueda usa la cuenta de GitHub asignada a ese workspace y solo se ofrece cuando esa credencial funciona de verdad contra el repositorio.
+
 ## v0.86.0
 
 - Ajustes > GitHub pasa de un único token a una lista de cuentas: cada una con su etiqueta, su comprobación de credenciales y la opción de marcarla por defecto.

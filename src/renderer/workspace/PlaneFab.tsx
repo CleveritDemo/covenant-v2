@@ -9,6 +9,8 @@ export interface PlaneFabProps {
   label: string
   /** Segunda línea del Tooltip: atajo + pista de interacción. */
   hint?: string
+  /** Atajo dentro de la píldora del FAB expandible (solo `agent`). */
+  shortcut?: string
   disabled?: boolean
   /** Tooltip/aria cuando disabled (p. ej. falta carpeta). */
   disabledTitle?: string
@@ -28,33 +30,57 @@ const FAB_ICON_SIZES: Record<PlaneFabKind, number> = {
   bootstrap: 18,
 }
 
-/** FAB circular del plano (agente / terminal / bootstrap equipo). */
+/**
+ * FAB del plano (agente / terminal / bootstrap equipo). El de agente se abre
+ * en píldora al acercarse; los otros dos son discos con Tooltip.
+ */
 export const PlaneFab: React.FC<PlaneFabProps> = ({
   kind,
   label,
   hint,
+  shortcut,
   disabled = false,
   disabledTitle,
   onClick,
 }) => {
   const title = disabled ? (disabledTitle || label) : label
+  // El de agente se abre en píldora con su etiqueta y su atajo dentro: un
+  // Tooltip encima diría lo mismo. Deshabilitado no se abre —y ahí el Tooltip
+  // es lo único que explica por qué no se puede—, así que ahí se conserva.
+  const expands = kind === 'agent' && !disabled
+  const button = (
+    <button
+      type="button"
+      className={[
+        'plane-fab',
+        `plane-fab--${kind}`,
+        expands ? 'plane-fab--expands' : '',
+      ].filter(Boolean).join(' ')}
+      disabled={disabled}
+      aria-label={title}
+      onClick={(event) => {
+        // Un click con puntero deja el botón enfocado y el siguiente Enter lo
+        // re-dispara: abría una segunda ventana. `detail === 0` es teclado
+        // (Enter/Space), y ahí el foco debe quedarse donde está.
+        if (event.detail > 0) event.currentTarget.blur()
+        onClick()
+      }}
+    >
+      <Icon name={FAB_ICONS[kind]} size={FAB_ICON_SIZES[kind]} />
+      {expands ? (
+        <span className="plane-fab__label">
+          {label}
+          {shortcut ? <span className="plane-fab__kbd">{shortcut}</span> : null}
+        </span>
+      ) : null}
+    </button>
+  )
+
+  if (expands) return button
+
   return (
     <Tooltip content={title} hint={hint}>
-      <button
-        type="button"
-        className={['plane-fab', `plane-fab--${kind}`].join(' ')}
-        disabled={disabled}
-        aria-label={title}
-        onClick={(event) => {
-          // Un click con puntero deja el botón enfocado y el siguiente Enter lo
-          // re-dispara: abría una segunda ventana. `detail === 0` es teclado
-          // (Enter/Space), y ahí el foco debe quedarse donde está.
-          if (event.detail > 0) event.currentTarget.blur()
-          onClick()
-        }}
-      >
-        <Icon name={FAB_ICONS[kind]} size={FAB_ICON_SIZES[kind]} />
-      </button>
+      {button}
     </Tooltip>
   )
 }

@@ -260,6 +260,17 @@
   transform: perspective(1200px) rotateY(calc(var(--brainstorm-col-tilt, 0deg) * -1));
 }
 
+/*
+ * Bajar animaciones: mismo trato que las columnas del plano
+ * (`.plane-map__column` en PlaneMap.css). No es solo el giro —el 3D obliga a
+ * una capa compuesta y rasteriza el texto en perspectiva—: aplanado, las
+ * fichas de la sala son superficies planas como las minis del plano.
+ */
+:root[data-reduce-motion='true'] .brainstorm-overlay__col--left,
+:root[data-reduce-motion='true'] .brainstorm-overlay__col--right {
+  transform: none;
+}
+
 .brainstorm-overlay__col::-webkit-scrollbar { width: 6px; }
 .brainstorm-overlay__col::-webkit-scrollbar-thumb {
   background: var(--scrollbar);

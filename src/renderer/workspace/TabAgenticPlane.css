@@ -296,6 +296,78 @@
   box-shadow: none;
 }
 
+/*
+ * El FAB de agente se abre en píldora al acercarse: la etiqueta y el atajo
+ * viven dentro del botón en vez de en un Tooltip encima del plano. Crece hacia
+ * la izquierda —el stack está anclado abajo a la derecha—, así que no empuja
+ * nada ni tapa las minis. Deshabilitado no lleva la clase: ahí sigue el
+ * Tooltip, que es lo único que dice por qué no se puede.
+ */
+.plane-fab--expands {
+  width: auto;
+  min-width: var(--plane-fab-size, 48px);
+  padding: 0;
+  gap: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    transform 0.14s,
+    background 0.14s,
+    border-color 0.14s,
+    gap 0.2s cubic-bezier(0.2, 0.9, 0.2, 1),
+    padding 0.2s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+/* Escalar una píldora de ~190px la hace saltar: al abrirse solo se levanta. */
+.plane-fab--expands:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.plane-fab__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 0;
+  opacity: 0;
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    max-width 0.2s cubic-bezier(0.2, 0.9, 0.2, 1),
+    opacity 0.13s ease;
+}
+
+/* `currentColor`: tinta oscura sobre el acento en temas oscuros, clara en los
+   claros —la cápsula del atajo se adapta sin una regla por apariencia. */
+.plane-fab__kbd {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.plane-fab--expands:hover,
+.plane-fab--expands:focus-visible {
+  gap: 9px;
+  padding: 0 17px 0 14px;
+}
+
+.plane-fab--expands:hover .plane-fab__label,
+.plane-fab--expands:focus-visible .plane-fab__label {
+  max-width: 190px;
+  opacity: 1;
+}
+
+/* Bajar animaciones: la etiqueta aparece de golpe, sin barrido de ancho. */
+:root[data-reduce-motion='true'] .plane-fab--expands,
+:root[data-reduce-motion='true'] .plane-fab__label {
+  transition: none;
+}
+
 :root[data-theme-appearance='light'] .plane-fab--agent,
 :root[data-theme-appearance='light'] .plane-fab--bootstrap,
 :root[data-theme-appearance='light'] .plane-fab--terminal {

@@ -161,3 +161,45 @@ describe('chrome org del plano', () => {
     expect(container.querySelector('.plane-top-left-workspace-actions')).toBeTruthy()
   })
 })
+
+/**
+ * Organizations es una vista de la app entera, no del plano. Con la sala o el
+ * mapa abiertos el chrome flotante sube a 675 para poder navegar por encima de
+ * ellos, y quedaba flotando sobre Organizations. No se arregla con z-index —el
+ * plano es su propio contexto de apilamiento por `container-type`—: se arregla
+ * no dibujándolo mientras esa vista está encima.
+ */
+describe('chrome del plano bajo una vista de la app', () => {
+  const floating = ['.plane-top-left-chrome', '.plane-tools-rail-shell']
+
+  it('lo dibuja cuando el plano es la superficie visible', () => {
+    const { container } = render(
+      <TabAgenticPlane
+        {...baseProps}
+        canResyncWorkspace
+        resyncWorkspaceLabel="Sincronizar workspace"
+        onResyncWorkspace={vi.fn()}
+      />,
+    )
+
+    for (const selector of floating) {
+      expect(container.querySelector(selector), selector).toBeTruthy()
+    }
+  })
+
+  it('lo retira con Organizations abierto', () => {
+    const { container } = render(
+      <TabAgenticPlane
+        {...baseProps}
+        appOverlayOpen
+        canResyncWorkspace
+        resyncWorkspaceLabel="Sincronizar workspace"
+        onResyncWorkspace={vi.fn()}
+      />,
+    )
+
+    for (const selector of floating) {
+      expect(container.querySelector(selector), selector).toBeNull()
+    }
+  })
+})

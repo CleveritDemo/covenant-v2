@@ -15,7 +15,7 @@ import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatCompose
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
-import { fabHintWithShortcut } from './planeFabHint'
+import { fabAccelLabel, fabHintWithShortcut } from './planeFabHint'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
@@ -282,6 +282,14 @@ export interface TabAgenticPlaneProps {
    * pool de contextos se retira, que es de quien hereda su esquina.
    */
   brainstormOverlayOpen?: boolean
+  /**
+   * Hay una vista de la app entera encima (Organizations). El chrome flotante
+   * del plano —barra, riel, pool y FABs— sube a 675 con la sala o el mapa
+   * abiertos para poder navegar por encima de ellos; contra una vista que no
+   * es del plano eso deja botones ajenos flotando sobre ella. Aquí no se
+   * dibuja: no es apilamiento, es que no es su superficie.
+   */
+  appOverlayOpen?: boolean
   loopChains: PlaneLoopChain[]
   onLoopChainsChange: (chains: PlaneLoopChain[]) => void
   onStartLoopChain: (chainId: string) => void
@@ -455,6 +463,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   brainstormOverlays,
   brainstormContextLinkAgents = [],
   brainstormOverlayOpen = false,
+  appOverlayOpen = false,
   brainstormsListButtonLabel = 'Brainstorms',
   loopChains,
   onLoopChainsChange,
@@ -973,7 +982,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     >
       {/* Con un overlay ocupando el plano (mapa o sala) la barra sube por
           encima: es lo único que permite moverse y no se puede tapar. */}
-      {!anyFullscreen && (
+      {!anyFullscreen && !appOverlayOpen && (
         <div
           ref={topLeftChromeRef}
           className={`plane-top-left-chrome${
@@ -1026,7 +1035,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ) : null}
         </div>
       )}
-      {!anyFullscreen && (
+      {!anyFullscreen && !appOverlayOpen && (
         <PlaneToolsRail
           ariaLabel={t('tabs.planeToolsRailLabel')}
           elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen}
@@ -1285,7 +1294,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {/* El pool no se retira con la sala: solo con mapa de wiki, Pulse y
           fullscreen; en la sala sube a 675 por elevated. Las líneas de
           asignación sí se ocultan con la sala (apuntan a minis tapadas). */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -1312,7 +1321,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       )}
       {/* Con la sala abierta el haz sigue: el riel es el mismo y los asientos
           son destino igual que las minis, solo cambia de quién son las aristas. */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
         <PlaneContextAssignmentLinks
           planeRef={planeRef}
           agents={brainstormOverlayOpen ? brainstormContextLinkAgents : contextPoolAgents}
@@ -1405,7 +1414,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {/* Con la sala abierta solo queda el alta de agente, elevada — abrir una
           terminal desde dentro de una sala no tiene sentido. */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1413,6 +1422,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           agentTitle={agentFabTitle}
           terminalTitle={terminalFabTitle}
           agentHint={fabHintWithShortcut(agentFabHint ?? t('tabs.fabAgentHint'), 'A', isMacOS)}
+          agentShortcut={`${fabAccelLabel(isMacOS)}A`}
           terminalHint={fabHintWithShortcut(terminalFabHint ?? t('tabs.fabTerminalHint'), isMacOS ? 'J' : 'Y', isMacOS)}
           agentDisabledTitle={agentFabDisabledTitle}
           terminalDisabledTitle={terminalFabDisabledTitle}

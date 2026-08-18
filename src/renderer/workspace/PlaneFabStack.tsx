@@ -9,6 +9,8 @@ export interface PlaneFabStackProps {
   terminalTitle: string
   /** Hint del Tooltip del FAB de agente (atajo + pista). */
   agentHint?: string
+  /** Atajo que el FAB de agente muestra dentro de su píldora. */
+  agentShortcut?: string
   /** Hint del Tooltip del FAB de terminal. */
   terminalHint?: string
   /** Hint del Tooltip del FAB bootstrap (sin atajo). */
@@ -37,6 +39,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
   agentTitle,
   terminalTitle,
   agentHint,
+  agentShortcut,
   terminalHint,
   bootstrapHint,
   agentDisabledTitle,
@@ -81,6 +84,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
           kind="agent"
           label={agentTitle}
           hint={agentHint}
+          shortcut={agentShortcut}
           disabled={!canAddAgent}
           disabledTitle={agentDisabledTitle}
           onClick={onAddAgent}

@@ -6991,6 +6991,7 @@ export const App: React.FC = () => {
                   }
                   /* La etiqueta siempre nombra la acción; el motivo de bloqueo
                      va al tooltip, no dentro de la píldora. */
+                  appOverlayOpen={orgModalOpen}
                   agentFabTitle={t('tabs.fabAgent')}
                   terminalFabTitle={t('tabs.fabTerminal')}
                   agentFabHint={t('tabs.fabAgentHint')}

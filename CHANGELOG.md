@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.90.1
+
+### Corregido
+- Publicar un workspace ya reconoce repos cuyo origin lleva el usuario en la URL (clones corporativos con token), que antes salían como «sin remoto origin».
+- Si a la cuenta de GitHub del workspace le falta sesión en Covenant, el modal lo dice en vez de afirmar que no tienes organizaciones.
+- Cuando muchos agentes usan el mismo contexto, las caras apiladas se leen: sin el sello del CLI encima de la costura y con fondo opaco.
+
 ## v0.90.0
 
 ### Añadido

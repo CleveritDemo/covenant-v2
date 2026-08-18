@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { EventEmitter } from 'events'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { AppConfig } from '../../src/shared/configSchema'
-import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
+import type { AgentCliStartRequest, AgentCliUiEvent } from '../../src/shared/agentCliTypes'
 import { buildRunKey } from '../../src/shared/agentRunKey'
 import {
   buildContextContinuationPrompt,
@@ -20,10 +21,17 @@ import {
   closeAgentCliStdin,
   reserveAgentRun,
   resolveProjectCwd,
+  runAgentCliSpawn,
   shouldFinishOnProcessClose,
   shouldForceFullContextRefresh,
   stopAgentRun,
 } from '../agentCliRuntime'
+
+const spawnMock = vi.hoisted(() => vi.fn())
+
+vi.mock('cross-spawn', () => ({
+  default: (...args: unknown[]) => spawnMock(...args),
+}))
 import { PROJECT_DIR } from '../../src/shared/projectDir'
 import { upsertAiAgentResults } from '../aiAgentResults'
 import { upsertProjectAgent } from '../projectAgentCatalogOps'
@@ -1169,6 +1177,162 @@ describe('materializeClipboardImages', () => {
       ])).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+function fakeCliProc(opts: {
+  stderr?: string
+  stdout?: string
+  code?: number
+  error?: Error
+}): EventEmitter & {
+  stdin: { end: () => void }
+  stdout: EventEmitter & { setEncoding: (enc: string) => void }
+  stderr: EventEmitter & { setEncoding: (enc: string) => void }
+  pid: number
+} {
+  const proc = new EventEmitter() as EventEmitter & {
+    stdin: { end: () => void }
+    stdout: EventEmitter & { setEncoding: (enc: string) => void }
+    stderr: EventEmitter & { setEncoding: (enc: string) => void }
+    pid: number
+  }
+  proc.stdin = { end: () => undefined }
+  proc.stdout = Object.assign(new EventEmitter(), { setEncoding: () => undefined })
+  proc.stderr = Object.assign(new EventEmitter(), { setEncoding: () => undefined })
+  proc.pid = 4242
+  queueMicrotask(() => {
+    if (opts.error) proc.emit('error', opts.error)
+    if (opts.stderr) proc.stderr.emit('data', opts.stderr)
+    if (opts.stdout) proc.stdout.emit('data', opts.stdout)
+    proc.emit('close', opts.code ?? 0)
+  })
+  return proc
+}
+
+function waitSpawn(req: AgentCliStartRequest, cwd: string): Promise<{
+  events: AgentCliUiEvent[]
+  code: number
+}> {
+  const events: AgentCliUiEvent[] = []
+  return new Promise(resolve => {
+    runAgentCliSpawn(
+      { ...req, cwd },
+      baseConfig,
+      cwd,
+      {
+        onEvent: event => { events.push(event) },
+        onDone: code => { resolve({ events, code }) },
+      },
+    )
+  })
+}
+
+describe('runAgentCliSpawn harness fallback', () => {
+  afterEach(() => {
+    spawnMock.mockReset()
+    stopAgentRun(buildRunKey('pane-fb', undefined))
+  })
+
+  it('respawnea en frío una vez ante 529 y no reenvía session del recambio', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-'))
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stderr: 'HTTP 529 overloaded', code: 1 }))
+      .mockImplementationOnce(() => fakeCliProc({
+        stdout: [
+          '{"session_id":"fb-sess","type":"system"}',
+          '{"type":"result","result":"ok"}',
+        ].join('\n') + '\n',
+        code: 0,
+      }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        permissionMode: 'auto',
+        cliSessionId: 'primary-sess',
+        model: 'opus',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(2)
+      expect(spawnMock.mock.calls[0][0]).toBe('claude')
+      expect(spawnMock.mock.calls[0][1]).toContain('--resume')
+      expect(spawnMock.mock.calls[0][1]).toContain('opus')
+      expect(spawnMock.mock.calls[1][0]).toBe('agent')
+      expect(spawnMock.mock.calls[1][1]).not.toContain('--resume')
+      expect(spawnMock.mock.calls[1][1]).not.toContain('opus')
+      expect(events.filter(e => e.type === 'harness_fallback')).toEqual([
+        { type: 'harness_fallback', from: 'claude', to: 'cursor' },
+      ])
+      expect(events.some(e => e.type === 'session')).toBe(false)
+      expect(events.some(e => e.type === 'error')).toBe(false)
+      expect(events.some(e => e.type === 'assistant_final' && e.text === 'ok')).toBe(true)
+      expect(code).toBe(0)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('ENOENT del primario no dispara fallback', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-enoent-'))
+    spawnMock.mockImplementationOnce(() => fakeCliProc({
+      error: new Error('spawn claude ENOENT'),
+      stderr: 'spawn claude ENOENT',
+      code: 1,
+    }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        permissionMode: 'auto',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+      expect(events.some(e => e.type === 'harness_fallback')).toBe(false)
+      expect(events.some(e => e.type === 'error')).toBe(true)
+      expect(code).toBe(1)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('un intento: si el recambio también falla, error y onDone', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-both-'))
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stderr: '429 rate_limit', code: 1 }))
+      .mockImplementationOnce(() => fakeCliProc({ stderr: '429 rate_limit', code: 1 }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        permissionMode: 'auto',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(2)
+      expect(events.filter(e => e.type === 'harness_fallback')).toHaveLength(1)
+      expect(events.some(e => e.type === 'error')).toBe(true)
+      expect(code).toBe(1)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('no intenta recambio en plan si el fallback no mapea plan', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-plan-'))
+    spawnMock.mockImplementationOnce(() => fakeCliProc({ stderr: 'overloaded', code: 1 }))
+    try {
+      const { events } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'grok',
+        permissionMode: 'plan',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+      expect(events.some(e => e.type === 'harness_fallback')).toBe(false)
+      expect(events.some(e => e.type === 'error')).toBe(true)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
     }
   })
 })

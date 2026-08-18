@@ -23,6 +23,11 @@ export interface AgentCliStartRequest {
   /** Hilo dueño del turno; ausente = DEFAULT_THREAD_ID. */
   threadId?: string
   provider: AgentCliProvider
+  /**
+   * Recambio si el primario cae por sobrecarga/rate limit.
+   * Omitido o igual al primario = sin recambio.
+   */
+  fallbackProvider?: AgentCliProvider
   prompt: string
   /** Cwd del spawn CLI (puede ser worktree). */
   cwd: string
@@ -112,6 +117,7 @@ export type AgentCliUiEvent =
   | { type: 'context'; status: 'loading' | 'loaded'; detail?: string }
   | { type: 'session'; cliSessionId: string }
   | { type: 'error'; message: string }
+  | { type: 'harness_fallback'; from: AgentCliProvider; to: AgentCliProvider }
   | {
     type: 'delegate'
     delegations: Array<{

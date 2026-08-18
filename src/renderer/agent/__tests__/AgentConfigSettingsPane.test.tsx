@@ -11,6 +11,7 @@ vi.mock('@i18n/useT', () => ({
 }))
 
 import { AgentConfigSettingsPane } from '../AgentConfigSettingsPane'
+import { agentCliSpec } from '@shared/agentCliProviders'
 
 const baseMeta: AgentPaneMeta = {
   id: 'frontend',
@@ -24,10 +25,13 @@ const baseMeta: AgentPaneMeta = {
 
 const noop = () => {}
 
-function renderOrchestration(meta: Partial<AgentPaneMeta> = {}) {
+function renderSection(
+  section: 'orchestration' | 'engine',
+  meta: Partial<AgentPaneMeta> = {},
+) {
   render(
     <AgentConfigSettingsPane
-      section="orchestration"
+      section={section}
       meta={{ ...baseMeta, ...meta }}
       cwd="/tmp/project"
       locked={false}
@@ -41,6 +45,7 @@ function renderOrchestration(meta: Partial<AgentPaneMeta> = {}) {
       onOrchestrationWorkStyleChange={noop}
       onChangeDelegateTo={noop}
       onChangeProvider={noop}
+      onChangeFallbackProvider={noop}
       onChangeModel={noop}
       onChangePermission={noop}
       onChangeNativeSkills={noop}
@@ -49,6 +54,10 @@ function renderOrchestration(meta: Partial<AgentPaneMeta> = {}) {
       onOpenContextsModal={noop}
     />,
   )
+}
+
+function renderOrchestration(meta: Partial<AgentPaneMeta> = {}) {
+  renderSection('orchestration', meta)
 }
 
 afterEach(cleanup)
@@ -62,5 +71,20 @@ describe('AgentConfigSettingsPane orchestration caps', () => {
   it('muestra delegaciones por turno para orquestador', () => {
     renderOrchestration({ coordination: 'orchestrator' })
     expect(screen.getByText('agentPane.maxDelegationsPerTurnLabel')).toBeTruthy()
+  })
+})
+
+describe('AgentConfigSettingsPane engine', () => {
+  it('el Select de recambio no lista el proveedor primario', () => {
+    renderSection('engine', { provider: 'cursor' })
+    const listbox = screen.getByRole('listbox', {
+      name: 'agentPane.fallbackProviderLabel',
+      hidden: true,
+    })
+    const labels = [...listbox.querySelectorAll('.select-panel__label')].map(
+      node => node.textContent,
+    )
+    expect(labels).toContain('agentPane.fallbackProviderNone')
+    expect(labels).not.toContain(agentCliSpec('cursor').label)
   })
 })

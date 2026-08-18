@@ -84,6 +84,7 @@ function renderModal(
       onOrchestrationWorkStyleChange={() => {}}
       onChangeDelegateTo={() => {}}
       onChangeProvider={() => {}}
+      onChangeFallbackProvider={() => {}}
       onChangeModel={() => {}}
       onChangePermission={() => {}}
       onChangeNativeSkills={() => {}}
@@ -291,6 +292,7 @@ describe('AgentConfigModal', () => {
         onOrchestrationWorkStyleChange={() => {}}
         onChangeDelegateTo={() => {}}
         onChangeProvider={() => {}}
+        onChangeFallbackProvider={() => {}}
         onChangeModel={() => {}}
         onChangePermission={() => {}}
         onChangeNativeSkills={() => {}}

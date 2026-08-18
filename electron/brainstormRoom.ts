@@ -1,7 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import type { BrowserWindow } from 'electron'
-import type { AppConfig } from '../src/shared/configSchema'
+import type { AppConfig, Language } from '../src/shared/configSchema'
 import type { ProjectAgentDefinition } from '../src/shared/projectAgentCatalog'
 import { ceremonyRolesForAgent } from '../src/shared/agileCeremonies'
 import type { TabContext } from '../src/shared/tabContext'
@@ -208,6 +208,7 @@ export async function runBrainstormSequence(
     drainPendingHumanMessages?: () => PendingHumanMessage[]
     /** Working set de la sala viva; puede haber crecido fuera de la secuencia. */
     readExternalWorkingSet?: () => { contextIds: string[]; filePaths: string[] } | null
+    language?: Language
   },
 ): Promise<BrainstormRoom> {
   let room: BrainstormRoom = {
@@ -296,6 +297,7 @@ export async function runBrainstormSequence(
       agent.role,
       deps.buildWorkingSet?.(room),
       ceremonyRolesForAgent(room.ceremony, seatedAgents, agent.id),
+      deps.language ?? 'en',
     )
 
     deps.emit({ type: 'speaker_start', agentId: agent.id, round: speakRound })
@@ -561,6 +563,7 @@ export function startBrainstormRoom(
     const finalRoom = await runBrainstormSequence(room, {
       roomId,
       isStale,
+      language: appConfig.language,
       resolveAgent: id => byId.get(id) ?? null,
       contextsFor,
       buildWorkingSet: current => ({

@@ -740,3 +740,43 @@ describe('ceremonyRoles — varios sombreros en la ficha', () => {
     expect(def?.ceremonyRole).toBeUndefined()
   })
 })
+
+describe('fallbackProvider', () => {
+  it('parse omite ausente, igual al primario y basura', () => {
+    expect(parseProjectAgentDefinition({
+      id: 'qa', provider: 'claude', permissionMode: 'auto',
+    })).not.toHaveProperty('fallbackProvider')
+    expect(parseProjectAgentDefinition({
+      id: 'qa', provider: 'claude', permissionMode: 'auto', fallbackProvider: 'claude',
+    })).not.toHaveProperty('fallbackProvider')
+    expect(parseProjectAgentDefinition({
+      id: 'qa', provider: 'claude', permissionMode: 'auto', fallbackProvider: 'nope',
+    })).not.toHaveProperty('fallbackProvider')
+  })
+
+  it('parse acepta un recambio válido y el clon lo copia', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'cursor',
+    })
+    expect(parsed?.fallbackProvider).toBe('cursor')
+    expect(cloneProjectAgentDefinition(parsed!).fallbackProvider).toBe('cursor')
+  })
+
+  it('fromMeta redondea el recambio vía parse', () => {
+    expect(agentDefinitionFromMeta({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'cursor',
+    }).fallbackProvider).toBe('cursor')
+    expect(agentDefinitionFromMeta({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'claude',
+    })).not.toHaveProperty('fallbackProvider')
+  })
+})

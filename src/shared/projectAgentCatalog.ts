@@ -39,6 +39,7 @@ import {
   type AgentCliProvider,
   type AgentPermissionMode,
 } from './agentCliProviders'
+import { sanitizeFallbackProvider } from './agentHarnessFallback'
 
 export { isAgentCliProvider }
 export type { AgentCliProvider, AgentPermissionMode }
@@ -58,6 +59,11 @@ export interface AgentNativeSkills {
 export interface ProjectAgentDefinition {
   id: string
   provider: AgentCliProvider
+  /**
+   * Recambio opt-in: un solo CLI si el primario cae por sobrecarga/rate limit.
+   * Omitido o igual al primario = sin recambio.
+   */
+  fallbackProvider?: AgentCliProvider
   permissionMode: AgentPermissionMode
   /** Definición efímera de sesión; no se sincroniza con catálogos remotos. */
   localOnly?: boolean
@@ -482,6 +488,8 @@ export function parseProjectAgentDefinition(
     provider: sanitizeProvider(data.provider),
     permissionMode: sanitizePermissionMode(data.permissionMode),
   }
+  const fallbackProvider = sanitizeFallbackProvider(def.provider, data.fallbackProvider)
+  if (fallbackProvider) def.fallbackProvider = fallbackProvider
 
   const name = sanitizeAgentTextDraft(
     typeof data.name === 'string' ? data.name : undefined,
@@ -576,6 +584,9 @@ export function cloneProjectAgentDefinition(
   return {
     provider: source.provider,
     permissionMode: source.permissionMode,
+    ...(source.fallbackProvider && source.fallbackProvider !== source.provider
+      ? { fallbackProvider: source.fallbackProvider }
+      : {}),
     ...(name ? { name } : {}),
     ...(source.monogram ? { monogram: source.monogram } : {}),
     ...(source.role ? { role: source.role } : {}),
@@ -729,6 +740,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     id: meta.id,
     provider: meta.provider,
     permissionMode: meta.permissionMode,
+    fallbackProvider: meta.fallbackProvider,
     name: meta.name,
     monogram: meta.monogram,
     role: meta.role,

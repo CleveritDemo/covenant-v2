@@ -22,12 +22,11 @@ import { brainstormSeatTail } from '@shared/brainstormSeatTail'
 import { brainstormContextLabel } from '@shared/brainstormContextLabel'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentCliProvider } from '@shared/tabSession'
-import type { AgentCoordination } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { NO_CONTEXT_USAGE, resolveAssignedContextChips, resolveTabContextById } from './resolveAssignedContextChips'
 import type { PlaneAgentContextChip } from './PlaneAgentContextNodes'
-import { isReduceMotionActive } from '../reduceMotion'
 import { Button, Icon, Tooltip, type IconName } from '../components/ui'
+import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import { contextIconName } from '../agent/tabContextKindIcons'
 import { BrainstormOverlay } from './BrainstormOverlay'
 import { BrainstormLiveSeatCard } from './BrainstormSeatCard'
@@ -147,7 +146,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const liveStatusRef = useRef(live.status)
   const stoppedRef = useRef(false)
   const onLiveRef = useRef(onLive)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   onLiveRef.current = onLive
   /** Working set tras añadir en caliente (la sala en disco la actualiza main). */
@@ -221,31 +219,16 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return unsubscribe
   }, [room.id])
 
-  /**
-   * Al abrir hay que *estar* al final, no viajar hasta él: con nueve turnos, el
-   * scroll suave era un paseo por un acta que el usuario no pidió releer. La
-   * animación se guarda para lo que llega mientras miras, que ahí sí dice «esto
-   * es nuevo».
-   */
-  const anchoredRef = useRef(false)
-  useEffect(() => { anchoredRef.current = false }, [open, room.id])
+  const { forceFollow } = useAiMessagesFollowScroll(
+    live.messages,
+    open,
+    messagesRef,
+    `${live.streaming?.text ?? ''}\0${live.speakingAgentId ?? ''}`,
+  )
 
   useEffect(() => {
-    if (!open) return
-    if (!anchoredRef.current) {
-      // Salto directo sobre el contenedor: `behavior: 'auto'` delega en el CSS,
-      // y el acta pide `scroll-behavior: smooth`, así que el «salto» acababa
-      // siendo el mismo paseo animado.
-      const list = messagesRef.current
-      if (list) list.scrollTop = list.scrollHeight
-      anchoredRef.current = true
-      return
-    }
-    messagesEndRef.current?.scrollIntoView({
-      block: 'end',
-      behavior: isReduceMotionActive() ? 'auto' : 'smooth',
-    })
-  }, [open, room.id, live.messages.length, live.streaming?.text, live.streaming?.agentId])
+    forceFollow()
+  }, [room.id, forceFollow])
 
   /**
    * Quién ocupa el turno ahora mismo. `speaker_start` llega bastante antes que
@@ -349,15 +332,14 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
 
   /**
    * Con qué rol se sienta cada uno, su monograma y lo que la tarjeta hereda de
-   * la mini del plano (marca del CLI, coordinación, contextos). Los roles de
-   * ceremonia mandan sobre el texto libre, igual que en la invitación: es el rol
-   * que le dio el asiento.
+   * la mini del plano (marca del CLI, contextos). Los roles de ceremonia mandan
+   * sobre el texto libre, igual que en la invitación: es el rol que le dio el
+   * asiento. El badge de coordinación no se pasa: en asientos vivos queda none.
    */
   const identityOf = useCallback((agentId: string): {
     role: string
     monogram: string
     provider?: AgentCliProvider
-    coordination?: AgentCoordination
     contexts: PlaneAgentContextChip[]
   } => {
     const agent = agents.find(item => item.id === agentId)
@@ -369,7 +351,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       role,
       monogram: agent?.monogram?.trim() || agentMonogram(speakerLabel(agentId)),
       provider: agent?.provider,
-      coordination: agent?.coordination,
       contexts: resolveAssignedContextChips(
         agent?.contextIds ?? [],
         contexts,
@@ -549,6 +530,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   }
 
   const handleHumanSend = useCallback((text: string, targetAgentId?: string): void => {
+    forceFollow()
     setLive(previous => reduceBrainstormLiveEvent(previous, {
       type: 'human_message',
       text,
@@ -556,7 +538,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       ...(targetAgentId ? { targetAgentId } : {}),
     }))
     window.api.injectBrainstormHumanMessage(room.id, text, targetAgentId)
-  }, [room.id])
+  }, [forceFollow, room.id])
 
   const handleAddWorkingSet = useCallback((working: {
     contextIds: string[]
@@ -790,7 +772,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 role={identity.role}
                 monogram={identity.monogram}
                 provider={identity.provider}
-                coordination={identity.coordination}
                 contexts={identity.contexts}
                 state={seat.state}
                 queuePosition={queuePositions.get(seat.agentId)}
@@ -981,7 +962,6 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 {t('tabs.brainstormRoomWarmup')}
               </p>
             ) : null}
-          <div ref={messagesEndRef} className="brainstorm-room-view__anchor" aria-hidden />
         </div>
 
         {orphanWarning ? (

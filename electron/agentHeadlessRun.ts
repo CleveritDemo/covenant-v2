@@ -86,6 +86,9 @@ export function runHeadlessAgentTurn(
       nativeSkills: input.agent.nativeSkills,
       mcpsAllowed: input.agent.mcpsAllowed ?? [],
       contexts: input.contexts ?? [],
+      ...(input.agent.fallbackProvider
+        ? { fallbackProvider: input.agent.fallbackProvider }
+        : {}),
     }
 
     runAgentCliSpawn(request, config, home, {
@@ -109,7 +112,9 @@ export function runHeadlessAgentTurn(
         }
         if (event.type === 'error') {
           lastError = event.message
+          return
         }
+        if (event.type === 'harness_fallback') return
       },
       onDone: code => {
         if (input.isStale()) {

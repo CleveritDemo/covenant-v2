@@ -464,23 +464,11 @@ describe('BrainstormRoomView — el turno concedido antes del primer token', () 
   it('speaker_start ya pinta al orador, sin esperar el primer delta', () => {
     const { emit } = mountWithBus(emptyRoom)
     emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
-    // El hueco de warmup desaparece y aparece la fila viva del orador, con la
-    // tarjeta de espera en el primer paso.
     expect(screen.queryByText('tabs.brainstormRoomWarmup')).toBeNull()
     expect(document.querySelector('.brainstorm-wait')).not.toBeNull()
-    expect(document.querySelector('.brainstorm-wait__step--now')?.textContent)
-      .toContain('tabs.brainstormWaitPrepared')
+    expect(document.querySelector('.brainstorm-wait__name')?.textContent).toBe('Atlas')
+    expect(document.querySelector('.brainstorm-wait__step--now')).toBeNull()
     expect(document.querySelector('.brainstorm-room-view__row--live')).not.toBeNull()
-  })
-
-  // Los pasos avanzan con hechos, no con el reloj: el primer evento del CLI es
-  // lo único que distingue «arrancando el proceso» de «colgado».
-  it('el primer evento del CLI mueve la tarjeta a «leyendo»', () => {
-    const { emit } = mountWithBus(emptyRoom)
-    emit({ type: 'speaker_start', agentId: 'atlas', round: 0 })
-    emit({ type: 'speaker_phase', agentId: 'atlas', round: 0, phase: 'reading' })
-    expect(document.querySelector('.brainstorm-wait__step--now')?.textContent)
-      .toContain('tabs.brainstormWaitReading')
   })
 
   it('al llegar el primer delta pasa de «preparando» a «escribiendo»', () => {
@@ -633,15 +621,40 @@ describe('BrainstormRoomView — un primario en el pie, la marcha en el chrome',
   })
 })
 
-describe('BrainstormRoomView — situarse al final, no viajar hasta él', () => {
-  function mountWithScrollSpy(status: BrainstormRoom['status'] = 'running') {
-    const scrolls: (ScrollIntoViewOptions | undefined)[] = []
-    // `vitest.setup` ya stubea el de HTMLElement: hay que espiar ese mismo.
-    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(
-      function scrollIntoView(arg?: boolean | ScrollIntoViewOptions) {
-        scrolls.push(typeof arg === 'object' ? arg : undefined)
-      },
-    )
+describe('BrainstormRoomView — situarse al final', () => {
+  const scrollIntoView = vi.fn()
+  const rafQueue: FrameRequestCallback[] = []
+  let rafId = 0
+
+  beforeEach(() => {
+    rafQueue.length = 0
+    rafId = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+      rafQueue.push(cb)
+      return ++rafId
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(scrollIntoView)
+    scrollIntoView.mockClear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function flushRaf(rounds = 6): void {
+    for (let i = 0; i < rounds; i++) {
+      const batch = rafQueue.splice(0, rafQueue.length)
+      if (!batch.length) break
+      batch.forEach(cb => { cb(i) })
+    }
+  }
+
+  function mountOpen(): {
+    emit: (event: Record<string, unknown>) => void
+    el: HTMLDivElement
+    setHeight: (next: number) => void
+  } {
     const bus: { emit: ((event: Record<string, unknown>) => void) | null } = { emit: null }
     Object.assign(window, {
       api: {
@@ -658,31 +671,68 @@ describe('BrainstormRoomView — situarse al final, no viajar hasta él', () => 
     render(
       <BrainstormRoomView
         open
-        room={{ ...room, status }}
+        room={room}
         cwd="/tmp/project"
+        agents={[{ id: 'atlas', name: 'Atlas' }, { id: 'forge', name: 'Forge' }]}
         onClose={vi.fn()}
       />,
     )
-    return { scrolls, bus }
+    const el = document.querySelector('.brainstorm-room-view__messages') as HTMLDivElement
+    let height = 1000
+    Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true })
+    Object.defineProperty(el, 'scrollHeight', {
+      get: () => height,
+      configurable: true,
+    })
+    act(() => { flushRaf() })
+    return {
+      emit: event => {
+        act(() => {
+          bus.emit?.(event)
+          flushRaf()
+        })
+      },
+      el,
+      setHeight: next => { height = next },
+    }
   }
 
-  it('al abrir no anima: salta el contenedor, sin scrollIntoView', () => {
-    // `behavior: 'auto'` delega en el CSS, y el acta pide `scroll-behavior:
-    // smooth`; por eso el anclaje inicial no pasa por `scrollIntoView`.
-    const { scrolls } = mountWithScrollSpy()
-    expect(scrolls.length).toBe(0)
+  it('al montar open, ancla al fondo sin scrollIntoView', () => {
+    const { el } = mountOpen()
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(el.scrollTop).toBe(900)
   })
 
-  it('un turno que llega mientras miras sí se desliza', () => {
-    const { scrolls, bus } = mountWithScrollSpy()
-    const before = scrolls.length
-    act(() => {
-      bus.emit?.({
-        type: 'speaker_final', agentId: 'atlas', agentName: 'Atlas', round: 1, text: 'Nuevo turno.',
-      })
+  it('cerca del fondo, speaker_delta y speaker_final siguen el máximo', () => {
+    const { emit, el, setHeight } = mountOpen()
+    el.scrollTop = 900
+    el.dispatchEvent(new Event('scroll'))
+
+    setHeight(2000)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 1 })
+    emit({ type: 'speaker_delta', agentId: 'atlas', round: 1, text: 'Hola' })
+    emit({
+      type: 'speaker_final', agentId: 'atlas', agentName: 'Atlas', round: 1, text: 'Hola',
     })
-    expect(scrolls.length).toBeGreaterThan(before)
-    expect(scrolls[scrolls.length - 1]?.behavior).toBe('smooth')
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(el.scrollTop).toBe(1900)
+  })
+
+  it('si el usuario subió, los deltas de stream no mueven scrollTop', () => {
+    const { emit, el, setHeight } = mountOpen()
+    el.scrollTop = 900
+    el.dispatchEvent(new Event('scroll'))
+    el.scrollTop = 200
+    el.dispatchEvent(new Event('scroll'))
+
+    setHeight(2000)
+    emit({ type: 'speaker_start', agentId: 'atlas', round: 1 })
+    emit({ type: 'speaker_delta', agentId: 'atlas', round: 1, text: 'uno' })
+    emit({ type: 'speaker_delta', agentId: 'atlas', round: 1, text: 'uno dos' })
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(el.scrollTop).toBe(200)
   })
 })
 

@@ -267,6 +267,34 @@ describe('buildBrainstormTurnPrompt', () => {
     expect(isFinalBrainstormTurn(final)).toBe(true)
     expect(buildBrainstormTurnPrompt(final, 'fe', 'Frontend')).toContain('Final turn')
   })
+
+  it('pins spoken output to Spanish when language is es', () => {
+    const room = createBrainstormRoom('Latency budget', ['qa', 'fe'], 3)!
+    const prompt = buildBrainstormTurnPrompt(
+      room, 'fe', 'Frontend', undefined, undefined, undefined, 'es',
+    )
+    expect(prompt).toContain('in Spanish')
+    expect(prompt).not.toContain('same language the goal')
+  })
+
+  it('pins spoken output to English when language is en or omitted', () => {
+    const room = createBrainstormRoom('Latency budget', ['qa', 'fe'], 3)!
+    expect(buildBrainstormTurnPrompt(
+      room, 'fe', 'Frontend', undefined, undefined, undefined, 'en',
+    )).toContain('in English')
+    const omitted = buildBrainstormTurnPrompt(room, 'fe', 'Frontend')
+    expect(omitted).toContain('in English')
+    expect(omitted).not.toContain('same language the goal')
+  })
+
+  it('keeps English closing labels on a final Spanish turn', () => {
+    const room = createBrainstormRoom('Tenancy', ['qa', 'fe'], 1)!
+    const final = { ...room, cursor: 1 }
+    const prompt = buildBrainstormTurnPrompt(
+      final, 'fe', 'Frontend', undefined, undefined, undefined, 'es',
+    )
+    expect(prompt).toContain('Decision: <')
+  })
 })
 
 describe('nota humana dirigida', () => {

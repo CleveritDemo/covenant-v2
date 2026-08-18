@@ -1,5 +1,6 @@
 /** Sala de brainstorm multi-agente secuencial (round-robin). */
 
+import type { Language } from './configSchema'
 import type { ProjectAgentDefinition } from './projectAgentCatalog'
 import { normalizeAgentSlug } from './projectAgentCatalog'
 import {
@@ -687,6 +688,15 @@ const CLOSING_STYLE_LINES: readonly string[] = [
   '  Someone who did not attend must be able to act on this without the transcript.',
 ]
 
+const CLOSING_LABEL_LANGUAGE_LINE =
+  'Keep these field labels in English exactly as written (Decision, Why, Agreed, Open, Next, and any ceremony labels). Write the values in the same language as your spoken contribution.'
+
+function spokenContributionLanguageLine(language: Language): string {
+  return language === 'es'
+    ? '- Write EVERY word of your spoken contribution in Spanish. Do not switch to English, even if this prompt, your role, or other agents used English.'
+    : '- Write EVERY word of your spoken contribution in English. Do not switch to Spanish, even if this prompt, your role, or other agents used Spanish.'
+}
+
 function workingSetLines(workingSet?: BrainstormWorkingSet): string[] {
   const labels = workingSet?.labels?.filter(label => label.trim()) ?? []
   if (!labels.length) return []
@@ -708,6 +718,7 @@ export function buildBrainstormTurnPrompt(
   workingSet?: BrainstormWorkingSet,
   /** Asientos que este agente ocupa en la ceremonia (`ceremonyRolesForAgent`). */
   speakerCeremonyRoles?: readonly CeremonyRoleId[],
+  language: Language = 'en',
 ): string {
   const name = speakerName.trim() || speakerAgentId
   const roleLine = speakerRole?.trim()
@@ -784,13 +795,7 @@ export function buildBrainstormTurnPrompt(
     '',
     'Your turn:',
     '- As long as it needs to be, no longer. Plain language.',
-    /*
-     * El prompt está en inglés y nunca fijaba idioma, así que cada agente
-     * respondía en el que infería de su identidad o de sus reglas: una sala con
-     * agentes en español y en inglés a la vez, y un acta bilingüe. El objetivo
-     * lo escribió el usuario, así que es el ancla honesta.
-     */
-    '- Answer in the same language the goal above is written in, whatever that is.',
+    spokenContributionLanguageLine(language),
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),
@@ -810,12 +815,14 @@ export function buildBrainstormTurnPrompt(
         ? [
             `- Final turn: close the ${ceremony.name}. Instead of prose, write these labeled`,
             '  blocks, in this order (write every label, even to say "none"):',
+            CLOSING_LABEL_LANGUAGE_LINE,
             ...ceremony.closing.map(field => `  ${field.label}: <${field.hint}>`),
             ...CLOSING_STYLE_LINES,
           ]
         : [
             '- Final turn: close the room. Instead of prose, write these labeled blocks,',
             '  in this order. Skip a label only if there is nothing real to put under it.',
+            CLOSING_LABEL_LANGUAGE_LINE,
             '  Decision: <the call, or the leading option if there was no agreement>',
             '  Why: <the reasoning that settled it, not just the conclusion>',
             '  Agreed: <every point everyone accepted>',

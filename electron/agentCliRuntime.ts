@@ -12,6 +12,11 @@ import type {
   AgentCliUiEvent,
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
+import {
+  isRetryableHarnessOutage,
+  sanitizeFallbackProvider,
+  shouldAttemptHarnessFallback,
+} from '../src/shared/agentHarnessFallback'
 import { IPC } from '../src/shared/ipcChannels'
 import { buildRunKey, parseRunKey } from '../src/shared/agentRunKey'
 import {
@@ -1041,6 +1046,25 @@ export interface AgentCliSpawnHandlers {
  * post-proceso de changelog/delegates). Reutiliza `agentRuns` + generación
  * para que un stop no revive turnos en vuelo.
  */
+function buildHarnessFallbackRequest(
+  request: AgentCliStartRequest,
+  alreadyAttempted: boolean,
+  failureText: string,
+): AgentCliStartRequest | null {
+  const fallback = sanitizeFallbackProvider(request.provider, request.fallbackProvider)
+  if (!shouldAttemptHarnessFallback({
+    primary: request.provider,
+    fallback,
+    permissionMode: request.permissionMode,
+    alreadyAttempted,
+  })) return null
+  if (!isRetryableHarnessOutage(failureText)) return null
+  const next: AgentCliStartRequest = { ...request, provider: fallback! }
+  delete next.cliSessionId
+  delete next.model
+  return next
+}
+
 export function runAgentCliSpawn(
   request: AgentCliStartRequest,
   config: AppConfig,
@@ -1053,6 +1077,8 @@ export function runAgentCliSpawn(
   const cwd = resolveWorkingDirectory(request.cwd, home)
   const prompt = promptOverride ?? composePrompt(request, cwd)
   let latestSessionId = request.cliSessionId
+  let activeRequest = request
+  let harnessFallbackAttempted = false
 
   const failBeforeSpawn = (message: string): void => {
     const current = agentRuns.get(runKey)
@@ -1061,110 +1087,127 @@ export function runAgentCliSpawn(
     handlers.onDone(1)
   }
 
-  const { command: rawCommand, args } = commandAndArgs(
-    request,
-    config,
-    cwd,
-    prompt,
-    latestSessionId,
-    home,
-  )
-  if (!rawCommand) {
-    failBeforeSpawn('El comando del CLI no está configurado.')
-    return
-  }
-
-  const command = resolveCliExecutable(rawCommand)
-  let proc: ChildProcessWithoutNullStreams
-  try {
-    proc = crossSpawn(command, args, {
+  const startSpawn = (spawnRequest: AgentCliStartRequest): void => {
+    const { command: rawCommand, args } = commandAndArgs(
+      spawnRequest,
+      config,
       cwd,
-      env: { ...process.env, ...otelEnvFromConfig(config) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true,
-      detached: process.platform !== 'win32',
-    }) as ChildProcessWithoutNullStreams
-  } catch (error) {
-    failBeforeSpawn(error instanceof Error ? error.message : String(error))
-    return
-  }
-  trackAgentProc(proc)
-
-  const reserved = agentRuns.get(runKey)
-  if (!reserved || reserved.generation !== generation) {
-    killProcessTree(proc)
-    return
-  }
-  agentRuns.set(runKey, { proc, windowId: -1, generation })
-  closeAgentCliStdin(proc.stdin)
-
-  let stdoutBuffer = ''
-  let stderrBuffer = ''
-  let sawAssistantText = false
-  let spawnErrnoMessage: string | undefined
-
-  const parser = createAgentCliParser(
-    isAgentCliProvider(request.provider) ? request.provider : 'claude',
-  )
-
-  const emit = (events: AgentCliUiEvent[]): void => {
-    for (const event of events) {
-      if (event.type === 'session') {
-        latestSessionId = event.cliSessionId
-      }
-      if (
-        (event.type === 'assistant_delta' || event.type === 'assistant_final')
-        && event.text.trim()
-      ) {
-        sawAssistantText = true
-      }
-      handlers.onEvent(event)
+      prompt,
+      latestSessionId,
+      home,
+    )
+    if (!rawCommand) {
+      failBeforeSpawn('El comando del CLI no está configurado.')
+      return
     }
-  }
 
-  const processLine = (line: string): void => {
-    const trimmed = line.trim()
-    if (!trimmed) return
+    const command = resolveCliExecutable(rawCommand)
+    let proc: ChildProcessWithoutNullStreams
     try {
-      emit(parser.line(trimmed))
-    } catch {
-      stderrBuffer = appendCappedTail(stderrBuffer, `${trimmed}\n`, MAX_STDERR_BUFFER_CHARS)
+      proc = crossSpawn(command, args, {
+        cwd,
+        env: { ...process.env, ...otelEnvFromConfig(config) },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,
+        detached: process.platform !== 'win32',
+      }) as ChildProcessWithoutNullStreams
+    } catch (error) {
+      failBeforeSpawn(error instanceof Error ? error.message : String(error))
+      return
     }
+    trackAgentProc(proc)
+
+    const reserved = agentRuns.get(runKey)
+    if (!reserved || reserved.generation !== generation) {
+      killProcessTree(proc)
+      return
+    }
+    agentRuns.set(runKey, { proc, windowId: -1, generation })
+    closeAgentCliStdin(proc.stdin)
+
+    let stdoutBuffer = ''
+    let stderrBuffer = ''
+    let sawAssistantText = false
+    let spawnErrnoMessage: string | undefined
+    const suppressSession = spawnRequest.provider !== request.provider
+
+    const parser = createAgentCliParser(
+      isAgentCliProvider(spawnRequest.provider) ? spawnRequest.provider : 'claude',
+    )
+
+    const emit = (events: AgentCliUiEvent[]): void => {
+      for (const event of events) {
+        if (event.type === 'session') {
+          latestSessionId = event.cliSessionId
+          if (suppressSession) continue
+        }
+        if (
+          (event.type === 'assistant_delta' || event.type === 'assistant_final')
+          && event.text.trim()
+        ) {
+          sawAssistantText = true
+        }
+        handlers.onEvent(event)
+      }
+    }
+
+    const processLine = (line: string): void => {
+      const trimmed = line.trim()
+      if (!trimmed) return
+      try {
+        emit(parser.line(trimmed))
+      } catch {
+        stderrBuffer = appendCappedTail(stderrBuffer, `${trimmed}\n`, MAX_STDERR_BUFFER_CHARS)
+      }
+    }
+
+    proc.stdout.setEncoding('utf8')
+    proc.stdout.on('data', (chunk: string) => {
+      stdoutBuffer += chunk
+      const lines = stdoutBuffer.split(/\r?\n/)
+      stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
+      lines.forEach(processLine)
+    })
+    proc.stderr.setEncoding('utf8')
+    proc.stderr.on('data', (chunk: string) => {
+      stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
+    })
+    proc.on('error', error => {
+      spawnErrnoMessage = error.message
+      const message = formatCliSpawnFailure(command, -4058, error.message)
+      if (buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)) return
+      handlers.onEvent({ type: 'error', message })
+    })
+    proc.on('close', code => {
+      if (stdoutBuffer.trim()) processLine(stdoutBuffer)
+      emit(parser.end())
+      const current = agentRuns.get(runKey)
+      const phaseStillActive = current?.proc === proc && current.generation === generation
+      if (phaseStillActive) agentRuns.delete(runKey)
+      if (!shouldFinishOnProcessClose(phaseStillActive)) return
+      if (code && !sawAssistantText) {
+        const message = formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage)
+        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)
+        if (next) {
+          harnessFallbackAttempted = true
+          activeRequest = next
+          latestSessionId = undefined
+          handlers.onEvent({
+            type: 'harness_fallback',
+            from: request.provider,
+            to: next.provider,
+          })
+          agentRuns.set(runKey, { proc: null, windowId: -1, generation })
+          startSpawn(next)
+          return
+        }
+        handlers.onEvent({ type: 'error', message })
+      }
+      handlers.onDone(code ?? 0)
+    })
   }
 
-  proc.stdout.setEncoding('utf8')
-  proc.stdout.on('data', (chunk: string) => {
-    stdoutBuffer += chunk
-    const lines = stdoutBuffer.split(/\r?\n/)
-    stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
-    lines.forEach(processLine)
-  })
-  proc.stderr.setEncoding('utf8')
-  proc.stderr.on('data', (chunk: string) => {
-    stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
-  })
-  proc.on('error', error => {
-    spawnErrnoMessage = error.message
-    handlers.onEvent({
-      type: 'error',
-      message: formatCliSpawnFailure(command, -4058, error.message),
-    })
-  })
-  proc.on('close', code => {
-    if (stdoutBuffer.trim()) processLine(stdoutBuffer)
-    emit(parser.end())
-    const current = agentRuns.get(runKey)
-    const phaseStillActive = current?.proc === proc && current.generation === generation
-    if (phaseStillActive) agentRuns.delete(runKey)
-    if (!shouldFinishOnProcessClose(phaseStillActive)) return
-    if (code && !sawAssistantText) {
-      handlers.onEvent({
-        type: 'error',
-        message: formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage),
-      })
-    }
-    handlers.onDone(code ?? 0)
-  })
+  startSpawn(activeRequest)
 }
 
 export function startAgentTurn(
@@ -1194,6 +1237,8 @@ export function startAgentTurn(
   const endTurnCleanup = (): void => { releaseWatcherPause() }
   registerTurnCleanup(request.paneId, endTurnCleanup)
   let latestSessionId = request.cliSessionId
+  let activeRequest = request
+  let harnessFallbackAttempted = false
   let changelogPersisted = false
   /** Mismo patrón que changelogPersisted: el round 2 de need-sections re-emite assistant_final. */
   let wikiIngestPersisted = false
@@ -1238,7 +1283,7 @@ export function startAgentTurn(
 
   const startPhase = (prompt: string, contextRound: number): void => {
     const { command: rawCommand, args } = commandAndArgs(
-      request,
+      activeRequest,
       config,
       cwd,
       prompt,
@@ -1289,7 +1334,7 @@ export function startAgentTurn(
     /** stdout crudo del turno: red de seguridad si el NDJSON no dio texto. */
     let rawStdout = ''
     const parser = createAgentCliParser(
-      isAgentCliProvider(request.provider) ? request.provider : 'claude',
+      isAgentCliProvider(activeRequest.provider) ? activeRequest.provider : 'claude',
     )
 
     const emit = (events: AgentCliUiEvent[]): void => {
@@ -1297,7 +1342,7 @@ export function startAgentTurn(
         for (const event of events) {
           if (event.type === 'session') {
             latestSessionId = event.cliSessionId
-            send(win, runKey, event)
+            if (activeRequest.provider === request.provider) send(win, runKey, event)
             continue
           }
           if (
@@ -1469,27 +1514,43 @@ export function startAgentTurn(
     })
     proc.on('error', error => {
       spawnErrnoMessage = error.message
-      send(win, runKey, {
-        type: 'error',
-        message: formatCliSpawnFailure(command, -4058, error.message),
-      })
+      const message = formatCliSpawnFailure(command, -4058, error.message)
+      if (buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)) return
+      send(win, runKey, { type: 'error', message })
     })
     proc.on('close', code => {
       if (stdoutBuffer.trim()) processLine(stdoutBuffer)
       emit(parser.end())
-      // Capturar antes del volcado crudo: emit(assistant_final) pone sawAssistantText=true.
       const sawParsedAssistantText = sawAssistantText
-      // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
-      // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
-      if (!sawAssistantText && rawStdout.trim()) {
-        emit([{ type: 'assistant_final', text: rawStdout.trimEnd() }])
-      }
       const current = agentRuns.get(runKey)
       const phaseStillActive = current?.proc === proc && current.generation === generation
       if (phaseStillActive) agentRuns.delete(runKey)
 
       // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
+
+      if (code && !sawParsedAssistantText) {
+        const message = formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage)
+        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)
+        if (next) {
+          harnessFallbackAttempted = true
+          activeRequest = next
+          latestSessionId = undefined
+          send(win, runKey, {
+            type: 'harness_fallback',
+            from: request.provider,
+            to: next.provider,
+          })
+          agentRuns.set(runKey, { proc: null, windowId: win.id, generation })
+          startPhase(prompt, contextRound)
+          return
+        }
+      }
+      // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
+      // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
+      if (!sawAssistantText && rawStdout.trim()) {
+        emit([{ type: 'assistant_final', text: rawStdout.trimEnd() }])
+      }
 
       if (
         code === 0 &&

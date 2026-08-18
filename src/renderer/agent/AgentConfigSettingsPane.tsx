@@ -2,7 +2,8 @@ import { shortenHome } from '@shared/shortenHome'
 import React, { useEffect, useMemo, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
-import { agentCliSpec, providerCapabilities } from '@shared/agentCliProviders'
+import { agentCliSpec, providerCapabilities, AGENT_CLI_PROVIDER_IDS, isAgentCliProvider } from '@shared/agentCliProviders'
+import { providerMapsPlanMode } from '@shared/agentHarnessFallback'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
@@ -65,6 +66,7 @@ export interface AgentConfigSettingsPaneProps {
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider) => void
+  onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
   onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
@@ -149,6 +151,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
+  onChangeFallbackProvider,
   onChangeModel,
   onChangePermission,
   onChangeNativeSkills,
@@ -202,6 +205,15 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
 
   if (section === 'engine') {
     const providerMissing = cliStatuses[meta.provider]?.path === null
+    const fallbackId = meta.fallbackProvider
+    const fallbackMissing = fallbackId ? cliStatuses[fallbackId]?.path === null : false
+    const fallbackOptions = [
+      { value: '', label: t('agentPane.fallbackProviderNone') },
+      ...AGENT_CLI_PROVIDER_IDS
+        .filter(id => id !== meta.provider)
+        .filter(id => meta.permissionMode !== 'plan' || providerMapsPlanMode(id))
+        .map(id => ({ value: id, label: agentCliSpec(id).label })),
+    ]
     return (
       <div className="agent-config-settings__stack">
         <div className="agent-config-settings__field">
@@ -220,6 +232,27 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             </p>
           ) : null}
         </div>
+        <label className="agent-config-settings__field">
+          <span className="agent-config-settings__label">{t('agentPane.fallbackProviderLabel')}</span>
+          <Select
+            value={meta.fallbackProvider ?? ''}
+            disabled={locked}
+            aria-label={t('agentPane.fallbackProviderLabel')}
+            title={t('agentPane.fallbackProviderHint')}
+            onChange={value => onChangeFallbackProvider(
+              isAgentCliProvider(value) ? value : undefined,
+            )}
+            options={fallbackOptions}
+          />
+          <p className="agent-config-settings__hint">{t('agentPane.fallbackProviderHint')}</p>
+          {fallbackMissing ? (
+            <p className="agent-config-settings__hint agent-config-settings__hint--warn">
+              {t('agentPane.providerMissingHint', {
+                command: cliStatuses[fallbackId]?.command ?? '',
+              })}
+            </p>
+          ) : null}
+        </label>
         <label className="agent-config-settings__field">
           <span className="agent-config-settings__label">{t('agentPane.modelLabel')}</span>
           <Select

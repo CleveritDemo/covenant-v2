@@ -5,7 +5,6 @@ import { describe, expect, test } from 'vitest';
 const cssFiles = [
   '../BrainstormOverlay.css',
   '../BrainstormRoomsView.css',
-  '../BrainstormSpeakerWaiting.css',
 ];
 
 describe('brainstorm reduce-motion CSS', () => {

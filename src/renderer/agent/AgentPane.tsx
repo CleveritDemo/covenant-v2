@@ -2016,6 +2016,9 @@ export const AgentPane: React.FC<Props> = ({
       ...(isLaneDelegation && resolvedCwd ? { projectCwd: resolvedCwd } : {}),
       ...contextPayload,
       permissionMode: options.permissionMode ?? currentMeta.permissionMode,
+      ...(currentMeta.fallbackProvider
+        ? { fallbackProvider: currentMeta.fallbackProvider }
+        : {}),
       ...(currentMeta.id?.trim() ? { agentId: currentMeta.id.trim() } : {}),
       ...(currentMeta.name?.trim() ? { name: currentMeta.name.trim() } : {}),
       ...(currentMeta.role?.trim() ? { role: currentMeta.role.trim() } : {}),
@@ -2345,6 +2348,13 @@ export const AgentPane: React.FC<Props> = ({
       }
       return
     }
+    if (event.type === 'harness_fallback') {
+      setMessages(prev => [...prev, systemMessage(t('agentPane.harnessFallbackNotice', {
+        from: agentCliSpec(event.from).label,
+        to: agentCliSpec(event.to).label,
+      }))])
+      return
+    }
     if (event.type === 'error') {
       turnHadCliErrorRef.current = true
       setLastTurnFailed(prev => turnFailedAfter('cli-error', prev))
@@ -2544,6 +2554,17 @@ export const AgentPane: React.FC<Props> = ({
           )),
         }))
       }
+      return
+    }
+    if (event.type === 'harness_fallback') {
+      const notice = systemMessage(t('agentPane.harnessFallbackNotice', {
+        from: agentCliSpec(event.from).label,
+        to: agentCliSpec(event.to).label,
+      }))
+      patchLaneState(threadId, current => ({
+        ...current,
+        messages: [...current.messages, notice],
+      }))
       return
     }
     if (event.type === 'error') {
@@ -3503,11 +3524,25 @@ export const AgentPane: React.FC<Props> = ({
     const hadSession = Boolean(meta.cliSessionId)
     void Promise.resolve(onMetaChange(previous => {
       const { cliSessionId: _session, model: _model, ...rest } = previous
+      if (rest.fallbackProvider === provider) {
+        const { fallbackProvider: _drop, ...withoutFallback } = rest
+        return { ...withoutFallback, provider }
+      }
       return { ...rest, provider }
     })).then(ok => {
       if (!ok || !hadSession) return
       pendingModeHandoffRef.current = true
       setMessages(prev => [...prev, systemMessage(t('agentPane.providerSessionReset'))])
+    })
+  }
+
+  const changeFallbackProvider = (next?: AgentCliProvider): void => {
+    onMetaChange(previous => {
+      if (!next || next === previous.provider) {
+        const { fallbackProvider: _drop, ...rest } = previous
+        return rest
+      }
+      return { ...previous, fallbackProvider: next }
     })
   }
 
@@ -3778,6 +3813,7 @@ export const AgentPane: React.FC<Props> = ({
         peerAgents={peerAgents}
         projectAgents={projectAgents}
         onChangeProvider={changeProvider}
+        onChangeFallbackProvider={changeFallbackProvider}
         onChangeModel={changeModel}
         onChangePermission={changePermission}
         onChangeNativeSkills={nativeSkills => {

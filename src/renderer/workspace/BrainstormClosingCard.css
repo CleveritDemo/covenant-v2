@@ -5,10 +5,11 @@
      hidden eso recorta la tarjeta en vez de dejar scrollar al acta. */
   flex: none;
   margin: 12px 0 4px;
-  border: 1px solid var(--accent);
+  border: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--plane-glass-strong);
+  box-shadow: none;
 }
 
 .brainstorm-closing__head {
@@ -18,7 +19,7 @@
   gap: 10px;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: transparent;
 }
 
 .brainstorm-closing__title {
@@ -27,7 +28,7 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text-muted);
 }
 
 .brainstorm-closing__actions {

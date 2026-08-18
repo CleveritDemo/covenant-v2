@@ -49,8 +49,8 @@ describe('kind githubIssue', () => {
     expect(contextFileStem('github/CleveritDemo-covenant-v2-86.md')).toBe('CleveritDemo-covenant-v2-86')
   })
 
-  it('el icono por defecto reusa git-branch', () => {
-    expect(defaultIconForKind('githubIssue')).toBe('git-branch')
+  it('el icono por defecto es github', () => {
+    expect(defaultIconForKind('githubIssue')).toBe('github')
   })
 
   it('el id canónico no cambia si además se pasa name/fileStem', () => {

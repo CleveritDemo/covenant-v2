@@ -19,7 +19,7 @@ export function githubContextMetadataLine(repoFullName: string, issueNumber: num
     id: canonicalContextId('githubIssue', { repoFullName: repo, issueNumber }),
     name: canonicalContextName('githubIssue', { repoFullName: repo, issueNumber }),
     kind: 'githubIssue',
-    icon: 'git-branch',
+    icon: 'github',
     issueNumber,
     ...(repo ? { repoFullName: repo } : {}),
   })} -->`

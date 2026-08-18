@@ -16,7 +16,7 @@ import { Select } from './ui/Select'
 import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
-import { GitHubTokenField } from './GitHubTokenField'
+import { GitHubAccountsField } from './GitHubAccountsField'
 import { JiraConnectionField } from './JiraConnectionField'
 import { AiMarkdown } from './AiMarkdown'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
@@ -39,6 +39,8 @@ interface Props {
   cwd?: string
   /** Relanza el wizard de onboarding (Developer). */
   onReplayOnboarding?: () => void
+  /** Binding de workspace a limpiar al borrar una cuenta del llavero. */
+  onAccountDeleted?: (accountId: string) => void
 }
 
 const LANGUAGES: { value: Language; label: string }[] = [
@@ -74,7 +76,7 @@ type CategoryId = (typeof CATEGORIES)[number]['id']
 const SEARCH_INDEX = [
   { category: 'telemetry', anchor: 'settings-telemetry', titleKey: 'settings.telemetrySection', termKeys: ['settings.telemetryHint', 'settings.telemetryEndpointLabel', 'settings.telemetryHeadersLabel', 'settings.telemetryEnabledTitle', 'settings.telemetryLogPromptsTitle', 'settings.telemetryLogToolIOTitle'] },
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
-  { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint'] },
+  { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint', 'settings.githubAccountsTitle', 'settings.githubAddAccount'] },
   { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel', 'settings.terminalLineHeightLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
@@ -94,7 +96,7 @@ const SEARCH_INDEX = [
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
 
-export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '', onReplayOnboarding }) => {
+export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '', onReplayOnboarding, onAccountDeleted }) => {
   const { t } = useT()
   const [search, setSearch] = useState('')
   const [form, setForm] = useState({
@@ -149,7 +151,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
   }, [])
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [footerHint, setFooterHint] = useState<'idle' | 'discarded'>('idle')
-  const [tokenFieldEpoch, setTokenFieldEpoch] = useState(0)
   const [appVersion, setAppVersion] = useState('')
   const [checking, setChecking] = useState(false)
   const [forcing, setForcing] = useState(false)
@@ -346,8 +347,8 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
   }, [])
 
   /**
+  /**
    * Vuelve al snapshot de apertura, persiste ya (sin debounce) y da feedback.
-   * El status del token se remonta para no dejar identidad obsoleta.
    */
   const handleDiscard = (): void => {
     const original = baseline.current
@@ -375,7 +376,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       otelLogToolIO: original.otelLogToolIO ?? false,
     })
     setErrors([])
-    setTokenFieldEpoch(n => n + 1)
     setFooterHint('discarded')
     void commit(mergeWithDefaults({ ...original }))
   }
@@ -548,11 +548,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
 
           {category === 'github' && (
             <SettingsSection title={t('settings.githubSection')} anchor="settings-github">
-              <GitHubTokenField
-                key={tokenFieldEpoch}
-                value={form.githubToken}
-                onChange={token => update('githubToken', token)}
-              />
+              <GitHubAccountsField onAccountDeleted={onAccountDeleted} />
             </SettingsSection>
           )}
 

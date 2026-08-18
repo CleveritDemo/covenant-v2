@@ -1,5 +1,7 @@
 import { spawn } from 'child_process'
 import type { AppConfig } from '@shared/configSchema'
+import { readAccountToken } from './githubAccountStore'
+import { resolveWorkspaceAccountId } from './githubWorkspaceAccount'
 
 const CREDENTIAL_TIMEOUT_MS = 8_000
 
@@ -79,15 +81,28 @@ export async function readGithubTokenFromGitCredential(): Promise<string | null>
   return token || null
 }
 
-export type GithubTokenSource = 'settings' | 'env' | 'keychain' | 'none'
+export type GithubTokenSource = 'workspace' | 'settings' | 'env' | 'keychain' | 'none'
 
 /**
  * Token efectivo para la API de GitHub.
- * Prioridad: config.json → GITHUB_TOKEN (env/.env) → credential helper de git.
+ * Prioridad: binding del workspace → config.json → GITHUB_TOKEN (env/.env) → credential helper de git.
  */
 export async function resolveGithubTokenWithSource(
   config: AppConfig,
+  options?: { cwd?: string },
 ): Promise<{ token: string | null; source: GithubTokenSource }> {
+  const cwd = options?.cwd?.trim()
+  if (cwd) {
+    const accountId = resolveWorkspaceAccountId(
+      cwd,
+      config.githubAccounts.map(account => account.id),
+    )
+    if (accountId) {
+      const fromWorkspace = readAccountToken(accountId)?.trim()
+      if (fromWorkspace) return { token: fromWorkspace, source: 'workspace' }
+    }
+  }
+
   const fromConfig = config.githubToken?.trim()
   if (fromConfig) return { token: fromConfig, source: 'settings' }
 
@@ -100,6 +115,9 @@ export async function resolveGithubTokenWithSource(
   return { token: null, source: 'none' }
 }
 
-export async function resolveGithubToken(config: AppConfig): Promise<string | null> {
-  return (await resolveGithubTokenWithSource(config)).token
+export async function resolveGithubToken(
+  config: AppConfig,
+  options?: { cwd?: string },
+): Promise<string | null> {
+  return (await resolveGithubTokenWithSource(config, options)).token
 }

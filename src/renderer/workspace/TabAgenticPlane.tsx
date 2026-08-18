@@ -23,6 +23,7 @@ import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
 import { PlanePromoteButton } from './PlanePromoteButton'
+import { PlaneGithubAccountButton } from './PlaneGithubAccountButton'
 import { PlaneWorkspaceUploadProgressSlot } from './PlaneWorkspaceUploadProgress'
 import { PlaneBrainstormsListButton } from './PlaneBrainstormsListButton'
 import { PlaneBrainstormDock } from './PlaneBrainstormDock'
@@ -225,6 +226,8 @@ export interface TabAgenticPlaneProps {
   projectFolderEmptyHint: string
   projectFolderRevealLabel: string
   onSelectProjectFolder: () => void
+  /** El selector de cuenta GitHub del plano cambió el binding del cwd. */
+  onGithubAccountChanged?: (cwd: string, accountId: string | null) => void
   onRevealProjectFolder?: () => void
   /** Re-sincroniza repos/agentes/contextos de un workspace org. */
   onResyncWorkspace?: () => void
@@ -435,6 +438,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   projectFolderEmptyHint,
   projectFolderRevealLabel,
   onSelectProjectFolder,
+  onGithubAccountChanged,
   onRevealProjectFolder,
   onResyncWorkspace,
   resyncWorkspaceLabel = '',
@@ -1002,6 +1006,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onSelect={onSelectProjectFolder}
             />
           </div>
+          {projectFolder.trim() ? (
+            <PlaneGithubAccountButton
+              projectFolder={projectFolder}
+              onChanged={accountId => onGithubAccountChanged?.(projectFolder, accountId)}
+            />
+          ) : null}
           {(canResyncWorkspace && onResyncWorkspace)
             || (canUploadWorkspace && onUploadWorkspace)
             || (canPromoteWorkspace && onPromoteWorkspace) ? (

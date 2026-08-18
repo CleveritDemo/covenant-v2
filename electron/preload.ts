@@ -42,6 +42,7 @@ import type {
   GitHubTokenCheck,
 } from '../src/shared/githubActionsTypes'
 import type { GithubTokenSource } from './githubToken'
+import type { GithubAccount } from '../src/shared/githubAccounts'
 import type {
   CovenantDefault,
   CovenantMember,
@@ -691,97 +692,134 @@ const api = {
   githubCheckToken(token: string): Promise<GitHubTokenCheck> {
     return ipcRenderer.invoke(IPC.GITHUB_CHECK_TOKEN, token)
   },
+  githubAccountsList(): Promise<
+    { ok: true; accounts: GithubAccount[]; defaultAccountId: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.GITHUB_ACCOUNTS_LIST)
+  },
+  githubAccountUpsert(input: { id?: string; label: string; token?: string }): Promise<
+    { ok: true; account: GithubAccount } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.GITHUB_ACCOUNT_UPSERT, input)
+  },
+  githubAccountDelete(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_ACCOUNT_DELETE, id)
+  },
+  githubAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_ACCOUNT_SET_DEFAULT, id)
+  },
+  githubWorkspaceAccountGet(
+    cwd: string,
+  ): Promise<{ ok: true; accountId: string | null } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_WORKSPACE_ACCOUNT_GET, cwd)
+  },
+  githubWorkspaceAccountSet(
+    cwd: string,
+    accountId: string | null,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.GITHUB_WORKSPACE_ACCOUNT_SET, cwd, accountId)
+  },
 
   covenant: {
-    status(): Promise<CovenantResult<CovenantStatus>> {
-      return ipcRenderer.invoke(IPC.COVENANT_STATUS)
+    status(accountId: string): Promise<CovenantResult<CovenantStatus>> {
+      return ipcRenderer.invoke(IPC.COVENANT_STATUS, accountId)
     },
-    signIn(): Promise<
+    statusAll(): Promise<CovenantResult<Record<string, CovenantStatus>>> {
+      return ipcRenderer.invoke(IPC.COVENANT_STATUS_ALL)
+    },
+    signIn(accountId: string): Promise<
       { ok: true; data: CovenantStatus } | { ok: false; error: string; source?: GithubTokenSource }
     > {
-      return ipcRenderer.invoke(IPC.COVENANT_SIGN_IN)
+      return ipcRenderer.invoke(IPC.COVENANT_SIGN_IN, accountId)
     },
-    signOut(): Promise<CovenantResult<CovenantStatus>> {
-      return ipcRenderer.invoke(IPC.COVENANT_SIGN_OUT)
+    signOut(accountId: string): Promise<CovenantResult<CovenantStatus>> {
+      return ipcRenderer.invoke(IPC.COVENANT_SIGN_OUT, accountId)
     },
-    orgsList(): Promise<CovenantResult<CovenantOrg[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_ORGS_LIST)
+    orgsList(accountId: string): Promise<CovenantResult<CovenantOrg[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORGS_LIST, accountId)
     },
-    orgCreate(slug: string, name: string): Promise<CovenantResult<CovenantOrg>> {
-      return ipcRenderer.invoke(IPC.COVENANT_ORG_CREATE, slug, name)
+    orgCreate(accountId: string, slug: string, name: string): Promise<CovenantResult<CovenantOrg>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_CREATE, accountId, slug, name)
     },
-    membersList(slug: string): Promise<CovenantResult<CovenantMember[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_MEMBERS_LIST, slug)
+    membersList(accountId: string, slug: string): Promise<CovenantResult<CovenantMember[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBERS_LIST, accountId, slug)
     },
-    memberLoginsList(slug: string): Promise<CovenantResult<string[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_LOGINS_LIST, slug)
+    memberLoginsList(accountId: string, slug: string): Promise<CovenantResult<string[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_LOGINS_LIST, accountId, slug)
     },
-    memberAdd(slug: string, login: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_ADD, slug, login)
+    memberAdd(accountId: string, slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_ADD, accountId, slug, login)
     },
-    memberRemove(slug: string, login: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_REMOVE, slug, login)
+    memberRemove(accountId: string, slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_MEMBER_REMOVE, accountId, slug, login)
     },
-    defaultsList(slug: string): Promise<CovenantResult<CovenantDefault[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_DEFAULTS_LIST, slug)
+    defaultsList(accountId: string, slug: string): Promise<CovenantResult<CovenantDefault[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULTS_LIST, accountId, slug)
     },
-    defaultSet(slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_SET, slug, kind, name)
+    defaultSet(accountId: string, slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_SET, accountId, slug, kind, name)
     },
-    defaultUnset(slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_UNSET, slug, kind, name)
+    defaultUnset(accountId: string, slug: string, kind: string, name: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_DEFAULT_UNSET, accountId, slug, kind, name)
     },
-    workspacesList(slug: string): Promise<CovenantResult<CovenantWorkspace[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACES_LIST, slug)
+    workspacesList(accountId: string, slug: string): Promise<CovenantResult<CovenantWorkspace[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACES_LIST, accountId, slug)
     },
-    workspaceCreate(slug: string, name: string): Promise<CovenantResult<CovenantWorkspace>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CREATE, slug, name)
+    workspaceCreate(accountId: string, slug: string, name: string): Promise<CovenantResult<CovenantWorkspace>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CREATE, accountId, slug, name)
     },
     workspaceRename(
+      accountId: string,
       slug: string,
       workspaceId: string,
       name: string,
     ): Promise<CovenantResult<CovenantWorkspace>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_RENAME, slug, workspaceId, name)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_RENAME, accountId, slug, workspaceId, name)
     },
-    workspaceDelete(slug: string, workspaceId: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_DELETE, slug, workspaceId)
+    workspaceDelete(accountId: string, slug: string, workspaceId: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_DELETE, accountId, slug, workspaceId)
     },
     workspaceAssigneeAdd(
+      accountId: string,
       slug: string,
       workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD, slug, workspaceId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD, accountId, slug, workspaceId, login)
     },
     workspaceAssigneeRemove(
+      accountId: string,
       slug: string,
       workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE, slug, workspaceId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE, accountId, slug, workspaceId, login)
     },
     workspaceAdminAdd(
+      accountId: string,
       slug: string,
       workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_ADD, slug, workspaceId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_ADD, accountId, slug, workspaceId, login)
     },
     workspaceAdminRemove(
+      accountId: string,
       slug: string,
       workspaceId: string,
       login: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_REMOVE, slug, workspaceId, login)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_ADMIN_REMOVE, accountId, slug, workspaceId, login)
     },
     workspaceAgentsList(
+      accountId: string,
       slug: string,
       workspaceId: string,
     ): Promise<CovenantResult<CovenantWorkspaceAgentRecord[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENTS_LIST, slug, workspaceId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENTS_LIST, accountId, slug, workspaceId)
     },
     workspaceAgentUpsert(
+      accountId: string,
       slug: string,
       workspaceId: string,
       agentId: string,
@@ -789,6 +827,7 @@ const api = {
     ): Promise<CovenantResult<CovenantWorkspaceAgentRecord>> {
       return ipcRenderer.invoke(
         IPC.COVENANT_WORKSPACE_AGENT_UPSERT,
+        accountId,
         slug,
         workspaceId,
         agentId,
@@ -796,19 +835,22 @@ const api = {
       )
     },
     workspaceAgentDelete(
+      accountId: string,
       slug: string,
       workspaceId: string,
       agentId: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENT_DELETE, slug, workspaceId, agentId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_AGENT_DELETE, accountId, slug, workspaceId, agentId)
     },
     workspaceContextsList(
+      accountId: string,
       slug: string,
       workspaceId: string,
     ): Promise<CovenantResult<CovenantWorkspaceContextRecord[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXTS_LIST, slug, workspaceId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXTS_LIST, accountId, slug, workspaceId)
     },
     workspaceContextUpsert(
+      accountId: string,
       slug: string,
       workspaceId: string,
       contextId: string,
@@ -816,6 +858,7 @@ const api = {
     ): Promise<CovenantResult<CovenantWorkspaceContextRecord>> {
       return ipcRenderer.invoke(
         IPC.COVENANT_WORKSPACE_CONTEXT_UPSERT,
+        accountId,
         slug,
         workspaceId,
         contextId,
@@ -823,6 +866,7 @@ const api = {
       )
     },
     workspaceContextRename(
+      accountId: string,
       slug: string,
       workspaceId: string,
       previousId: string,
@@ -831,6 +875,7 @@ const api = {
     ): Promise<CovenantResult<{ record: CovenantWorkspaceContextRecord; deletedPrevious: boolean }>> {
       return ipcRenderer.invoke(
         IPC.COVENANT_WORKSPACE_CONTEXT_RENAME,
+        accountId,
         slug,
         workspaceId,
         previousId,
@@ -839,19 +884,22 @@ const api = {
       )
     },
     workspaceContextDelete(
+      accountId: string,
       slug: string,
       workspaceId: string,
       contextId: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXT_DELETE, slug, workspaceId, contextId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CONTEXT_DELETE, accountId, slug, workspaceId, contextId)
     },
     listWikiPages(
+      accountId: string,
       slug: string,
       workspaceId: string,
     ): Promise<CovenantResult<CovenantWikiPageRecord[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGES_LIST, slug, workspaceId)
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGES_LIST, accountId, slug, workspaceId)
     },
     upsertWikiPage(
+      accountId: string,
       slug: string,
       workspaceId: string,
       pageSlug: string,
@@ -859,6 +907,7 @@ const api = {
     ): Promise<CovenantResult<CovenantWikiPageRecord>> {
       return ipcRenderer.invoke(
         IPC.COVENANT_WIKI_PAGE_UPSERT,
+        accountId,
         slug,
         workspaceId,
         pageSlug,
@@ -866,39 +915,45 @@ const api = {
       )
     },
     deleteWikiPage(
+      accountId: string,
       slug: string,
       workspaceId: string,
       pageSlug: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGE_DELETE, slug, workspaceId, pageSlug)
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_PAGE_DELETE, accountId, slug, workspaceId, pageSlug)
     },
     appendWikiLog(
+      accountId: string,
       slug: string,
       workspaceId: string,
       entry: string,
     ): Promise<CovenantResult<CovenantWikiLogEntryRecord>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_APPEND, slug, workspaceId, entry)
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_APPEND, accountId, slug, workspaceId, entry)
     },
     listWikiLog(
+      accountId: string,
       slug: string,
       workspaceId: string,
     ): Promise<CovenantResult<CovenantWikiLogEntryRecord[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_LIST, slug, workspaceId)
+      return ipcRenderer.invoke(IPC.COVENANT_WIKI_LOG_LIST, accountId, slug, workspaceId)
     },
     workspaceReposList(
+      accountId: string,
       slug: string,
       workspaceId: string,
     ): Promise<CovenantResult<CovenantWorkspaceRepoRecord[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPOS_LIST, slug, workspaceId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPOS_LIST, accountId, slug, workspaceId)
     },
     workspaceRepoAdd(
+      accountId: string,
       slug: string,
       workspaceId: string,
       payload: CovenantWorkspaceRepoPayload,
     ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_ADD, slug, workspaceId, payload)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_ADD, accountId, slug, workspaceId, payload)
     },
     workspaceRepoUpdate(
+      accountId: string,
       slug: string,
       workspaceId: string,
       repoId: string,
@@ -906,6 +961,7 @@ const api = {
     ): Promise<CovenantResult<CovenantWorkspaceRepoRecord>> {
       return ipcRenderer.invoke(
         IPC.COVENANT_WORKSPACE_REPO_UPDATE,
+        accountId,
         slug,
         workspaceId,
         repoId,
@@ -913,28 +969,29 @@ const api = {
       )
     },
     workspaceRepoDelete(
+      accountId: string,
       slug: string,
       workspaceId: string,
       repoId: string,
     ): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_DELETE, slug, workspaceId, repoId)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_REPO_DELETE, accountId, slug, workspaceId, repoId)
     },
-    cloneOrgWorkspace(params: {
+    cloneOrgWorkspace(accountId: string, params: {
       orgSlug: string
       workspaceSlug: string
       repos: Array<OrgWorkspaceCloneRepo>
       workspaceDir?: string
     }): Promise<OrgWorkspaceCloneResult> {
-      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CLONE, params)
+      return ipcRenderer.invoke(IPC.COVENANT_WORKSPACE_CLONE, accountId, params)
     },
-    orgAdminsList(slug: string): Promise<CovenantResult<string[]>> {
-      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMINS_LIST, slug)
+    orgAdminsList(accountId: string, slug: string): Promise<CovenantResult<string[]>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMINS_LIST, accountId, slug)
     },
-    orgAdminAdd(slug: string, login: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_ADD, slug, login)
+    orgAdminAdd(accountId: string, slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_ADD, accountId, slug, login)
     },
-    orgAdminRemove(slug: string, login: string): Promise<CovenantResult<null>> {
-      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_REMOVE, slug, login)
+    orgAdminRemove(accountId: string, slug: string, login: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_ADMIN_REMOVE, accountId, slug, login)
     },
   },
 

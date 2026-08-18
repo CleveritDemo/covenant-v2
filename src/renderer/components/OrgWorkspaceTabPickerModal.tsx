@@ -54,6 +54,7 @@ interface Props {
   onConfirm: (selection: OrgWorkspaceSelection) => void
   /** Snapshot en memoria: opciones al instante sin bloquear. */
   catalog?: OrgWorkspaceCatalogEntry[]
+  accountId?: string
 }
 
 function encodeWorkspaceValue(slug: string, workspaceId: string): string {
@@ -90,6 +91,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   onClose,
   onConfirm,
   catalog,
+  accountId = '',
 }) => {
   const { t } = useT()
   const [busy, setBusy] = useState(false)
@@ -112,7 +114,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     if (!open) return
     let cancelled = false
     void (async () => {
-      const covenant = getCovenantApi()
+      const covenant = getCovenantApi(accountId)
       if (!covenant || !hasCovenantWorkspacesApi(covenant)) return
       const status = await covenant.status()
       if (!status.ok || !status.data.signedIn || cancelled) return
@@ -172,7 +174,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, accountId])
 
   // Agrupado por org y filtrado: con más de tres orgs una lista plana no se lee.
   const groups = useMemo(() => {
@@ -198,7 +200,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
     }
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountId)
     const catalogKey = covenantWorkspaceCatalogKey(decoded.slug, decoded.workspaceId)
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       onConfirm({

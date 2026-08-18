@@ -3,9 +3,30 @@
 import type { API } from '../../electron/preload'
 import type { CovenantApi } from './covenantApi'
 
+export type GithubAccountRef = { id: string; label: string }
+
+/** Contrato del llavero GitHub (main lo publica en paralelo). */
+export type GithubAccountsApi = {
+  githubAccountsList(): Promise<
+    { ok: true; accounts: GithubAccountRef[]; defaultAccountId: string } | { ok: false; error: string }
+  >
+  githubAccountUpsert(payload: { id?: string; label: string; token?: string }): Promise<
+    { ok: true; account?: GithubAccountRef } | { ok: false; error: string }
+  >
+  githubAccountDelete(id: string): Promise<{ ok: true } | { ok: false; error: string }>
+  githubAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }>
+  githubWorkspaceAccountGet(cwd: string): Promise<
+    { ok: true; accountId: string | null } | { ok: false; error: string }
+  >
+  githubWorkspaceAccountSet(
+    cwd: string,
+    accountId: string | null,
+  ): Promise<{ ok: true } | { ok: false; error: string }>
+}
+
 declare global {
   interface Window {
-    api: API & { covenant?: CovenantApi }
+    api: API & GithubAccountsApi & { covenant?: CovenantApi }
   }
 }
 

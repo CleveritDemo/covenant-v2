@@ -1,4 +1,5 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
+import { parseGithubAccounts, type GithubAccount } from './githubAccounts'
 import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
 import {
@@ -57,6 +58,10 @@ export interface AppConfig {
   openaiApiKey: string
   /** Personal Access Token de GitHub para Actions y API. Alternativa: GITHUB_TOKEN en .env. */
   githubToken: string
+  /** Cuentas del llavero (id + label). Los tokens van en userData/github-tokens.json. */
+  githubAccounts: GithubAccount[]
+  /** Id de la cuenta por defecto del llavero. Vacío = ninguna. */
+  githubDefaultAccountId: string
   /**
    * Carpeta raíz donde se instalan los workspaces organizacionales.
    * Vacío = sin carpeta por defecto configurada.
@@ -174,6 +179,8 @@ export const CONFIG_DEFAULTS: AppConfig = {
   anthropicApiKey: '',
   openaiApiKey: '',
   githubToken: '',
+  githubAccounts: [],
+  githubDefaultAccountId: '',
   defaultWorkspacesDir: '',
   defaultModel: 'llama3.2',
   maxContextLines: 200,
@@ -293,6 +300,14 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
       ? partial.wikiCurator
       : CONFIG_DEFAULTS.wikiCurator,
   )
+  const githubAccounts = parseGithubAccounts(
+    Object.prototype.hasOwnProperty.call(partial, 'githubAccounts')
+      ? partial.githubAccounts
+      : CONFIG_DEFAULTS.githubAccounts,
+  )
+  const githubDefaultAccountId = typeof partial.githubDefaultAccountId === 'string'
+    ? partial.githubDefaultAccountId.trim()
+    : CONFIG_DEFAULTS.githubDefaultAccountId
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
@@ -307,6 +322,8 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     onboardingCompletedVersion,
     orchestratorPath,
     wikiCurator,
+    githubAccounts,
+    githubDefaultAccountId,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
   delete merged.soundFeedbackEnabled

@@ -1,0 +1,87 @@
+.plane-github-account {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  max-width: min(200px, 28vw);
+}
+
+.plane-github-account__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: min(200px, 28vw);
+  height: var(--plane-top-bar-height, 26px);
+  padding: 0 var(--plane-top-bar-pad-x, 8px);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+  border-radius: var(--plane-top-bar-radius, 8px);
+  background: var(--plane-glass-strong);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.plane-github-account__btn:hover {
+  background: color-mix(in srgb, var(--plane-glass) 55%, transparent);
+  border-color: color-mix(in srgb, var(--plane-border-strong) 40%, transparent);
+}
+
+.plane-github-account__btn[aria-expanded='true'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.plane-github-account__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-github-account__panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 4px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px -12px rgb(0 0 0 / 45%), 0 2px 8px -4px rgb(0 0 0 / 35%);
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.plane-github-account__panel:not(:popover-open) {
+  display: none;
+}
+
+.plane-github-account__panel::backdrop {
+  background: transparent;
+}
+
+.plane-github-account__option {
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plane-github-account__option:hover {
+  background: var(--surface-hover);
+}
+
+.plane-github-account__option[aria-selected='true'] {
+  font-weight: 600;
+  color: var(--accent);
+}

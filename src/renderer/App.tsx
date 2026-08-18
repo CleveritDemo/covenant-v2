@@ -302,6 +302,7 @@ import {
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
   hasCovenantWorkspacesApi,
+  type CovenantApi,
 } from './covenantApi'
 import {
   clearOrgWikiSyncScope,
@@ -416,6 +417,28 @@ export const App: React.FC = () => {
   /** Repos git del root folder por tab, para la lista bajo el composer del plano. */
   const [gitReposByTab, setGitReposByTab] = useState<Record<string, GitListedRepo[]>>({})
   const projectFolderKey = tabs.map(tab => `${tab.id}:${tab.projectFolder ?? ''}`).join('|')
+  const [workspaceAccountByCwd, setWorkspaceAccountByCwd] = useState<Record<string, string>>({})
+  const workspaceAccountByCwdRef = useRef(workspaceAccountByCwd)
+  workspaceAccountByCwdRef.current = workspaceAccountByCwd
+  const accountIdForCwd = useCallback((cwd: string | undefined | null): string => {
+    const key = cwd?.trim() ?? ''
+    if (!key) return ''
+    return workspaceAccountByCwdRef.current[key] ?? ''
+  }, [])
+  const handleGithubAccountChanged = useCallback((cwd: string, accountId: string | null) => {
+    const key = cwd.trim()
+    if (!key) return
+    const id = accountId ?? ''
+    setWorkspaceAccountByCwd(prev => (prev[key] === id ? prev : { ...prev, [key]: id }))
+  }, [])
+  const handleGithubAccountDeleted = useCallback((accountId: string) => {
+    const setFn = window.api?.githubWorkspaceAccountSet
+    for (const [cwd, boundId] of Object.entries(workspaceAccountByCwdRef.current)) {
+      if (boundId !== accountId) continue
+      if (typeof setFn === 'function') void setFn(cwd, null)
+      handleGithubAccountChanged(cwd, null)
+    }
+  }, [handleGithubAccountChanged])
   const [busyPanes, setBusyPanes] = useState<Set<string>>(new Set())
   const busyPanesRef = useRef(busyPanes)
   busyPanesRef.current = busyPanes
@@ -977,10 +1000,6 @@ export const App: React.FC = () => {
       onPhase?: (phase: OrgWorkspaceSyncPhase) => void
     } = {},
   ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string; cancelled?: boolean }> => {
-    const covenant = getCovenantApi()
-    if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
-      return { agentsOk: false, contextsOk: false }
-    }
     const targets = tabsRef.current.filter(tab => tabIds.includes(tab.id))
     const folders = [...new Set(
       targets
@@ -998,7 +1017,7 @@ export const App: React.FC = () => {
       return { agentsOk: true, contextsOk: true, cancelled: true }
     }
 
-    const buildDeps = (cwd: string): OrgWorkspaceMaterializeDeps => ({
+    const buildDeps = (cwd: string, covenant: CovenantApi): OrgWorkspaceMaterializeDeps => ({
       listRemoteAgents: () => retryCovenantResult(() => covenant.workspaceAgentsList(slug, workspaceId)),
       listRemoteContexts: () => retryCovenantResult(() => covenant.workspaceContextsList(slug, workspaceId)),
       listLocalAgents: root => window.api.listProjectAgents(root),
@@ -1080,12 +1099,18 @@ export const App: React.FC = () => {
       if (isCancelled?.()) {
         return { agentsOk: true, contextsOk: true, cancelled: true }
       }
+      const covenant = getCovenantApi(accountIdForCwd(cwd))
+      if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+        agentsOk = false
+        contextsOk = false
+        continue
+      }
       const preferredAgentIds = targets
         .filter(tab => (
           (tab.projectFolder?.trim() || tab.orgWorkspace?.localDir?.trim() || '') === cwd
         ))
         .flatMap(tab => orderedAgentIdsFromTab(tab))
-      const result = await downloadOrgWorkspaceToLocal(cwd, buildDeps(cwd), {
+      const result = await downloadOrgWorkspaceToLocal(cwd, buildDeps(cwd, covenant), {
         wipeLocal: options.wipeLocal === true,
         ...(options.includeAgents !== undefined ? { includeAgents: options.includeAgents } : {}),
         ...(preferredAgentIds.length ? { preferredAgentIds } : {}),
@@ -1134,7 +1159,7 @@ export const App: React.FC = () => {
       }
     }
     return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
-  }, [refreshProjectAgents, syncTabWithProjectAgents])
+  }, [accountIdForCwd, refreshProjectAgents, syncTabWithProjectAgents])
   syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
 
   const refreshAndSyncProjectAgents = useCallback(async (cwd: string, tabId?: string) => {
@@ -1632,8 +1657,6 @@ export const App: React.FC = () => {
               }
             }))
 
-            const covenant = getCovenantApi()
-
             const reposByWorkspace = new Map<string, {
               slug: string
               workspaceId: string
@@ -1652,14 +1675,16 @@ export const App: React.FC = () => {
                 localDir,
               })
             }
-            if (
-              covenant
-              && hasCovenantWorkspaceReposApi(covenant)
-              && typeof covenant.cloneOrgWorkspace === 'function'
-            ) {
+            if (reposByWorkspace.size) {
               let firstCloneError: string | null = null
               let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
               await Promise.all([...reposByWorkspace.values()].map(async ws => {
+                const covenant = getCovenantApi(accountIdForCwd(ws.localDir))
+                if (
+                  !covenant
+                  || !hasCovenantWorkspaceReposApi(covenant)
+                  || typeof covenant.cloneOrgWorkspace !== 'function'
+                ) return
                 try {
                   const reposResult = await covenant.workspaceReposList(ws.slug, ws.workspaceId)
                   if (!reposResult.ok) return
@@ -1883,7 +1908,7 @@ export const App: React.FC = () => {
     ws: string,
     root: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountIdForCwd(root))
     if (!covenant || !hasCovenantWikiApi(covenant)) return { ok: true }
     try {
       await syncOrgWikiPush({
@@ -1904,7 +1929,7 @@ export const App: React.FC = () => {
       console.warn('[orgWikiSync] push falló:', message)
       return { ok: false, error: message }
     }
-  }, [])
+  }, [accountIdForCwd])
 
   const pushOrgWikiForScope = useCallback(async (
     orgSlug: string,
@@ -2268,6 +2293,23 @@ export const App: React.FC = () => {
     }
   }, [projectFolderKey, refreshTabGitRepos])
 
+  useEffect(() => {
+    const folders = [...new Set(
+      tabsRef.current
+        .map(tab => tab.projectFolder?.trim() ?? '')
+        .filter(Boolean),
+    )]
+    const getFn = window.api?.githubWorkspaceAccountGet
+    if (typeof getFn !== 'function') return
+    for (const cwd of folders) {
+      void getFn(cwd).then(result => {
+        if (!result.ok) return
+        const id = result.accountId ?? ''
+        setWorkspaceAccountByCwd(prev => (prev[cwd] === id ? prev : { ...prev, [cwd]: id }))
+      })
+    }
+  }, [projectFolderKey])
+
   // Descubre los repos git del root folder de cada tab, para la lista bajo el composer del plano.
   const refreshPlaneGitRepos = useCallback(async () => {
     for (const tab of tabsRef.current) {
@@ -2408,7 +2450,10 @@ export const App: React.FC = () => {
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
-    const covenant = getCovenantApi()
+    const pickerAccountId = accountIdForCwd(
+      tabsRef.current.find(item => item.id === activeTabIdRef.current)?.projectFolder,
+    )
+    const covenant = getCovenantApi(pickerAccountId)
     try {
       let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
       if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
@@ -2537,7 +2582,7 @@ export const App: React.FC = () => {
   ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder ?? org.localDir))
     if (!covenant) return
 
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
@@ -2619,7 +2664,7 @@ export const App: React.FC = () => {
       setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })
       return
     }
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountIdForCwd(cwd))
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       setOrgWorkspaceRequirement({ uploadError: 'Covenant API unavailable' })
       return
@@ -2742,7 +2787,7 @@ export const App: React.FC = () => {
     let cancelled = false
     void (async () => {
       const nextOrgs: PromoteWorkspaceOrgOption[] = []
-      const covenant = getCovenantApi()
+      const covenant = getCovenantApi(accountIdForCwd(folder))
       if (covenant && hasCovenantWorkspacesApi(covenant)) {
         const status = await covenant.status()
         if (cancelled) return
@@ -2798,7 +2843,7 @@ export const App: React.FC = () => {
     const tab = promoteWorkspaceTab
     const cwd = tab?.projectFolder?.trim() ?? ''
     if (!tab || !cwd || promoteWorkspaceBusy) return
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountIdForCwd(cwd))
     if (!covenant || !hasCovenantWorkspacesApi(covenant) || !hasCovenantWorkspaceContentApi(covenant)) {
       setPromoteWorkspaceError('Covenant API unavailable')
       return
@@ -3243,7 +3288,7 @@ export const App: React.FC = () => {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
       const opGen = ++orgWorkspaceSyncUploadGenRef.current
       setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
-      const covenant = getCovenantApi()
+      const covenant = getCovenantApi(accountIdForCwd(tab?.projectFolder) || accountIdForCwd(path))
       try {
         let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
         if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
@@ -6140,7 +6185,7 @@ export const App: React.FC = () => {
     }
     if (next === tab.title.trim()) return
 
-    const covenant = getCovenantApi()
+    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder))
     if (!covenant || !hasCovenantWorkspacesApi(covenant)) {
       setOrgWorkspaceRequirement({
         workspaceRenameError: t('organizations.unavailable'),
@@ -7356,6 +7401,7 @@ export const App: React.FC = () => {
                   projectFolderEmptyHint={t('tabs.projectFolderEmptyHint')}
                   projectFolderRevealLabel={t('fileExplorer.contextMenu.revealInFinder')}
                   onSelectProjectFolder={() => { void handlePickProjectFolder(tab.id) }}
+                  onGithubAccountChanged={handleGithubAccountChanged}
                   onRevealProjectFolder={tab.projectFolder?.trim()
                     ? () => { window.api.openFolder(tab.projectFolder!.trim()) }
                     : undefined}
@@ -7560,6 +7606,9 @@ export const App: React.FC = () => {
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}
+        orgWorkspacePickerAccountId={accountIdForCwd(
+          tabs.find(item => item.id === activeTabId)?.projectFolder,
+        )}
         orgWorkspaceCatalogEntries={orgWorkspaceCatalog?.entries}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
@@ -7610,6 +7659,7 @@ export const App: React.FC = () => {
         onConfigSaved={handleConfigSaved}
         onThemeChange={handleThemeChange}
         onReplayOnboarding={handleReplayOnboarding}
+        onAccountDeleted={handleGithubAccountDeleted}
         onboardingOpen={onboardingOpen}
         onboardingStep={onboardingStep}
         onboardingSteps={onboardingSteps}

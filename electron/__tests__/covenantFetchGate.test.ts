@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const httpFetch = vi.fn()
-const loadCovenantSession = vi.fn(() => null)
+const loadCovenantSessions = vi.fn(() => ({}))
 
 vi.mock('../httpFetch', () => ({
   httpFetch: (...args: unknown[]) => httpFetch(...args),
@@ -11,17 +11,17 @@ vi.mock('../httpFetch', () => ({
 
 vi.mock('../covenantSession', () => ({
   clearCovenantSession: vi.fn(),
-  loadCovenantSession: (...args: unknown[]) => loadCovenantSession(...args),
+  loadCovenantSessions: (...args: unknown[]) => loadCovenantSessions(...args),
   persistCovenantSession: vi.fn(),
+  clearAllCovenantSessions: vi.fn(),
 }))
 
 import {
   CovenantApiError,
   covenantFetch,
   createOrg,
-  initCovenantSession,
+  initCovenantSessions,
   listOrgs,
-  signOut,
 } from '../covenantApi'
 
 function stubNeverResolvesUnlessAborted(): void {
@@ -44,27 +44,31 @@ function stubNeverResolvesIgnoringAbort(): void {
   httpFetch.mockImplementation(() => new Promise<Response>(() => {}))
 }
 
+const GATE_ACCOUNT = 'default'
+
 function seedSession(): void {
-  loadCovenantSession.mockReturnValue({
-    jwt: 'test-jwt',
-    login: 'tester',
-    avatarUrl: 'https://example.com/a.png',
-    githubId: 1,
-    githubToken: 'gh-token',
+  loadCovenantSessions.mockReturnValue({
+    [GATE_ACCOUNT]: {
+      jwt: 'test-jwt',
+      login: 'tester',
+      avatarUrl: 'https://example.com/a.png',
+      githubId: 1,
+      githubToken: 'gh-token',
+    },
   })
-  initCovenantSession()
+  initCovenantSessions()
 }
 
 beforeEach(() => {
   httpFetch.mockReset()
-  loadCovenantSession.mockReset()
-  loadCovenantSession.mockReturnValue(null)
-  signOut()
+  loadCovenantSessions.mockReset()
+  loadCovenantSessions.mockReturnValue({})
+  initCovenantSessions()
   vi.useRealTimers()
 })
 
 afterEach(() => {
-  signOut()
+  initCovenantSessions()
   vi.useRealTimers()
 })
 
@@ -151,7 +155,7 @@ describe('authedFetch retry', () => {
       .mockResolvedValueOnce(new Response('{}', { status: 503 }))
       .mockResolvedValueOnce(new Response('[]', { status: 200 }))
 
-    const pending = listOrgs()
+    const pending = listOrgs(GATE_ACCOUNT)
     await vi.advanceTimersByTimeAsync(400)
     await vi.advanceTimersByTimeAsync(1200)
     await expect(pending).resolves.toEqual([])
@@ -163,7 +167,7 @@ describe('authedFetch retry', () => {
 
     httpFetch.mockResolvedValueOnce(new Response('{"error":"unavailable"}', { status: 503 }))
 
-    await expect(createOrg('acme', 'Acme')).rejects.toBeInstanceOf(CovenantApiError)
+    await expect(createOrg(GATE_ACCOUNT, 'acme', 'Acme')).rejects.toBeInstanceOf(CovenantApiError)
     expect(httpFetch).toHaveBeenCalledTimes(1)
   })
 })

@@ -57,6 +57,17 @@
   background: var(--surface-hover);
 }
 
+.organizations-view__account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.organizations-view__account-select {
+  width: 168px;
+  flex: 0 0 auto;
+}
+
 /*
  * Columna flex, no bloque: `.orgs-shell` y `.orgs-signin` llegan del modal con
  * `flex: 1; min-height: 0`, que en un bloque normal no es nada. Las tres

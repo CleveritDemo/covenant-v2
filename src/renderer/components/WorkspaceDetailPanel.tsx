@@ -236,15 +236,17 @@ function WorkspaceReposSection({
   workspaceId,
   canManage,
   parentBusy,
+  accountId = '',
 }: {
   slug: string
   workspaceId: string
   canManage: boolean
   parentBusy: boolean
+  accountId?: string
 }): React.ReactElement {
   const { t } = useT()
   const folderHintId = useId()
-  const covenant = useMemo(() => getCovenantApi(), [])
+  const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
   const available = hasCovenantWorkspaceReposApi(covenant)
   const [repos, setRepos] = useState<CovenantWorkspaceRepoRecord[]>([])
   const [loading, setLoading] = useState(false)
@@ -442,6 +444,7 @@ function WorkspaceReposSection({
 export function WorkspaceDetailPanel({
   slug,
   workspace,
+  accountId = '',
   memberLogins,
   canManageAssignees,
   canManageProjectAdmins,
@@ -455,6 +458,7 @@ export function WorkspaceDetailPanel({
 }: {
   slug: string
   workspace: CovenantWorkspace
+  accountId?: string
   memberLogins: string[]
   canManageAssignees: boolean
   canManageProjectAdmins: boolean
@@ -502,6 +506,7 @@ export function WorkspaceDetailPanel({
           workspaceId={workspace.id}
           canManage={canManageAssignees}
           parentBusy={busy}
+          accountId={accountId}
         />
       </div>
     </section>

@@ -26,6 +26,9 @@ vi.mock('../AgentCliTable', () => ({
 vi.mock('../GitHubTokenField', () => ({
   GitHubTokenField: () => <div data-testid="token-field" />,
 }))
+vi.mock('../GitHubAccountsField', () => ({
+  GitHubAccountsField: () => <div data-testid="accounts-field" />,
+}))
 
 const setConfig = vi.fn()
 const getUpdateState = vi.fn()
@@ -68,7 +71,7 @@ describe('riel de categorías', () => {
     render(<SettingsModal config={config} onSave={() => {}} onClose={() => {}} />)
 
     expect(screen.getByTestId('cli-table')).toBeTruthy()
-    expect(screen.queryByTestId('token-field')).toBeNull()
+    expect(screen.queryByTestId('accounts-field')).toBeNull()
     expect(nav('settings.agentCliSection').getAttribute('aria-current')).toBe('page')
   })
 
@@ -77,7 +80,7 @@ describe('riel de categorías', () => {
 
     fireEvent.click(nav('settings.githubSection'))
 
-    expect(screen.getByTestId('token-field')).toBeTruthy()
+    expect(screen.getByTestId('accounts-field')).toBeTruthy()
     expect(screen.queryByTestId('cli-table')).toBeNull()
     expect(nav('settings.githubSection').getAttribute('aria-current')).toBe('page')
     expect(nav('settings.agentCliSection').getAttribute('aria-current')).toBeNull()

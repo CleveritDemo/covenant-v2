@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { OrganizationsView } from '../OrganizationsView'
 
 vi.mock('@i18n/useT', () => ({
@@ -14,6 +14,36 @@ vi.mock('@i18n/useT', () => ({
 }))
 
 const ok = <T,>(data: T) => Promise.resolve({ ok: true as const, data })
+
+const githubAccountsList = vi.fn()
+
+/** jsdom no implementa Popover API: mismo polyfill que Select.test.tsx. */
+beforeAll(() => {
+  const proto = HTMLElement.prototype as HTMLElement & {
+    showPopover: () => void
+    hidePopover: () => void
+    togglePopover: () => boolean
+  }
+  const dispatchToggle = (el: HTMLElement, newState: 'open' | 'closed'): void => {
+    el.dispatchEvent(Object.assign(new Event('toggle'), { newState }))
+  }
+  proto.showPopover = function showPopover(this: HTMLElement) {
+    this.setAttribute('data-open', '')
+    dispatchToggle(this, 'open')
+  }
+  proto.hidePopover = function hidePopover(this: HTMLElement) {
+    this.removeAttribute('data-open')
+    dispatchToggle(this, 'closed')
+  }
+  proto.togglePopover = function togglePopover(this: HTMLElement) {
+    if (this.hasAttribute('data-open')) {
+      this.hidePopover()
+      return false
+    }
+    this.showPopover()
+    return true
+  }
+})
 
 const covenant = {
   status: vi.fn(),
@@ -61,7 +91,9 @@ beforeEach(() => {
     { id: 'w1', name: 'covenant', assignees: ['lenar'], admins: ['karluiz'], createdBy: 'karluiz' },
   ]))
   covenant.workspaceReposList.mockImplementation(() => ok([]))
-  vi.stubGlobal('window', Object.assign(window, { api: { covenant } }))
+  githubAccountsList.mockReset()
+  githubAccountsList.mockResolvedValue({ ok: true, accounts: [], defaultAccountId: '' })
+  vi.stubGlobal('window', Object.assign(window, { api: { covenant, githubAccountsList } }))
 })
 
 afterEach(cleanup)
@@ -130,7 +162,7 @@ describe('OrganizationsView — shell de tres columnas', () => {
     fireEvent.click(within(panel).getByRole('option', { name: 'organizations.roleUser' }))
 
     await waitFor(() => {
-      expect(covenant.orgAdminRemove).toHaveBeenCalledWith('rodrigoanti', 'karluiz')
+      expect(covenant.orgAdminRemove).toHaveBeenCalledWith('', 'rodrigoanti', 'karluiz')
     })
   })
 
@@ -150,5 +182,51 @@ describe('OrganizationsView — shell de tres columnas', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('OrganizationsView — selector de cuenta', () => {
+  it('con dos cuentas muestra el selector y al cambiarlo las llamadas llevan el otro id', async () => {
+    githubAccountsList.mockResolvedValue({
+      ok: true,
+      accounts: [
+        { id: 'a1', label: 'Personal' },
+        { id: 'a2', label: 'Trabajo' },
+      ],
+      defaultAccountId: 'a1',
+    })
+    render(<OrganizationsView onClose={() => {}} />)
+
+    const trigger = await screen.findByRole('button', { name: 'organizations.accountSelector' })
+    await waitFor(() => {
+      expect(covenant.status).toHaveBeenCalledWith('a1')
+    })
+
+    const panel = screen.getByRole('listbox', { hidden: true })
+    act(() => {
+      panel.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
+      panel.showPopover()
+    })
+    fireEvent.pointerDown(within(panel).getByRole('option', { name: 'Trabajo' }))
+    fireEvent.click(within(panel).getByRole('option', { name: 'Trabajo' }))
+
+    await waitFor(() => {
+      expect(covenant.status).toHaveBeenCalledWith('a2')
+    })
+    expect(trigger).toBeTruthy()
+  })
+
+  it('con una sola cuenta no muestra selector', async () => {
+    githubAccountsList.mockResolvedValue({
+      ok: true,
+      accounts: [{ id: 'a1', label: 'Personal' }],
+      defaultAccountId: 'a1',
+    })
+    render(<OrganizationsView onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(covenant.status).toHaveBeenCalled()
+    })
+    expect(screen.queryByRole('button', { name: 'organizations.accountSelector' })).toBeNull()
   })
 })

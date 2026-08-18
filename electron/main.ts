@@ -210,6 +210,9 @@ import { githubActionsListForSession, githubRunJobsForSession } from './githubAc
 import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken, resolveGithubTokenWithSource } from './githubToken'
+import { sanitizeAccountLabel, type GithubAccount } from '@shared/githubAccounts'
+import { deleteAccountToken, readAccountToken, writeAccountToken } from './githubAccountStore'
+import { resolveWorkspaceAccountId, writeWorkspaceAccountId } from './githubWorkspaceAccount'
 import { describeCovenantSignInError } from '../src/shared/covenantAuthError'
 import {
   cloneOrgWorkspace,
@@ -247,6 +250,7 @@ import {
   setDefault as covenantSetDefault,
   signOut as covenantSignOut,
   status as covenantStatus,
+  statusAll as covenantStatusAll,
   unsetDefault as covenantUnsetDefault,
   upsertWorkspaceAgent as covenantUpsertWorkspaceAgent,
   upsertWorkspaceContext as covenantUpsertWorkspaceContext,
@@ -259,8 +263,9 @@ import {
   deleteWikiPage as covenantDeleteWikiPage,
   appendWikiLog as covenantAppendWikiLog,
   listWikiLog as covenantListWikiLog,
-  initCovenantSession,
+  initCovenantSessions,
 } from './covenantApi'
+import { resolveCovenantAccountId } from './covenantAccountId'
 import type { CovenantResult } from '../src/shared/covenantTypes'
 import {
   copyPathsForExplorer,
@@ -425,7 +430,32 @@ function readConfig(): AppConfig {
   if (!withDefaults.defaultWorkspacesDir?.trim()) {
     withDefaults.defaultWorkspacesDir = join(app.getPath('documents'), 'covenant')
   }
-  return withDefaults
+  return seedGithubAccountsFromLegacyToken(withDefaults)
+}
+
+/** Una sola cuenta «Cuenta 1» desde githubToken. Idempotente: si ya hay cuentas, no hace nada. */
+function seedGithubAccountsFromLegacyToken(config: AppConfig): AppConfig {
+  if (config.githubAccounts.length > 0) return config
+  const token = config.githubToken?.trim()
+  if (!token) return config
+  const id = crypto.randomUUID()
+  const account: GithubAccount = { id, label: 'Cuenta 1' }
+  try {
+    writeAccountToken(id, token)
+  } catch {
+    return config
+  }
+  const next: AppConfig = {
+    ...config,
+    githubAccounts: [account],
+    githubDefaultAccountId: id,
+  }
+  try {
+    writeConfig(next)
+  } catch {
+    /* la sesión sigue teniendo la cuenta aunque no se persista */
+  }
+  return next
 }
 
 function writeConfig(cfg: AppConfig): void {
@@ -1181,8 +1211,9 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.GITHUB_ACTIONS_LIST, async (_e, target: { sessionId?: string; path?: string }) => {
-    const token = await resolveGithubToken(readConfig())
-    return githubActionsListForSession(resolveGitTargetCwd(target), token)
+    const cwd = resolveGitTargetCwd(target)
+    const token = await resolveGithubToken(readConfig(), { cwd })
+    return githubActionsListForSession(cwd, token)
   })
 
   ipcMain.handle(
@@ -1191,8 +1222,9 @@ function registerIpc(): void {
       if (typeof runId !== 'number' || !Number.isFinite(runId)) {
         return { ok: false, jobs: [], error: 'runId inválido' }
       }
-      const token = await resolveGithubToken(readConfig())
-      return githubRunJobsForSession(resolveGitTargetCwd(target), token, runId)
+      const cwd = resolveGitTargetCwd(target)
+      const token = await resolveGithubToken(readConfig(), { cwd })
+      return githubRunJobsForSession(cwd, token, runId)
     },
   )
 
@@ -1207,111 +1239,157 @@ function registerIpc(): void {
     }
   }
 
-  ipcMain.handle(IPC.COVENANT_STATUS, async () => covenantInvoke(() => covenantStatus()))
+  function covenantAccount(raw: unknown) {
+    return resolveCovenantAccountId(raw, readConfig())
+  }
 
-  ipcMain.handle(IPC.COVENANT_SIGN_IN, async () => {
+  async function covenantAccountInvoke<T>(
+    raw: unknown,
+    fn: (accountId: string) => Promise<T> | T,
+  ): Promise<CovenantResult<T>> {
+    const resolved = covenantAccount(raw)
+    if (!resolved.ok) return resolved
+    return covenantInvoke(() => fn(resolved.accountId))
+  }
+
+  ipcMain.handle(IPC.COVENANT_STATUS, async (_e, rawAccountId: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantStatus(id)),
+  )
+
+  ipcMain.handle(IPC.COVENANT_STATUS_ALL, async () => covenantInvoke(() => covenantStatusAll()))
+
+  ipcMain.handle(IPC.COVENANT_SIGN_IN, async (_e, rawAccountId: unknown) => {
+    const resolved = covenantAccount(rawAccountId)
+    if (!resolved.ok) return resolved
+    const accountId = resolved.accountId
+    const fromAccount = accountId !== 'default' ? readAccountToken(accountId)?.trim() : ''
+    if (fromAccount) {
+      const result = await covenantInvoke(async () => {
+        await covenantExchange(accountId, fromAccount)
+        return covenantStatus(accountId)
+      })
+      if (!result.ok) {
+        return {
+          ...result,
+          error: describeCovenantSignInError(result.error, 'settings'),
+          source: 'settings' as const,
+        }
+      }
+      return result
+    }
     const { token, source } = await resolveGithubTokenWithSource(readConfig())
     if (!token) return { ok: false as const, error: 'no-github-token', source: 'none' as const }
     const result = await covenantInvoke(async () => {
-      await covenantExchange(token)
-      return covenantStatus()
+      await covenantExchange(accountId, token)
+      return covenantStatus(accountId)
     })
     if (!result.ok) {
-      return { ...result, error: describeCovenantSignInError(result.error, source), source }
+      const labelSource =
+        source === 'settings' || source === 'env' || source === 'keychain' || source === 'none'
+          ? source
+          : 'settings'
+      return { ...result, error: describeCovenantSignInError(result.error, labelSource), source }
     }
     return result
   })
 
-  ipcMain.handle(IPC.COVENANT_SIGN_OUT, async () =>
-    covenantInvoke(() => {
-      covenantSignOut()
-      return covenantStatus()
+  ipcMain.handle(IPC.COVENANT_SIGN_OUT, async (_e, rawAccountId: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => {
+      covenantSignOut(id)
+      return covenantStatus(id)
     }),
   )
 
-  ipcMain.handle(IPC.COVENANT_ORGS_LIST, async () => covenantInvoke(() => covenantListOrgs()))
-
-  ipcMain.handle(IPC.COVENANT_ORG_CREATE, async (_e, slug: unknown, name: unknown) =>
-    covenantInvoke(() => covenantCreateOrg(String(slug ?? ''), String(name ?? ''))),
+  ipcMain.handle(IPC.COVENANT_ORGS_LIST, async (_e, rawAccountId: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListOrgs(id)),
   )
 
-  ipcMain.handle(IPC.COVENANT_MEMBERS_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListMembers(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_ORG_CREATE, async (_e, rawAccountId: unknown, slug: unknown, name: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantCreateOrg(id, String(slug ?? ''), String(name ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_MEMBER_LOGINS_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListMemberLogins(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_MEMBERS_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListMembers(id, String(slug ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_MEMBER_ADD, async (_e, slug: unknown, login: unknown) =>
-    covenantInvoke(async () => {
-      await covenantAddMember(String(slug ?? ''), String(login ?? ''))
+  ipcMain.handle(IPC.COVENANT_MEMBER_LOGINS_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListMemberLogins(id, String(slug ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_MEMBER_ADD, async (_e, rawAccountId: unknown, slug: unknown, login: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantAddMember(id, String(slug ?? ''), String(login ?? ''))
       return null
     }),
   )
 
-  ipcMain.handle(IPC.COVENANT_MEMBER_REMOVE, async (_e, slug: unknown, login: unknown) =>
-    covenantInvoke(async () => {
-      await covenantRemoveMember(String(slug ?? ''), String(login ?? ''))
+  ipcMain.handle(IPC.COVENANT_MEMBER_REMOVE, async (_e, rawAccountId: unknown, slug: unknown, login: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantRemoveMember(id, String(slug ?? ''), String(login ?? ''))
       return null
     }),
   )
 
-  ipcMain.handle(IPC.COVENANT_DEFAULTS_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListDefaults(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_DEFAULTS_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListDefaults(id, String(slug ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_DEFAULT_SET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
-    covenantInvoke(async () => {
-      await covenantSetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
-      return null
-    }),
+  ipcMain.handle(
+    IPC.COVENANT_DEFAULT_SET,
+    async (_e, rawAccountId: unknown, slug: unknown, kind: unknown, name: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
+        await covenantSetDefault(id, String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+        return null
+      }),
   )
 
-  ipcMain.handle(IPC.COVENANT_DEFAULT_UNSET, async (_e, slug: unknown, kind: unknown, name: unknown) =>
-    covenantInvoke(async () => {
-      await covenantUnsetDefault(String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
-      return null
-    }),
+  ipcMain.handle(
+    IPC.COVENANT_DEFAULT_UNSET,
+    async (_e, rawAccountId: unknown, slug: unknown, kind: unknown, name: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
+        await covenantUnsetDefault(id, String(slug ?? ''), String(kind ?? ''), String(name ?? ''))
+        return null
+      }),
   )
 
-  ipcMain.handle(IPC.COVENANT_WORKSPACES_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListWorkspaces(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_WORKSPACES_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListWorkspaces(id, String(slug ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_WORKSPACE_CREATE, async (_e, slug: unknown, name: unknown) =>
-    covenantInvoke(() => covenantCreateWorkspace(String(slug ?? ''), String(name ?? ''))),
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_CREATE, async (_e, rawAccountId: unknown, slug: unknown, name: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantCreateWorkspace(id, String(slug ?? ''), String(name ?? ''))),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_RENAME,
-    async (_e, slug: unknown, workspaceId: unknown, name: unknown) =>
-      covenantInvoke(() =>
-        covenantRenameWorkspace(String(slug ?? ''), String(workspaceId ?? ''), String(name ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, name: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantRenameWorkspace(id, String(slug ?? ''), String(workspaceId ?? ''), String(name ?? '')),
       ),
   )
 
-  ipcMain.handle(IPC.COVENANT_WORKSPACE_DELETE, async (_e, slug: unknown, workspaceId: unknown) =>
-    covenantInvoke(async () => {
-      await covenantDeleteWorkspace(String(slug ?? ''), String(workspaceId ?? ''))
+  ipcMain.handle(IPC.COVENANT_WORKSPACE_DELETE, async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantDeleteWorkspace(id, String(slug ?? ''), String(workspaceId ?? ''))
       return null
     }),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_ASSIGNEE_ADD,
-    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
-        await covenantAddAssignee(String(slug ?? ''), String(workspaceId ?? ''), String(login ?? ''))
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
+        await covenantAddAssignee(id, String(slug ?? ''), String(workspaceId ?? ''), String(login ?? ''))
         return null
       }),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_ASSIGNEE_REMOVE,
-    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantRemoveAssignee(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(login ?? ''),
@@ -1322,9 +1400,10 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_ADMIN_ADD,
-    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantAddWorkspaceAdmin(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(login ?? ''),
@@ -1335,9 +1414,10 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_ADMIN_REMOVE,
-    async (_e, slug: unknown, workspaceId: unknown, login: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, login: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantRemoveWorkspaceAdmin(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(login ?? ''),
@@ -1348,30 +1428,39 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_AGENTS_LIST,
-    async (_e, slug: unknown, workspaceId: unknown) =>
-      covenantInvoke(() =>
-        covenantListWorkspaceAgents(String(slug ?? ''), String(workspaceId ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantListWorkspaceAgents(id, String(slug ?? ''), String(workspaceId ?? '')),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_AGENT_UPSERT,
-    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown, definition: unknown) =>
-      covenantInvoke(() =>
+    async (
+      _e,
+      rawAccountId: unknown,
+      slug: unknown,
+      workspaceId: unknown,
+      agentId: unknown,
+      definition: unknown,
+    ) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantUpsertWorkspaceAgent(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(agentId ?? ''),
-          definition as Parameters<typeof covenantUpsertWorkspaceAgent>[3],
+          definition as Parameters<typeof covenantUpsertWorkspaceAgent>[4],
         ),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_AGENT_DELETE,
-    async (_e, slug: unknown, workspaceId: unknown, agentId: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, agentId: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantDeleteWorkspaceAgent(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(agentId ?? ''),
@@ -1382,21 +1471,29 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_CONTEXTS_LIST,
-    async (_e, slug: unknown, workspaceId: unknown) =>
-      covenantInvoke(() =>
-        covenantListWorkspaceContexts(String(slug ?? ''), String(workspaceId ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantListWorkspaceContexts(id, String(slug ?? ''), String(workspaceId ?? '')),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_CONTEXT_UPSERT,
-    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown, payload: unknown) =>
-      covenantInvoke(() =>
+    async (
+      _e,
+      rawAccountId: unknown,
+      slug: unknown,
+      workspaceId: unknown,
+      contextId: unknown,
+      payload: unknown,
+    ) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantUpsertWorkspaceContext(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(contextId ?? ''),
-          payload as Parameters<typeof covenantUpsertWorkspaceContext>[3],
+          payload as Parameters<typeof covenantUpsertWorkspaceContext>[4],
         ),
       ),
   )
@@ -1405,28 +1502,31 @@ function registerIpc(): void {
     IPC.COVENANT_WORKSPACE_CONTEXT_RENAME,
     async (
       _e,
+      rawAccountId: unknown,
       slug: unknown,
       workspaceId: unknown,
       previousId: unknown,
       nextId: unknown,
       payload: unknown,
     ) =>
-      covenantInvoke(() =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantRenameWorkspaceContext(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(previousId ?? ''),
           String(nextId ?? ''),
-          payload as Parameters<typeof covenantRenameWorkspaceContext>[4],
+          payload as Parameters<typeof covenantRenameWorkspaceContext>[5],
         ),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_CONTEXT_DELETE,
-    async (_e, slug: unknown, workspaceId: unknown, contextId: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, contextId: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantDeleteWorkspaceContext(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(contextId ?? ''),
@@ -1437,30 +1537,39 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WIKI_PAGES_LIST,
-    async (_e, slug: unknown, workspaceId: unknown) =>
-      covenantInvoke(() =>
-        covenantListWikiPages(String(slug ?? ''), String(workspaceId ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantListWikiPages(id, String(slug ?? ''), String(workspaceId ?? '')),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WIKI_PAGE_UPSERT,
-    async (_e, slug: unknown, workspaceId: unknown, pageSlug: unknown, payload: unknown) =>
-      covenantInvoke(() =>
+    async (
+      _e,
+      rawAccountId: unknown,
+      slug: unknown,
+      workspaceId: unknown,
+      pageSlug: unknown,
+      payload: unknown,
+    ) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantUpsertWikiPage(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(pageSlug ?? ''),
-          payload as Parameters<typeof covenantUpsertWikiPage>[3],
+          payload as Parameters<typeof covenantUpsertWikiPage>[4],
         ),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WIKI_PAGE_DELETE,
-    async (_e, slug: unknown, workspaceId: unknown, pageSlug: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, pageSlug: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantDeleteWikiPage(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(pageSlug ?? ''),
@@ -1471,9 +1580,10 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WIKI_LOG_APPEND,
-    async (_e, slug: unknown, workspaceId: unknown, entry: unknown) =>
-      covenantInvoke(() =>
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, entry: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantAppendWikiLog(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(entry ?? ''),
@@ -1483,50 +1593,60 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WIKI_LOG_LIST,
-    async (_e, slug: unknown, workspaceId: unknown) =>
-      covenantInvoke(() =>
-        covenantListWikiLog(String(slug ?? ''), String(workspaceId ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantListWikiLog(id, String(slug ?? ''), String(workspaceId ?? '')),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPOS_LIST,
-    async (_e, slug: unknown, workspaceId: unknown) =>
-      covenantInvoke(() =>
-        covenantListWorkspaceRepos(String(slug ?? ''), String(workspaceId ?? '')),
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
+        covenantListWorkspaceRepos(id, String(slug ?? ''), String(workspaceId ?? '')),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPO_ADD,
-    async (_e, slug: unknown, workspaceId: unknown, payload: unknown) =>
-      covenantInvoke(() =>
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, payload: unknown) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantAddWorkspaceRepo(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
-          payload as Parameters<typeof covenantAddWorkspaceRepo>[2],
+          payload as Parameters<typeof covenantAddWorkspaceRepo>[3],
         ),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPO_UPDATE,
-    async (_e, slug: unknown, workspaceId: unknown, repoId: unknown, payload: unknown) =>
-      covenantInvoke(() =>
+    async (
+      _e,
+      rawAccountId: unknown,
+      slug: unknown,
+      workspaceId: unknown,
+      repoId: unknown,
+      payload: unknown,
+    ) =>
+      covenantAccountInvoke(rawAccountId, id =>
         covenantUpdateWorkspaceRepo(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(repoId ?? ''),
-          payload as Parameters<typeof covenantUpdateWorkspaceRepo>[3],
+          payload as Parameters<typeof covenantUpdateWorkspaceRepo>[4],
         ),
       ),
   )
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_REPO_DELETE,
-    async (_e, slug: unknown, workspaceId: unknown, repoId: unknown) =>
-      covenantInvoke(async () => {
+    async (_e, rawAccountId: unknown, slug: unknown, workspaceId: unknown, repoId: unknown) =>
+      covenantAccountInvoke(rawAccountId, async id => {
         await covenantDeleteWorkspaceRepo(
+          id,
           String(slug ?? ''),
           String(workspaceId ?? ''),
           String(repoId ?? ''),
@@ -1537,7 +1657,9 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.COVENANT_WORKSPACE_CLONE,
-    async (_e, params: unknown): Promise<OrgWorkspaceCloneResult> => {
+    async (_e, rawAccountId: unknown, params: unknown): Promise<OrgWorkspaceCloneResult> => {
+      const resolved = covenantAccount(rawAccountId)
+      if (!resolved.ok) return resolved
       const p = (params && typeof params === 'object' ? params : {}) as {
         orgSlug?: unknown
         workspaceSlug?: unknown
@@ -1551,7 +1673,7 @@ function registerIpc(): void {
       if (!workspaceDir && !baseDir) {
         return { ok: false, error: 'missing-default-dir', failure: diagnoseCloneError('missing-default-dir') }
       }
-      const token = await resolveGithubToken(config)
+      const token = await resolveGithubToken(config, { cwd: workspaceDir || baseDir })
       if (!token) {
         return { ok: false, error: 'missing-token', failure: diagnoseCloneError('missing-token') }
       }
@@ -1580,20 +1702,20 @@ function registerIpc(): void {
     },
   )
 
-  ipcMain.handle(IPC.COVENANT_ORG_ADMINS_LIST, async (_e, slug: unknown) =>
-    covenantInvoke(() => covenantListOrgAdmins(String(slug ?? ''))),
+  ipcMain.handle(IPC.COVENANT_ORG_ADMINS_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, id => covenantListOrgAdmins(id, String(slug ?? ''))),
   )
 
-  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_ADD, async (_e, slug: unknown, login: unknown) =>
-    covenantInvoke(async () => {
-      await covenantAddOrgAdmin(String(slug ?? ''), String(login ?? ''))
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_ADD, async (_e, rawAccountId: unknown, slug: unknown, login: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantAddOrgAdmin(id, String(slug ?? ''), String(login ?? ''))
       return null
     }),
   )
 
-  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_REMOVE, async (_e, slug: unknown, login: unknown) =>
-    covenantInvoke(async () => {
-      await covenantRemoveOrgAdmin(String(slug ?? ''), String(login ?? ''))
+  ipcMain.handle(IPC.COVENANT_ORG_ADMIN_REMOVE, async (_e, rawAccountId: unknown, slug: unknown, login: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantRemoveOrgAdmin(id, String(slug ?? ''), String(login ?? ''))
       return null
     }),
   )
@@ -1608,6 +1730,93 @@ function registerIpc(): void {
       return { ok: true, login, scopes }
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_ACCOUNTS_LIST, () => {
+    try {
+      const config = readConfig()
+      return { ok: true as const, accounts: config.githubAccounts, defaultAccountId: config.githubDefaultAccountId }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_ACCOUNT_UPSERT, (_e, raw: unknown) => {
+    try {
+      const input = (raw && typeof raw === 'object' ? raw : {}) as {
+        id?: unknown
+        label?: unknown
+        token?: unknown
+      }
+      const label = sanitizeAccountLabel(input.label)
+      if (!label) return { ok: false as const, error: 'label vacío' }
+      const incomingId = typeof input.id === 'string' ? input.id.trim() : ''
+      const id = incomingId || crypto.randomUUID()
+      const account: GithubAccount = { id, label }
+      const config = readConfig()
+      const accounts = [...config.githubAccounts]
+      const idx = accounts.findIndex(a => a.id === id)
+      if (idx >= 0) accounts[idx] = account
+      else accounts.push(account)
+      const token = typeof input.token === 'string' ? input.token.trim() : ''
+      if (token) writeAccountToken(id, token)
+      writeConfig({ ...config, githubAccounts: accounts })
+      return { ok: true as const, account }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_ACCOUNT_DELETE, (_e, rawId: unknown) => {
+    try {
+      const id = typeof rawId === 'string' ? rawId.trim() : ''
+      if (!id) return { ok: false as const, error: 'id inválido' }
+      const config = readConfig()
+      const githubAccounts = config.githubAccounts.filter(a => a.id !== id)
+      const githubDefaultAccountId = config.githubDefaultAccountId === id ? '' : config.githubDefaultAccountId
+      deleteAccountToken(id)
+      writeConfig({ ...config, githubAccounts, githubDefaultAccountId })
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_ACCOUNT_SET_DEFAULT, (_e, rawId: unknown) => {
+    try {
+      const id = typeof rawId === 'string' ? rawId.trim() : ''
+      const config = readConfig()
+      if (!config.githubAccounts.some(a => a.id === id)) {
+        return { ok: false as const, error: 'cuenta inexistente' }
+      }
+      writeConfig({ ...config, githubDefaultAccountId: id })
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_WORKSPACE_ACCOUNT_GET, (_e, cwd: unknown) => {
+    try {
+      if (typeof cwd !== 'string') return { ok: false as const, error: 'cwd inválido' }
+      const knownIds = readConfig().githubAccounts.map(account => account.id)
+      return { ok: true as const, accountId: resolveWorkspaceAccountId(cwd, knownIds) }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_WORKSPACE_ACCOUNT_SET, (_e, cwd: unknown, accountId: unknown) => {
+    try {
+      if (typeof cwd !== 'string') return { ok: false as const, error: 'cwd inválido' }
+      if (accountId !== null && typeof accountId !== 'string') {
+        return { ok: false as const, error: 'accountId inválido' }
+      }
+      writeWorkspaceAccountId(cwd, accountId)
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
   })
 
@@ -3023,7 +3232,8 @@ app.whenReady().then(() => {
   // Dock/Finder/Explorer no heredan el PATH del shell; sin esto spawn(CLI) → ENOENT/-4058.
   applyLoginShellPath()
   applyAppBranding()
-  initCovenantSession()
+  const bootAccount = resolveCovenantAccountId('', readConfig())
+  initCovenantSessions(bootAccount.ok ? bootAccount.accountId : 'default')
   registerRendererMediaPermissions()
   // Los eventos LSP se emiten a TODAS las ventanas: el mux del preload filtra
   // por serverId, así que una ventana sin ese server simplemente los ignora.

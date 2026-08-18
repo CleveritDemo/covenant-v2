@@ -22,6 +22,7 @@ vi.mock('../TerminalModal', () => ({
 
 vi.mock('../AgentCliTable', () => ({ AgentCliTable: () => null }))
 vi.mock('../GitHubTokenField', () => ({ GitHubTokenField: () => null }))
+vi.mock('../GitHubAccountsField', () => ({ GitHubAccountsField: () => null }))
 
 const setConfig = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true, reduceMotion: false }

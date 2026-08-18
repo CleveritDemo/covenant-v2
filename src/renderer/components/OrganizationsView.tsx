@@ -17,6 +17,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
+import { Select } from './ui/Select'
 import { Tooltip } from './ui/Tooltip'
 import { SectionStatus } from './OrgSectionStatus'
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel'
@@ -35,6 +36,8 @@ interface Props {
   /** Refresca el snapshot Cmd+T tras mutaciones de orgs/workspaces. */
   onOrgWorkspacesMutated?: () => void
 }
+
+type GithubAccount = { id: string; label: string }
 
 function isForbiddenError(error: string): boolean {
   const normalized = error.toLowerCase()
@@ -391,7 +394,9 @@ export const OrganizationsView: React.FC<Props> = ({
   onOrgWorkspacesMutated,
 }) => {
   const { t } = useT()
-  const covenant = useMemo(() => getCovenantApi(), [])
+  const [accounts, setAccounts] = useState<GithubAccount[]>([])
+  const [activeAccountId, setActiveAccountId] = useState('')
+  const covenant = useMemo(() => getCovenantApi(activeAccountId), [activeAccountId])
   const available = covenant != null
 
   useEffect(() => {
@@ -646,6 +651,25 @@ export const OrganizationsView: React.FC<Props> = ({
     if (memberLoginsResult.ok) setMemberLogins(memberLoginsResult.data)
     else setMemberLogins([])
   }, [covenant, currentLogin, orgs])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void (async () => {
+      const listFn = window.api?.githubAccountsList
+      if (typeof listFn !== 'function') return
+      const result = await listFn()
+      if (cancelled || !result.ok) return
+      setAccounts(result.accounts)
+      setActiveAccountId(prev => {
+        if (prev && result.accounts.some(account => account.id === prev)) return prev
+        return result.defaultAccountId || result.accounts[0]?.id || ''
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -1051,6 +1075,7 @@ export const OrganizationsView: React.FC<Props> = ({
       <WorkspaceDetailPanel
         slug={detailOrg.slug}
         workspace={selectedWorkspace}
+        accountId={activeAccountId}
         memberLogins={personLogins}
         canManageAssignees={canManageSelected}
         canManageProjectAdmins={canManageSelectedAdmins}
@@ -1082,6 +1107,21 @@ export const OrganizationsView: React.FC<Props> = ({
       >
         <header className="organizations-view__bar">
           <span className="organizations-view__title">{t('organizations.title')}</span>
+          {accounts.length > 1 ? (
+            <div className="organizations-view__account">
+              <span className="organizations-view__title">{t('organizations.account')}</span>
+              <div className="organizations-view__account-select">
+                <Select
+                  size="sm"
+                  variant="ghost"
+                  value={activeAccountId}
+                  options={accounts.map(account => ({ value: account.id, label: account.label }))}
+                  onChange={setActiveAccountId}
+                  aria-label={t('organizations.accountSelector')}
+                />
+              </div>
+            </div>
+          ) : null}
           <Tooltip content={t('organizations.closeView')}>
             <button
               type="button"

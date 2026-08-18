@@ -79,50 +79,88 @@ describe('safeStorageUtils', () => {
 })
 
 // ---------- covenantSession ----------
+const sessionA = {
+  jwt: 'jwt-a',
+  login: 'userA',
+  avatarUrl: 'https://a.url',
+  githubId: 1,
+  githubToken: 'ghp_a',
+}
+const sessionB = {
+  jwt: 'jwt-b',
+  login: 'userB',
+  avatarUrl: 'https://b.url',
+  githubId: 2,
+  githubToken: 'ghp_b',
+}
+
 describe('covenantSession', () => {
-  it('persiste y rehidrata una sesión correctamente', async () => {
-    const { persistCovenantSession, loadCovenantSession } = await import('../covenantSession')
-    const data = {
-      jwt: 'jwt-token',
-      login: 'karlUser',
-      avatarUrl: 'https://avatar.url',
-      githubId: 12345,
-      githubToken: 'ghp_xxx',
-    }
-    persistCovenantSession(data)
-    const loaded = loadCovenantSession()
-    expect(loaded).not.toBeNull()
-    expect(loaded?.jwt).toBe('jwt-token')
-    expect(loaded?.login).toBe('karlUser')
-    expect(loaded?.githubToken).toBe('ghp_xxx')
+  it('guarda y lee dos cuentas independientes', async () => {
+    const { persistCovenantSession, loadCovenantSessions } = await import('../covenantSession')
+    persistCovenantSession('acc-a', sessionA)
+    persistCovenantSession('acc-b', sessionB)
+    const loaded = loadCovenantSessions()
+    expect(loaded['acc-a']?.jwt).toBe('jwt-a')
+    expect(loaded['acc-a']?.githubToken).toBe('ghp_a')
+    expect(loaded['acc-b']?.jwt).toBe('jwt-b')
+    expect(loaded['acc-b']?.login).toBe('userB')
   })
 
-  it('devuelve null si no existe el archivo', async () => {
-    const { loadCovenantSession } = await import('../covenantSession')
-    expect(loadCovenantSession()).toBeNull()
+  it('devuelve {} si no existe el archivo nuevo', async () => {
+    const { loadCovenantSessions } = await import('../covenantSession')
+    expect(loadCovenantSessions()).toEqual({})
   })
 
-  it('limpia el archivo en clearCovenantSession', async () => {
-    const { persistCovenantSession, clearCovenantSession, loadCovenantSession } = await import('../covenantSession')
-    persistCovenantSession({ jwt: 'j', login: 'l', avatarUrl: '', githubId: 1, githubToken: 'g' })
-    clearCovenantSession()
-    expect(loadCovenantSession()).toBeNull()
+  it('clearCovenantSession borra solo esa cuenta', async () => {
+    const { persistCovenantSession, clearCovenantSession, loadCovenantSessions } = await import('../covenantSession')
+    persistCovenantSession('acc-a', sessionA)
+    persistCovenantSession('acc-b', sessionB)
+    clearCovenantSession('acc-a')
+    const loaded = loadCovenantSessions()
+    expect(loaded['acc-a']).toBeUndefined()
+    expect(loaded['acc-b']?.jwt).toBe('jwt-b')
   })
 
-  it('devuelve null si falla el descifrado (archivo corrupto)', async () => {
+  it('migra covenant-session.enc bajo la clave dada y no borra el original', async () => {
+    const { existsSync, writeFileSync } = await import('fs')
+    const json = JSON.stringify({
+      jwt: 'legacy-jwt',
+      login: 'legacy',
+      avatarUrl: '',
+      githubId: 9,
+      githubToken: 'ghp_legacy',
+    })
+    const payload = mockEncrypt(json).toString('base64')
+    writeFileSync(join(tempDir, 'covenant-session.enc'), payload, 'utf-8')
+    const { loadCovenantSessions } = await import('../covenantSession')
+    const loaded = loadCovenantSessions('acc-default')
+    expect(loaded['acc-default']?.jwt).toBe('legacy-jwt')
+    expect(loaded['acc-default']?.githubToken).toBe('ghp_legacy')
+    expect(existsSync(join(tempDir, 'covenant-session.enc'))).toBe(true)
+    expect(existsSync(join(tempDir, 'covenant-sessions.enc'))).toBe(true)
+  })
+
+  it('devuelve {} si falla el descifrado (archivo corrupto)', async () => {
     mockDecrypt.mockImplementationOnce(() => { throw new Error('decrypt failed') })
     const { writeFileSync } = await import('fs')
-    writeFileSync(join(tempDir, 'covenant-session.enc'), 'corrupted-base64!!!', 'utf-8')
-    const { loadCovenantSession } = await import('../covenantSession')
-    expect(loadCovenantSession()).toBeNull()
+    writeFileSync(join(tempDir, 'covenant-sessions.enc'), 'corrupted-base64!!!', 'utf-8')
+    const { loadCovenantSessions } = await import('../covenantSession')
+    expect(loadCovenantSessions()).toEqual({})
   })
 
   it('funciona sin cifrado (isEncryptionAvailable=false) usando base64 plano', async () => {
     mockIsAvailable.mockReturnValue(false)
-    const { persistCovenantSession, loadCovenantSession } = await import('../covenantSession')
-    persistCovenantSession({ jwt: 'j2', login: 'u2', avatarUrl: '', githubId: 2, githubToken: 'g2' })
-    const loaded = loadCovenantSession()
-    expect(loaded?.jwt).toBe('j2')
-    expect(loaded?.githubToken).toBe('g2')
+    const { persistCovenantSession, loadCovenantSessions } = await import('../covenantSession')
+    persistCovenantSession('acc-2', { jwt: 'j2', login: 'u2', avatarUrl: '', githubId: 2, githubToken: 'g2' })
+    const loaded = loadCovenantSessions()
+    expect(loaded['acc-2']?.jwt).toBe('j2')
+    expect(loaded['acc-2']?.githubToken).toBe('g2')
+  })
+
+  it('clearAllCovenantSessions vacía el store nuevo', async () => {
+    const { persistCovenantSession, clearAllCovenantSessions, loadCovenantSessions } = await import('../covenantSession')
+    persistCovenantSession('acc-a', sessionA)
+    clearAllCovenantSessions()
+    expect(loadCovenantSessions()).toEqual({})
   })
 })

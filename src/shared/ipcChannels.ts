@@ -196,9 +196,23 @@ export const IPC = {
   GITHUB_CHECK_TOKEN: 'github:checkToken',
   /** Renderer → main (invoke): jobs y steps de un run; se pide al desplegarlo. */
   GITHUB_RUN_JOBS: 'githubActions:runJobs',
+  /** Renderer → main (invoke): lista de cuentas del llavero + default */
+  GITHUB_ACCOUNTS_LIST: 'github:accounts:list',
+  /** Renderer → main (invoke): crear/actualizar cuenta (token opcional) */
+  GITHUB_ACCOUNT_UPSERT: 'github:accounts:upsert',
+  /** Renderer → main (invoke): borrar cuenta del llavero y su token */
+  GITHUB_ACCOUNT_DELETE: 'github:accounts:delete',
+  /** Renderer → main (invoke): marcar cuenta por defecto */
+  GITHUB_ACCOUNT_SET_DEFAULT: 'github:accounts:setDefault',
+  /** Renderer → main (invoke): cuenta ligada al workspace (cwd) */
+  GITHUB_WORKSPACE_ACCOUNT_GET: 'github:workspaceAccount:get',
+  /** Renderer → main (invoke): ligar/desligar cuenta al workspace */
+  GITHUB_WORKSPACE_ACCOUNT_SET: 'github:workspaceAccount:set',
 
   /** Renderer → main (invoke): estado de sesión Covenant */
   COVENANT_STATUS: 'covenant:status',
+  /** Renderer → main (invoke): estado de todas las sesiones Covenant keyed */
+  COVENANT_STATUS_ALL: 'covenant:statusAll',
   /** Renderer → main (invoke): exchange JWT vía token GitHub */
   COVENANT_SIGN_IN: 'covenant:signIn',
   /** Renderer → main (invoke): cerrar sesión Covenant */

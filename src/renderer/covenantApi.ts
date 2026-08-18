@@ -196,10 +196,61 @@ export interface CovenantApi {
   orgAdminsList(slug: string): Promise<CovenantResult<string[]>>
   orgAdminAdd(slug: string, login: string): Promise<CovenantResult<null>>
   orgAdminRemove(slug: string, login: string): Promise<CovenantResult<null>>
+  statusAll(): Promise<CovenantResult<Record<string, CovenantAuthStatus>>>
 }
 
-export function getCovenantApi(): CovenantApi | undefined {
-  return window.api.covenant
+type CovenantFacadeEntry = { raw: CovenantApi; api: CovenantApi }
+
+const covenantFacades = new Map<string, CovenantFacadeEntry>()
+
+/** Claves propias + prototipo (si no es Object.prototype) para no perder métodos. */
+function covenantApiKeys(raw: object): Array<string | symbol> {
+  const keys = new Set<string | symbol>()
+  for (const key of Object.getOwnPropertyNames(raw)) keys.add(key)
+  for (const key of Reflect.ownKeys(raw)) keys.add(key)
+  const proto = Object.getPrototypeOf(raw) as object | null
+  if (proto && proto !== Object.prototype) {
+    for (const key of Reflect.ownKeys(proto)) {
+      if (key === 'constructor') continue
+      keys.add(key)
+    }
+  }
+  return [...keys]
+}
+
+/**
+ * Objeto plano con wrappers por método. NUNCA un Proxy sobre el target de
+ * contextBridge: sus data properties no configurables violan el invariante
+ * si el trap `get` no devuelve el valor real.
+ */
+function wrapCovenantApi(raw: CovenantApi, accountId: string): CovenantApi {
+  const wrapped: Record<string | symbol, unknown> = {}
+  for (const key of covenantApiKeys(raw)) {
+    const value = Reflect.get(raw, key)
+    if (typeof value === 'function') {
+      wrapped[key] = (...args: unknown[]) => (
+        (value as (...fnArgs: unknown[]) => unknown).call(raw, accountId, ...args)
+      )
+    } else {
+      wrapped[key] = value
+    }
+  }
+  return wrapped as unknown as CovenantApi
+}
+
+export function getCovenantApi(accountId = ''): CovenantApi | undefined {
+  const raw = window.api?.covenant
+  if (!raw) return undefined
+  const hit = covenantFacades.get(accountId)
+  if (hit && hit.raw === raw) return hit.api
+  const api = wrapCovenantApi(raw, accountId)
+  covenantFacades.set(accountId, { raw, api })
+  return api
+}
+
+/** True si el preload expone statusAll (sesiones por cuenta). */
+export function hasCovenantStatusAllApi(api: CovenantApi | undefined): boolean {
+  return !!api && typeof api.statusAll === 'function'
 }
 
 /** True si el preload expone listado de logins de miembros. */

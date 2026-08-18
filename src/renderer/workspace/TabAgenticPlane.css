@@ -88,7 +88,8 @@
 
 .plane-top-left-chrome .plane-top-left-bar,
 .plane-top-left-chrome .plane-top-left-workspace-actions,
-.plane-top-left-chrome .plane-workspace-upload-progress {
+.plane-top-left-chrome .plane-workspace-upload-progress,
+.plane-top-left-chrome .plane-github-account {
   flex-shrink: 0;
 }
 

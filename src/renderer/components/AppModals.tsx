@@ -32,6 +32,7 @@ interface Props {
   settingsOpen: boolean
   orgModalOpen: boolean
   orgWorkspacePickerOpen: boolean
+  orgWorkspacePickerAccountId?: string
   orgWorkspaceCatalogEntries?: OrgWorkspaceCatalogEntry[]
   themePickerOpen: boolean
   agentPicker: { tabId: string; fromPaneId?: string } | null
@@ -60,6 +61,7 @@ interface Props {
   onAgentCloneSelect: (sourcePaneId: string) => void
   onAgentCreateConfirm: (name: string) => void
   onReplayOnboarding?: () => void
+  onAccountDeleted?: (accountId: string) => void
   onboardingOpen: boolean
   onboardingStep: number
   onboardingSteps: OnboardingStepId[]
@@ -89,6 +91,7 @@ export const AppModals: React.FC<Props> = ({
   settingsOpen,
   orgModalOpen,
   orgWorkspacePickerOpen,
+  orgWorkspacePickerAccountId,
   orgWorkspaceCatalogEntries,
   themePickerOpen,
   agentPicker,
@@ -117,6 +120,7 @@ export const AppModals: React.FC<Props> = ({
   onAgentCloneSelect,
   onAgentCreateConfirm,
   onReplayOnboarding,
+  onAccountDeleted,
   onboardingOpen,
   onboardingStep,
   onboardingSteps,
@@ -169,6 +173,7 @@ export const AppModals: React.FC<Props> = ({
           onSave={onConfigSaved}
           onClose={onCloseSettings}
           onReplayOnboarding={onReplayOnboarding}
+          onAccountDeleted={onAccountDeleted}
         />
       )}
 
@@ -181,6 +186,7 @@ export const AppModals: React.FC<Props> = ({
 
       <OrgWorkspaceTabPickerModal
         open={orgWorkspacePickerOpen}
+        accountId={orgWorkspacePickerAccountId}
         onClose={onCloseOrgWorkspacePicker}
         onConfirm={onConfirmOrgWorkspacePicker}
         catalog={orgWorkspaceCatalogEntries}

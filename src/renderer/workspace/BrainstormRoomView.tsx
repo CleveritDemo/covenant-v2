@@ -52,6 +52,7 @@ import {
 } from './brainstormViewClose'
 import { BrainstormClosingCard } from './BrainstormClosingCard'
 import { BrainstormSpeakerWaiting } from './BrainstormSpeakerWaiting'
+import { BrainstormTurnsTimeline } from './BrainstormTurnsTimeline'
 import { BrainstormWikiCard } from './BrainstormWikiCard'
 import { splitBrainstormMessage } from '@shared/brainstormMessageParts'
 import { BrainstormHumanComposer } from './BrainstormHumanComposer'
@@ -230,6 +231,13 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     forceFollow()
   }, [room.id, forceFollow])
 
+  const handleJumpToTurn = useCallback((messageIndex: number): void => {
+    const node = messagesRef.current?.querySelector(
+      `[data-brainstorm-turn="${messageIndex}"]`,
+    )
+    node?.scrollIntoView({ block: 'center' })
+  }, [])
+
   /**
    * Quién ocupa el turno ahora mismo. `speaker_start` llega bastante antes que
    * el primer delta —spawn del CLI + primer token del modelo—, así que la fila
@@ -240,6 +248,15 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   const liveName = useMemo(
     () => (liveAgentId ? speakerLabel(liveAgentId) : ''),
     [liveAgentId, speakerLabel],
+  )
+
+  const timelineMessages = useMemo(
+    () => live.messages.map(message => (
+      isBrainstormHumanMessage(message)
+        ? message
+        : { ...message, agentName: speakerLabel(message.agentId, message.agentName) }
+    )),
+    [live.messages, speakerLabel],
   )
 
   const seats = useMemo(() => brainstormSeats({
@@ -667,34 +684,24 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
             <span className="brainstorm-panel__title">
               {t('tabs.brainstormRoundLabel')}
             </span>
-            {/* La cronología dice «por dónde va», que es una pregunta de sala
-                viva. Terminada, la respuesta cabe en una línea. */}
-            {isBrainstormLive(live.status) ? (
-              <ol className="brainstorm-rounds">
-                {Array.from({ length: maxRounds }, (_, index) => (
-                  <li
-                    key={index}
-                    className={[
-                      'brainstorm-rounds__item',
-                      index < live.round ? 'brainstorm-rounds__item--done' : '',
-                      index === live.round && live.status === 'running'
-                        ? 'brainstorm-rounds__item--now'
-                        : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <i className="brainstorm-rounds__pip" aria-hidden />
-                    {index + 1}
-                  </li>
-                ))}
-              </ol>
-            ) : (
+            {!isBrainstormLive(live.status) ? (
               <span className="brainstorm-panel__hint">
                 {t('tabs.brainstormRoundsClosed', {
                   rounds: String(maxRounds),
                   turns: String(turnsDone),
                 })}
               </span>
-            )}
+            ) : null}
+            <BrainstormTurnsTimeline
+              maxRounds={maxRounds}
+              currentRound={live.round}
+              status={live.status}
+              messages={timelineMessages}
+              speakingName={live.speakingAgentId
+                ? speakerLabel(live.speakingAgentId)
+                : null}
+              onJumpToTurn={handleJumpToTurn}
+            />
           </section>
 
           {/* La cola, dicha en claro: los turnos van de uno en uno, así que una
@@ -857,15 +864,17 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                       {t('tabs.brainstormRoundSeparator', { round: message.round + 1 })}
                     </p>
                   ) : null}
-                  <BrainstormClosingCard
-                    roomId={room.id}
-                    topic={room.topic}
-                    cwd={cwd}
-                    closing={closing.closing}
-                    ceremonyClosing={closing.ceremonyClosing}
-                    speakerLabel={speakerLabel(message.agentId, message.agentName)}
-                    onContextSaved={onContextSaved}
-                  />
+                  <article data-brainstorm-turn={index}>
+                    <BrainstormClosingCard
+                      roomId={room.id}
+                      topic={room.topic}
+                      cwd={cwd}
+                      closing={closing.closing}
+                      ceremonyClosing={closing.ceremonyClosing}
+                      speakerLabel={speakerLabel(message.agentId, message.agentName)}
+                      onContextSaved={onContextSaved}
+                    />
+                  </article>
                 </React.Fragment>
               )
             }
@@ -883,6 +892,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                     'brainstorm-room-view__row',
                     human ? 'brainstorm-room-view__row--human' : '',
                   ].filter(Boolean).join(' ')}
+                  data-brainstorm-turn={index}
                   style={{ '--brainstorm-speaker': color } as React.CSSProperties}
                 >
                   <span className="brainstorm-room-view__lane" aria-hidden />

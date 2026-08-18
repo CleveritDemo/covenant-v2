@@ -227,6 +227,15 @@
   color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
 }
 
+.ai-md__link-wrap {
+  display: inline;
+}
+
+.ai-md__link-wrap .ui-tooltip {
+  display: inline-flex;
+  vertical-align: baseline;
+}
+
 .ai-md__link {
   color: var(--accent);
   text-decoration: underline;
@@ -235,6 +244,40 @@
 
 .ai-md__link:hover {
   color: color-mix(in srgb, var(--accent) 80%, var(--text));
+}
+
+.ai-md__link-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  margin-left: 0.2em;
+  padding: 0;
+  vertical-align: baseline;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s ease, color 0.1s ease, visibility 0.1s ease, border-color 0.1s ease;
+}
+
+.ai-md__link-wrap:hover .ai-md__link-copy,
+.ai-md__link-wrap:focus-within .ai-md__link-copy,
+.ai-md__link-copy:focus-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ai-md__link-copy:hover,
+.ai-md__link-copy:focus-visible {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
 /* ── Bloques de código ────────────────────────────────────────────────── */

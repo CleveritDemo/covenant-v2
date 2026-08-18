@@ -31,6 +31,7 @@ interface FileExplorerSidebarProps {
   explorerState: ExplorerDetailState
   onExplorerStateChange: (patch: Partial<ExplorerDetailState>) => void
   onToggleExplorer: () => void
+  confirmZIndex?: number
 }
 
 export interface FileExplorerSidebarHandle {
@@ -49,6 +50,7 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
       explorerState,
       onExplorerStateChange,
       onToggleExplorer,
+      confirmZIndex,
     },
     ref,
   ) {
@@ -325,7 +327,7 @@ export const FileExplorerSidebar = forwardRef<FileExplorerSidebarHandle, FileExp
     } as React.CSSProperties
 
     return (
-      <ExplorerConfirmHost>
+      <ExplorerConfirmHost zIndex={confirmZIndex}>
         {requestConfirm => {
           requestConfirmRef.current = requestConfirm
           return (

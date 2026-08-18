@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { normalizeContextFileName } from '@shared/tabContext'
+import { canonicalContextFileName } from '@shared/tabContext'
 import { PROJECT_DIR } from '@shared/projectDir'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -43,7 +43,8 @@ export const BrainstormSaveContextModal: React.FC<BrainstormSaveContextModalProp
 
   const trimmed = name.trim()
   const canConfirm = trimmed.length > 0
-  const destPath = `${PROJECT_DIR}/${normalizeContextFileName(trimmed || 'context', 'context')}`
+  // La ruta mostrada tiene que ser la que escribe contextFilePath, no el nombre pelado.
+  const destPath = `${PROJECT_DIR}/${canonicalContextFileName('notes', { name: trimmed || 'context' })}`
 
   return (
     <TerminalModal

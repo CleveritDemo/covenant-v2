@@ -6,6 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { AiMarkdown, parseAiMarkdownBlocks, splitChatSentences } from '../AiMarkdown'
 
+vi.mock('@i18n/useT', () => ({
+  useT: () => ({
+    t: (key: string) => (key === 'aiCodeBlock.copyLinkLabel' ? 'Copy link' : key),
+  }),
+}))
+
 afterEach(cleanup)
 
 describe('splitChatSentences', () => {

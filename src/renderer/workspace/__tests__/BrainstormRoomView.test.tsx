@@ -416,7 +416,7 @@ describe('BrainstormRoomView chat bubbles', () => {
     )
 
     expect(screen.getAllByText('David').length).toBeGreaterThan(0)
-    expect(screen.getByText('Unknown participant (frontend)')).toBeTruthy()
+    expect(screen.getAllByText('Unknown participant (frontend)').length).toBeGreaterThan(0)
     expect(screen.getByText(
       'Saved participants missing from the catalog (skipped): frontend',
     )).toBeTruthy()

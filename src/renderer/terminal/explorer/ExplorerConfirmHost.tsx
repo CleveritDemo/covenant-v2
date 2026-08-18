@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { ConfirmTerminalModal } from '@renderer/components/ConfirmTerminalModal'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 
 export type ExplorerConfirmRequest =
@@ -9,9 +10,10 @@ export type ExplorerConfirmRequest =
 
 interface ExplorerConfirmHostProps {
   children: (requestConfirm: (req: ExplorerConfirmRequest) => Promise<boolean>) => React.ReactNode
+  zIndex?: number
 }
 
-export const ExplorerConfirmHost: React.FC<ExplorerConfirmHostProps> = ({ children }) => {
+export const ExplorerConfirmHost: React.FC<ExplorerConfirmHostProps> = ({ children, zIndex }) => {
   const { t } = useT()
   const [pending, setPending] = useState<ExplorerConfirmRequest | null>(null)
   const resolveRef = useRef<((ok: boolean) => void) | null>(null)
@@ -53,6 +55,8 @@ export const ExplorerConfirmHost: React.FC<ExplorerConfirmHostProps> = ({ childr
         message={message}
         onConfirm={() => close(true)}
         onCancel={() => close(false)}
+        // El confirm tiene que superar la z de la ventana del explorador o el usuario no lo ve y la acción parece muerta.
+        zIndex={zIndex ?? APP_OVERLAY_MODAL_Z + 10}
       />
     </>
   )

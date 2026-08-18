@@ -88,49 +88,6 @@
   scroll-behavior: smooth;
 }
 
-/* Cronología de rondas en la columna izquierda. */
-.brainstorm-rounds {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.brainstorm-rounds__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.brainstorm-rounds__pip {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--border);
-  border-radius: 50%;
-}
-
-.brainstorm-rounds__item--done .brainstorm-rounds__pip {
-  background: var(--text-muted);
-  border-color: var(--text-muted);
-}
-
-.brainstorm-rounds__item--now {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.brainstorm-rounds__item--now .brainstorm-rounds__pip {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
 .brainstorm-room-view__round-sep {
   display: flex;
   align-items: center;

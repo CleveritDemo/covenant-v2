@@ -7,6 +7,7 @@ import {
   brainstormRoomContext,
   brainstormRoundsDone,
   brainstormTone,
+  brainstormTurnSnippet,
   filterBrainstormRooms,
   groupBrainstormRooms,
   type BrainstormRoomListing,
@@ -132,7 +133,7 @@ describe('brainstormRoomContext', () => {
     const context = brainstormRoomContext(room({ id: 'Refinar Backlog', topic: 'Refinar el backlog' }))
     expect(context.kind).toBe('notes')
     expect(context.id).toBe('iaterminal:notes:brainstorm-refinar-backlog')
-    expect(context.fileName).toBe('brainstorm-refinar-backlog.md')
+    expect(context.fileName).toBe('context/brainstorm-refinar-backlog.md')
     expect(context.name).toBe('Refinar el backlog')
   })
 
@@ -142,8 +143,18 @@ describe('brainstormRoomContext', () => {
       { name: 'Sprint planning Q3' },
     )
     expect(context.id).toBe('iaterminal:notes:Sprint-planning-Q3')
-    expect(context.fileName).toBe('Sprint-planning-Q3.md')
+    expect(context.fileName).toBe('context/Sprint-planning-Q3.md')
     expect(context.name).toBe('Sprint planning Q3')
+  })
+
+  it('keeps the identity id free of the context/ folder prefix', () => {
+    const context = brainstormRoomContext(
+      room({ id: 'sala', topic: 'Acta' }),
+      { name: 'mi-acta' },
+    )
+    expect(context.id).toBe('iaterminal:notes:mi-acta')
+    expect(context.id).not.toContain('context/')
+    expect(context.fileName).toBe('context/mi-acta.md')
   })
 })
 
@@ -160,5 +171,35 @@ describe('brainstormContextNameSuggestion', () => {
     expect(suggestion.length).toBeLessThanOrEqual(48)
     expect(suggestion).not.toMatch(/\s$/)
     expect(topic.startsWith(suggestion)).toBe(true)
+  })
+})
+
+describe('brainstormTurnSnippet', () => {
+  it('takes the first sentence of normal text', () => {
+    expect(brainstormTurnSnippet('Ship the intersection now. Keep the rest out.'))
+      .toBe('Ship the intersection now.')
+  })
+
+  it('skips a leading fence and keeps the first sentence after it', () => {
+    const text = [
+      '```ts',
+      'const x = 1',
+      '```',
+      'The room should close on a decision. Extra notes stay out.',
+    ].join('\n')
+    expect(brainstormTurnSnippet(text)).toBe('The room should close on a decision.')
+  })
+
+  it('strips leading bullets before taking the sentence', () => {
+    expect(brainstormTurnSnippet('- First idea is this.\n- Second stays out'))
+      .toBe('First idea is this.')
+  })
+
+  it('keeps short text without punctuation', () => {
+    expect(brainstormTurnSnippet('just this')).toBe('just this')
+  })
+
+  it('returns empty for an empty string', () => {
+    expect(brainstormTurnSnippet('')).toBe('')
   })
 })

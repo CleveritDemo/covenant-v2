@@ -3,6 +3,7 @@ import {
   createBrainstormLiveSummary,
   createInitialBrainstormLiveState,
   reduceBrainstormLiveEvent,
+  tabIdsWithRunningBrainstorm,
 } from '../brainstormLiveState'
 
 describe('BrainstormRoomView live state', () => {
@@ -115,5 +116,39 @@ describe('BrainstormRoomView live reduce', () => {
       round: 0,
     })
     expect(state.messages).toHaveLength(1)
+  })
+})
+
+describe('tabIdsWithRunningBrainstorm', () => {
+  it('incluye el tab si alguna sala está running', () => {
+    expect(tabIdsWithRunningBrainstorm(
+      { t1: [{ id: 'r1', status: 'running' }] },
+      {},
+    )).toEqual(new Set(['t1']))
+  })
+
+  it('no incluye el tab si las salas solo están paused o done', () => {
+    expect(tabIdsWithRunningBrainstorm(
+      {
+        t1: [{ id: 'r1', status: 'paused' }],
+        t2: [{ id: 'r2', status: 'done' }],
+      },
+      {},
+    )).toEqual(new Set())
+  })
+
+  it('el estado vivo pisa al persistido en ambos sentidos', () => {
+    expect(tabIdsWithRunningBrainstorm(
+      { t1: [{ id: 'r1', status: 'paused' }] },
+      { r1: { status: 'running' } },
+    )).toEqual(new Set(['t1']))
+    expect(tabIdsWithRunningBrainstorm(
+      { t1: [{ id: 'r1', status: 'running' }] },
+      { r1: { status: 'paused' } },
+    )).toEqual(new Set())
+  })
+
+  it('no incluye el tab sin salas', () => {
+    expect(tabIdsWithRunningBrainstorm({ t1: [] }, {})).toEqual(new Set())
   })
 })

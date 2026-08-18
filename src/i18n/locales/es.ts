@@ -890,6 +890,8 @@ const es = {
     brainstormsFilterAll: 'Todas',
     brainstormsHousekeeping: 'Mantenimiento',
     brainstormRoundsClosed: '{{rounds}} rondas · {{turns}} turnos',
+    brainstormTurnTimelineSpeaking: 'hablando…',
+    brainstormTurnTimelineJump: 'Ir al turno de {{name}}',
     brainstormClosingMore: 'Ver {{labels}}',
     brainstormClosingLess: 'Ver solo la decisión',
     brainstormOrderDragHint: 'Orden de habla — arrastra para cambiarlo',
@@ -1505,6 +1507,7 @@ const es = {
     insertTooltip: 'Inserta el comando en la terminal de esta pestaña',
     insertHint: 'No lo ejecuta: revísalo y pulsa Enter',
     copyLabel: 'Copiar código',
+    copyLinkLabel: 'Copiar enlace',
   },
 
   sketch: {

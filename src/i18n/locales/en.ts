@@ -888,6 +888,8 @@ const en = {
     brainstormsFilterAll: 'All',
     brainstormsHousekeeping: 'Housekeeping',
     brainstormRoundsClosed: '{{rounds}} rounds · {{turns}} turns',
+    brainstormTurnTimelineSpeaking: 'speaking…',
+    brainstormTurnTimelineJump: 'Jump to {{name}}\'s turn',
     brainstormClosingMore: 'Show {{labels}}',
     brainstormClosingLess: 'Decision only',
     brainstormOrderDragHint: 'Speaking order — drag to change it',
@@ -1503,6 +1505,7 @@ const en = {
     insertTooltip: 'Insert the command in this tab\'s terminal',
     insertHint: 'Does not run it: review and press Enter',
     copyLabel: 'Copy code',
+    copyLinkLabel: 'Copy link',
   },
 
   sketch: {

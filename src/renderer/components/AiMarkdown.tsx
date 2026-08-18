@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react'
+import { AiMarkdownLink } from './AiMarkdownLink'
 import './AiMarkdown.css'
 
 export type MdListItem = {
@@ -52,14 +53,6 @@ function safeMarkdownHref(raw: string): string | null {
   return null
 }
 
-function openMarkdownExternalUrl(e: React.MouseEvent<HTMLAnchorElement>, href: string): void {
-  e.preventDefault()
-  e.stopPropagation()
-  void window.api?.openExternalUrl(href).then(r => {
-    if (r && !r.ok) console.warn('[openExternalUrl]', r.error)
-  })
-}
-
 function parseInline(text: string): React.ReactNode[] {
   /* Marcadores <<<AI_TERMINAL_*>>> usan _ internos; el markdown los convertiría en cursiva. */
   if (text.includes('<<<')) return [text]
@@ -85,21 +78,7 @@ function parseInline(text: string): React.ReactNode[] {
     } else if (m[3] !== undefined) {
       const safeHref = safeMarkdownHref(m[4] ?? '')
       if (safeHref) {
-        nodes.push(
-          <a
-            key={key}
-            className="ai-md__link"
-            href={safeHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={e => openMarkdownExternalUrl(e, safeHref)}
-            onAuxClick={e => {
-              if (e.button === 1) openMarkdownExternalUrl(e, safeHref)
-            }}
-          >
-            {m[3]}
-          </a>,
-        )
+        nodes.push(<AiMarkdownLink key={key} href={safeHref} label={m[3]} />)
       } else {
         nodes.push(<span key={key}>{m[3]}</span>)
       }

@@ -147,9 +147,10 @@
   height: min(58vh, 520px);
   min-height: min(40vh, 360px);
   max-height: min(58vh, 520px);
-  /* Canalón que la franja de meta necesita para sangrar a los bordes. */
+  /* Canalón que la franja de meta necesita para sangrar a los bordes.
+     El padding superior separa la franja de meta del border-bottom del cabecero del modal. */
   --context-preview-gutter: 16px;
-  padding: 0 16px 16px;
+  padding: 12px 16px 16px;
   overflow: hidden;
 }
 

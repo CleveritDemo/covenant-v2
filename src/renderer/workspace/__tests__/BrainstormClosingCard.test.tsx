@@ -51,7 +51,7 @@ describe('BrainstormClosingCard save as context', () => {
     })
     const request = materializeTabContext.mock.calls[0][0]
     expect(request.context.id).toBe('iaterminal:notes:Cargar-la-wiki')
-    expect(request.context.fileName).toBe('Cargar-la-wiki.md')
+    expect(request.context.fileName).toBe('context/Cargar-la-wiki.md')
     expect(request.context.name).toBe('Cargar la wiki')
     expect(request.cwd).toBe('/tmp/project')
     expect(request.content).toContain('fixture primero')

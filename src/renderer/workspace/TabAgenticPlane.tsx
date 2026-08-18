@@ -1078,18 +1078,6 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   )
                 }}
               />
-              {liveBrainstormRooms.length > 0 ? (
-                <span
-                  className={[
-                    'plane-brainstorm-anchor__badge',
-                    liveBrainstormRooms.some(room => room.status === 'running')
-                      ? 'plane-brainstorm-anchor__badge--pulse'
-                      : '',
-                  ].filter(Boolean).join(' ')}
-                >
-                  {liveBrainstormRooms.length}
-                </span>
-              ) : null}
               {brainstormDockOpen ? (
                 <PlaneBrainstormDock
                   rooms={brainstormRooms}

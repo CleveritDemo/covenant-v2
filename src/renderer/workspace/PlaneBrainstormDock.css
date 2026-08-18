@@ -156,36 +156,8 @@
   display: inline-flex;
 }
 
-/* El badge lleva el número de salas vivas: con salas en paralelo un punto no
-   dice cuántas hay, y el estado «pressed» del botón solo habla de la abierta. */
-.plane-brainstorm-anchor__badge {
-  position: absolute;
-  top: -3px;
-  right: -4px;
-  min-width: 12px;
-  height: 12px;
-  padding: 0 2px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--plane-glass-strong);
-  border-radius: 6px;
-  background: var(--accent-solid, var(--accent));
-  color: var(--accent-solid-fg, var(--accent-fg));
-  font-family: var(--font-ui);
-  font-size: 8px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.plane-brainstorm-anchor__badge--pulse {
-  animation: plane-brainstorm-dock-pulse 1.6s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .plane-brainstorm-dock__dot--pulse,
-  .plane-brainstorm-anchor__badge--pulse {
+  .plane-brainstorm-dock__dot--pulse {
     animation: none;
   }
 }

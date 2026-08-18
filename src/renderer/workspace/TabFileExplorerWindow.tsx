@@ -5,6 +5,7 @@ import React, {
   useRef,
 } from 'react'
 import type { FileExplorerPersistedState } from '@shared/fileExplorerPersistedState'
+import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import {
   FileExplorerSidebar,
   type FileExplorerSidebarHandle,
@@ -91,6 +92,7 @@ export const TabFileExplorerWindow = forwardRef<
           explorerState={explorerState}
           onExplorerStateChange={onExplorerStateChange}
           onToggleExplorer={onClose}
+          confirmZIndex={(zIndex ?? APP_OVERLAY_MODAL_Z) + 10}
         />
       </div>
     </TerminalModal>

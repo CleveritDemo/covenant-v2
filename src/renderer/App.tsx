@@ -60,6 +60,7 @@ import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormRoomsView } from './workspace/BrainstormRoomsView'
 import {
   createBrainstormLiveSummary,
+  tabIdsWithRunningBrainstorm,
   type BrainstormLiveSummary,
 } from './workspace/brainstormLiveState'
 import { isBrainstormLive } from './workspace/brainstormViewClose'
@@ -2063,8 +2064,14 @@ export const App: React.FC = () => {
   }, [])
 
   const busyTabIds = useMemo(
-    () => collectBusyTabIds(tabs, busyPanes, delegationTargetPaneIds, agentPlaneStatus),
-    [tabs, busyPanes, delegationTargetPaneIds, agentPlaneStatus],
+    () => {
+      const ids = collectBusyTabIds(tabs, busyPanes, delegationTargetPaneIds, agentPlaneStatus)
+      for (const id of tabIdsWithRunningBrainstorm(brainstormRoomsByTab, brainstormLiveByRoomId)) {
+        ids.add(id)
+      }
+      return ids
+    },
+    [tabs, busyPanes, delegationTargetPaneIds, agentPlaneStatus, brainstormRoomsByTab, brainstormLiveByRoomId],
   )
 
   const tabActivityDots = useMemo(

@@ -178,3 +178,17 @@ export function reduceBrainstormLiveEvent(
       return state
   }
 }
+
+/** Solo `running`: paused/idle/stopped/done no son trabajo vivo de la pestaña. */
+export function tabIdsWithRunningBrainstorm(
+  roomsByTab: Readonly<Record<string, ReadonlyArray<{ id: string; status: BrainstormStatus }>>>,
+  liveByRoomId: Readonly<Record<string, { status: BrainstormStatus } | undefined>>,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const [tabId, rooms] of Object.entries(roomsByTab)) {
+    if (rooms.some(room => (liveByRoomId[room.id]?.status ?? room.status) === 'running')) {
+      ids.add(tabId)
+    }
+  }
+  return ids
+}

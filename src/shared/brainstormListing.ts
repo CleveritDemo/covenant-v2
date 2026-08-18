@@ -7,7 +7,7 @@
 import type { BrainstormRoom, BrainstormStatus } from './brainstormRoom'
 import { normalizeBrainstormSlug } from './brainstormCatalog'
 import type { TabContext } from './tabContext'
-import { normalizeContextFileName } from './tabContext'
+import { CONTEXT_SUBDIR, normalizeContextFileName } from './tabContext'
 
 /** Sala + mtime de su `.json`. `updatedAt` solo lo rellena el listado. */
 export type BrainstormRoomListing = BrainstormRoom & { updatedAt?: number }
@@ -162,7 +162,7 @@ export function brainstormRoomContext(
     return {
       id: `iaterminal:notes:${stem}`,
       name: nameOverride,
-      fileName: `${stem}.md`,
+      fileName: `${CONTEXT_SUBDIR}/${stem}.md`,
       kind: 'notes',
       icon: overrides?.icon ?? 'messages',
       color: overrides?.color ?? '#c084fc',
@@ -172,10 +172,28 @@ export function brainstormRoomContext(
   return {
     id: `iaterminal:notes:${stem}`,
     name: room.topic,
-    fileName: `${stem}.md`,
+    fileName: `${CONTEXT_SUBDIR}/${stem}.md`,
     kind: 'notes',
     icon: overrides?.icon ?? 'messages',
     // De la paleta de contextos; fuera de ella el host lo descarta al normalizar.
     color: overrides?.color ?? '#c084fc',
   }
+}
+
+/**
+ * Primera frase útil de un turno, para el riel de la sala. Quita fences,
+ * cabeceras, viñetas y backticks; nunca lanza.
+ */
+export function brainstormTurnSnippet(text: string, max = 90): string {
+  if (!text) return ''
+  let snippet = text.replace(/```[\s\S]*?```/g, ' ')
+  snippet = snippet.replace(/^#{1,6}\s+/gm, '')
+  snippet = snippet.replace(/^\s*[-*+]\s+/gm, '')
+  snippet = snippet.replace(/`/g, '')
+  snippet = snippet.replace(/\s+/g, ' ').trim()
+  if (!snippet) return ''
+  const stop = snippet.search(/[.?!]/)
+  if (stop >= 0) snippet = snippet.slice(0, stop + 1)
+  if (snippet.length > max) return `${snippet.slice(0, max)}…`
+  return snippet
 }

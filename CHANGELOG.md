@@ -5,6 +5,16 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.91.0
+
+### Añadido
+- Un contexto con varios archivos se lee por pestañas: una por archivo (por hoja en las hojas de cálculo) y un panel que sí scrollea.
+- Si un CLI de agente no aparece, Ajustes ofrece el comando de instalación para copiar, un enlace a su documentación y un buscador del binario que rellena la ruta.
+
+### Corregido
+- Los bloques de código del reporte dejan de recortarse a media línea.
+- La franja con la ruta del contexto se alinea con la cabecera y su separador llega a los bordes.
+
 ## v0.90.1
 
 ### Corregido

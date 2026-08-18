@@ -5,6 +5,15 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.89.1
+
+### Corregido
+- La tarjeta «Issue de GitHub» al crear un contexto ya no aparece con la clave interna sin traducir ni con el hueco del ícono: muestra el logo de GitHub y su etiqueta en español e inglés.
+- Un contexto de hoja de cálculo en formato .csv se adjunta ahora tal cual está en el archivo. Antes se reprocesaba y podía reescribir fechas y comillas; los .xlsx no cambian.
+
+### Cambiado
+- El tope de filas por hoja en contextos de hoja de cálculo sube de 400 a 5000.
+
 ## v0.89.0
 
 ### Cambiado

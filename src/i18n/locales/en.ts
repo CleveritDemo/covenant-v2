@@ -663,8 +663,8 @@ const en = {
     planeEmptyTitle: 'Gravity',
     planeEmptyHint: 'Choose the project folder to create terminals or agents.',
     bootstrapAgents: 'Create team',
-    bootstrapAgentsTitle: 'Create team (TL, Frontend, Backend, QA)',
-    bootstrapAgentsHint: 'TL, Frontend, Backend, and QA on the plane.',
+    bootstrapAgentsTitle: 'Create Covenant team',
+    bootstrapAgentsHint: 'TL, TL Turbo, Frontend, Backend, QA, Product Designer, and Product Owner.',
     bootstrapAgentsNeedFolder: 'Choose the project folder before creating the team.',
     fabAgent: 'New agent',
     fabAgentHint: 'Pick provider and role; it shows up as a mini on the plane',
@@ -1907,7 +1907,7 @@ const en = {
 
     teamTitle: 'Create a team',
     teamLead:
-      'Four roles cover the loop: someone leads, someone builds the surface, someone builds the backend, someone verifies.',
+      'The Covenant pack: two TL modes, frontend and backend, QA, product design, and product ownership.',
     teamRoleTl: 'TL — directs and coordinates',
     teamRoleFrontend: 'Frontend — UI and interaction',
     teamRoleBackend: 'Backend — services and data',

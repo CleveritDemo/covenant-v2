@@ -35,6 +35,7 @@ export type IconName =
   | 'bot'
   | 'bot-plus'
   | 'workspace'
+  | 'user'
   | 'users'
   | 'messages'
   | 'repeat'
@@ -337,6 +338,12 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2.5" y="2.5" width="12" height="12" rx="3.5" />
       <rect x="9.5" y="9.5" width="12" height="12" rx="3.5" />
+    </svg>
+  ),
+  user: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
   ),
   users: size => (

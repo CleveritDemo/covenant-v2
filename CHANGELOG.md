@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.83.0
+
+- Al crear un agente puedes empezar desde tres plantillas nuevas: Investigación UX, Ingeniero DevOps e Ingeniero DevSecOps, cada una con su rol, su objetivo y sus reglas ya escritos.
+- El historial ↑/↓ del campo de mensaje ya no te devuelve los avisos que la app se inyecta a sí misma (resultados de delegación y similares): solo vuelve lo que escribiste tú.
+
 ## v0.82.0
 
 - El botón de nuevo agente se abre al acercarse y enseña dentro su nombre y su atajo (⌘A); ya no hace falta esperar al tooltip.

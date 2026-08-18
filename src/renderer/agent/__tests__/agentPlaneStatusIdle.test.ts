@@ -18,6 +18,8 @@ function minimalStatus(messages: AgentChatEntry[]): AgentPlaneStatus {
   return {
     busy: false,
     activity: '',
+    activityKey: '',
+    activityStartedAtMs: 0,
     lastSnippet: messages.at(-1)?.content ?? '',
     lastUserSnippet: '',
     lastTurnFailed: false,

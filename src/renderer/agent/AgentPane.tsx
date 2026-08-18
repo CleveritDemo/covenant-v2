@@ -70,6 +70,11 @@ import { shouldBridgeVisibleLaneEvent } from './laneEventRouting'
 import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { shouldMarkBusyOnCliError, turnFailedAfter } from './turnFailureState'
+import {
+  turnActivityKey,
+  turnActivityLabel,
+  type TurnActivityState,
+} from './turnActivityLabel'
 import { TabContextsModal } from './TabContextsModal'
 import { AgentConfigModal } from './AgentConfigModal'
 import type { DelegateToPeerAgent } from './AgentDelegateToPolicyEditor'
@@ -486,9 +491,15 @@ export function resolveLaneDelegationTurnEnd(input: {
   }
 }
 
+const IDLE_TURN_ACTIVITY: TurnActivityState = { phase: 'starting', toolCount: 0 }
+
 export interface AgentPlaneStatus {
   busy: boolean
   activity: string
+  /** Clave de animación de la línea de actividad; no incluye el reloj. */
+  activityKey: string
+  /** Sello de arranque del turno activo; el tick vive en PlaneActivityLine. */
+  activityStartedAtMs: number
   lastSnippet: string
   /**
    * Último prompt del usuario, ya recortado, para el snippet de la mini-card.
@@ -640,6 +651,24 @@ export const AgentPane: React.FC<Props> = ({
   const [busy, setBusy] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [activity, setActivity] = useState('')
+  const [turnActivity, setTurnActivity] = useState<TurnActivityState>(IDLE_TURN_ACTIVITY)
+  const turnActivityRef = useRef<TurnActivityState>(IDLE_TURN_ACTIVITY)
+  const [activityStartedAtMs, setActivityStartedAtMs] = useState(0)
+  const applyTurnActivity = useCallback((next: TurnActivityState): void => {
+    turnActivityRef.current = next
+    setTurnActivity(next)
+    setActivity(turnActivityLabel(next, t as (key: string, vars?: Record<string, string | number>) => string))
+  }, [t])
+  const resetTurnActivity = useCallback((): void => {
+    turnActivityRef.current = IDLE_TURN_ACTIVITY
+    setTurnActivity(IDLE_TURN_ACTIVITY)
+    setActivity('')
+    setActivityStartedAtMs(0)
+  }, [])
+  const beginTurnActivity = useCallback((): void => {
+    setActivityStartedAtMs(Date.now())
+    applyTurnActivity({ phase: 'starting', toolCount: 0 })
+  }, [applyTurnActivity])
   const [confirmClose, setConfirmClose] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
@@ -932,6 +961,7 @@ export const AgentPane: React.FC<Props> = ({
   onProjectContextsChangedRef.current = onProjectContextsChanged
   busyRef.current = busy
   activityRef.current = activity
+  turnActivityRef.current = turnActivity
   const projectAgentsRef = useRef(projectAgents)
   projectAgentsRef.current = projectAgents
   const peerAgentsRef = useRef(peerAgents)
@@ -1147,7 +1177,7 @@ export const AgentPane: React.FC<Props> = ({
     setDiskContexts([])
     diskContextsRef.current = []
     setBusy(false)
-    setActivity('')
+    resetTurnActivity()
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
     lastAssistantIdRef.current = null
@@ -1188,7 +1218,7 @@ export const AgentPane: React.FC<Props> = ({
       }
     })
     return () => { cancelled = true }
-  }, [activeThreadId, chatRef, paneId])
+  }, [activeThreadId, chatRef, paneId, resetTurnActivity])
 
   useEffect(() => {
     // `loadedRef` (síncrono) y no solo `loaded` (estado): al cambiar de thread
@@ -1407,6 +1437,8 @@ export const AgentPane: React.FC<Props> = ({
     const status: AgentPlaneStatus = {
       busy,
       activity,
+      activityKey: turnActivityKey(turnActivity),
+      activityStartedAtMs,
       lastSnippet,
       lastUserSnippet,
       lastTurnFailed,
@@ -1461,6 +1493,8 @@ export const AgentPane: React.FC<Props> = ({
     // el controlKey cambiaba constantemente, el throttle no llegaba a aplicar
     // nunca y cada evento del CLI republicaba el status → re-render del plano
     // entero. Son textos de indicador: 500 ms de retraso no los afecta.
+    // `activityKey` y `activityStartedAtMs` tampoco entran: el cronómetro
+    // tickea en PlaneActivityLine, no aquí.
     const controlKey = [
       busy ? '1' : '0',
       busy ? (activeAssistantId ?? '') : '',
@@ -1496,6 +1530,8 @@ export const AgentPane: React.FC<Props> = ({
     activeThreadId,
     activeThreadIdForGate,
     activity,
+    activityStartedAtMs,
+    turnActivity,
     awaitingDelegations,
     awaitingDelegationThreadIds,
     orchestrationAwaiting,
@@ -1685,8 +1721,8 @@ export const AgentPane: React.FC<Props> = ({
     lastAssistantIdRef.current = null
     setActiveAssistantId(null)
     setBusy(false)
-    setActivity('')
-  }, [])
+    resetTurnActivity()
+  }, [resetTurnActivity])
 
   useLayoutEffect(() => {
     const prevId = prevActiveThreadIdRef.current
@@ -1824,7 +1860,7 @@ export const AgentPane: React.FC<Props> = ({
       }
       forceFollow()
       setMessages(prev => [...prev, user, assistant])
-      setActivity('')
+      beginTurnActivity()
       setTurnCloseReason(null)
       setBusy(true)
     }
@@ -1858,7 +1894,7 @@ export const AgentPane: React.FC<Props> = ({
       if (visibleThreadId === laneThreadId) {
         setMessages(failedMessages)
         setBusy(false)
-        setActivity('')
+        resetTurnActivity()
         activeAssistantIdRef.current = null
         setActiveAssistantId(null)
       }
@@ -2042,6 +2078,7 @@ export const AgentPane: React.FC<Props> = ({
     return true
   }, [
     activeThreadId,
+    beginTurnActivity,
     bumpLanes,
     chatRef,
     commitNewThreadCatalog,
@@ -2049,6 +2086,7 @@ export const AgentPane: React.FC<Props> = ({
     onMetaChange,
     paneId,
     registerDelegationThreadInCatalog,
+    resetTurnActivity,
     resolveTurnCwd,
     resolveWorkingCwd,
     syncVisibleFromLane,
@@ -2063,7 +2101,7 @@ export const AgentPane: React.FC<Props> = ({
     const id = activeAssistantIdRef.current ?? lastAssistantIdRef.current
     const closedGen = turnGenRef.current
     // Mantener busy hasta confirmar contenido o agotar reintentos (evita drenar la cola).
-    setActivity('')
+    resetTurnActivity()
 
     const finishSideEffects = (): void => {
       const assignedIds = new Set(metaRef.current.contextIds ?? [])
@@ -2122,7 +2160,7 @@ export const AgentPane: React.FC<Props> = ({
         lastAssistantIdRef.current = id
         setActiveAssistantId(id)
         setBusy(true)
-        setActivity('')
+        beginTurnActivity()
         setTurnCloseReason(null)
         setMessages(prev => prev.map(entry => (
           entry.id === id ? { ...entry, content: '' } : entry
@@ -2180,7 +2218,7 @@ export const AgentPane: React.FC<Props> = ({
       chatSaveScheduleRef.current.flush()
       finishSideEffects()
     }, 0)
-  }, [activeThreadId, beginLiveSettle, emitDelegationResult, paneId, systemSoundsEnabled, t])
+  }, [activeThreadId, beginLiveSettle, beginTurnActivity, emitDelegationResult, paneId, resetTurnActivity, systemSoundsEnabled, t])
 
   const applyCliEvent = useCallback((event: AgentCliUiEvent): void => {
     if (!loadedRef.current) {
@@ -2266,17 +2304,32 @@ export const AgentPane: React.FC<Props> = ({
       // Solo actualizar al empezar; al completar se mantiene el último label
       // hasta el siguiente tool o el fin del turno (evita huecos de espera vacía).
       if (event.status === 'started') {
+        const current = turnActivityRef.current
         const toolLabel = event.detail
           ? `${event.name} · ${event.detail}`
           : event.name
-        setActivity(t('agentPane.activity', { tool: toolLabel }))
+        applyTurnActivity({
+          phase: 'tool',
+          toolLabel,
+          toolCount: current.toolCount + 1,
+        })
       }
       return
     }
     if (event.type === 'context') {
-      setActivity(event.status === 'loading'
-        ? t('agentPane.contextLoading', { n: Number(event.detail ?? 0) })
-        : '')
+      const current = turnActivityRef.current
+      if (event.status === 'loading') {
+        applyTurnActivity({
+          phase: 'context',
+          contextCount: Number(event.detail ?? 0),
+          toolCount: current.toolCount,
+        })
+      } else {
+        applyTurnActivity({
+          phase: 'thinking',
+          toolCount: current.toolCount,
+        })
+      }
       if (event.status === 'loading') {
         const id = activeAssistantIdRef.current
         if (id) {
@@ -2341,9 +2394,18 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'assistant_delta') {
+      const current = turnActivityRef.current
+      if (
+        current.phase === 'starting'
+        || current.phase === 'context'
+        || current.phase === 'thinking'
+        || current.phase === 'tool'
+      ) {
+        applyTurnActivity({ phase: 'writing', toolCount: current.toolCount })
+      }
       assistantDeltaThrottlerRef.current.append(assistantId, event.text)
     }
-  }, [completeTurn, onMetaChange, t])
+  }, [applyTurnActivity, completeTurn, onMetaChange, t])
 
   const laneCompletingRef = useRef<Set<string>>(new Set())
 
@@ -2411,12 +2473,12 @@ export const AgentPane: React.FC<Props> = ({
     if (visibleThreadId === threadId) {
       setMessages(finalMessages)
       setBusy(false)
-      setActivity('')
+      resetTurnActivity()
       activeAssistantIdRef.current = null
       setActiveAssistantId(null)
     }
     laneCompletingRef.current.delete(threadId)
-  }, [bumpLanes, chatRef, emitDelegationResult, paneId, t])
+  }, [bumpLanes, chatRef, emitDelegationResult, paneId, resetTurnActivity, t])
 
   const applyLaneCliEvent = useCallback((threadId: string, event: AgentCliUiEvent): void => {
     const lane = getLane(lanesRef.current, threadId)
@@ -3233,7 +3295,7 @@ export const AgentPane: React.FC<Props> = ({
     beginLiveSettle(activeAssistantIdRef.current)
     setTurnCloseReason('aborted')
     setBusy(false)
-    setActivity('')
+    resetTurnActivity()
     activeAssistantIdRef.current = null
     setActiveAssistantId(null)
     const delegation = activeDelegationRef.current
@@ -3254,7 +3316,7 @@ export const AgentPane: React.FC<Props> = ({
     if (coordinationCanDelegate(metaRef.current.coordination)) {
       onOrchestratorStopRef.current?.()
     }
-  }, [beginLiveSettle, bumpLanes, chatRef, emitDelegationResult, paneId, t])
+  }, [beginLiveSettle, bumpLanes, chatRef, emitDelegationResult, paneId, resetTurnActivity, t])
 
   useEffect(() => {
     if (!preferStop) return
@@ -3282,7 +3344,7 @@ export const AgentPane: React.FC<Props> = ({
     pendingModeHandoffRef.current = false
     pendingCliEventsRef.current = []
     setBusy(false)
-    setActivity('')
+    resetTurnActivity()
     activeAssistantIdRef.current = null
     lastAssistantIdRef.current = null
     setActiveAssistantId(null)
@@ -3314,7 +3376,7 @@ export const AgentPane: React.FC<Props> = ({
     setEditingQueuedId(null)
     setInput('')
     setMessages([])
-  }, [beginLiveSettle, emitDelegationResult, paneId, runKey, t])
+  }, [beginLiveSettle, emitDelegationResult, paneId, resetTurnActivity, runKey, t])
 
   /**
    * Abre una conversación nueva. No borra nada: el thread anterior conserva su

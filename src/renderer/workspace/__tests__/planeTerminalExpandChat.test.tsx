@@ -79,6 +79,8 @@ const terminalEntity = (open: boolean): PlaneMapEntity => ({
 const chatStatus = (): AgentPlaneStatus => ({
   busy: false,
   activity: '',
+  activityKey: '',
+  activityStartedAtMs: 0,
   lastSnippet: '',
   lastUserSnippet: '',
   lastTurnFailed: false,

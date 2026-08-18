@@ -5,8 +5,8 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
-import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
+import { PlaneActivityLine } from './PlaneActivityLine'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
 import './PlaneQuickChat.css'
@@ -15,6 +15,8 @@ export interface PlaneQuickChatProps {
   messages: AgentChatEntry[]
   busy: boolean
   activity?: string
+  activityKey?: string
+  activityStartedAtMs?: number
   awaitingDelegations?: boolean
   orchestrationAwaiting?: OrchestrationAwaitingView | null
   activeAssistantId: string | null
@@ -43,6 +45,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   messages,
   busy,
   activity = '',
+  activityKey = '',
+  activityStartedAtMs = 0,
   awaitingDelegations = false,
   orchestrationAwaiting = null,
   activeAssistantId,
@@ -168,17 +172,11 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                   />
                 </div>
               ) : (busy || activityText !== '') ? (
-                <div
-                  className={[
-                    'agent-pane__activity',
-                    activityText === '' ? 'agent-pane__activity--idle' : '',
-                  ].filter(Boolean).join(' ')}
-                >
-                  <PlaneBusyDot size="sm" />
-                  <span className="agent-pane__activity-text" key={activityText || 'idle'}>
-                    {activityText === '' ? '\u00A0' : activityText}
-                  </span>
-                </div>
+                <PlaneActivityLine
+                  label={activityText}
+                  activityKey={activityKey}
+                  startedAtMs={activityStartedAtMs}
+                />
               ) : null}
             </div>
             {!nearBottom && conversation.length > 0 && (

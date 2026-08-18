@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest'
+import {
+  formatElapsed,
+  turnActivityKey,
+  turnActivityLabel,
+  type TurnActivityState,
+} from '../turnActivityLabel'
+
+function t(key: string, vars?: Record<string, string | number>): string {
+  if (!vars) return `[${key}]`
+  const payload = Object.entries(vars).map(([name, value]) => `${name}=${value}`).join(',')
+  return `[${key}|${payload}]`
+}
+
+const starting: TurnActivityState = { phase: 'starting', toolCount: 0 }
+
+describe('turnActivityLabel', () => {
+  it('maps starting, thinking and writing to their phase keys', () => {
+    expect(turnActivityLabel(starting, t)).toBe('[agentPane.phaseStarting]')
+    expect(turnActivityLabel({ phase: 'thinking', toolCount: 0 }, t)).toBe('[agentPane.phaseThinking]')
+    expect(turnActivityLabel({ phase: 'writing', toolCount: 2 }, t)).toBe('[agentPane.phaseWriting]')
+  })
+
+  it('maps context to contextLoading with the section count', () => {
+    expect(turnActivityLabel({ phase: 'context', contextCount: 4, toolCount: 0 }, t))
+      .toBe('[agentPane.contextLoading|n=4]')
+  })
+
+  it('uses 0 sections when contextCount is missing', () => {
+    expect(turnActivityLabel({ phase: 'context', toolCount: 0 }, t))
+      .toBe('[agentPane.contextLoading|n=0]')
+  })
+
+  it('maps a single tool to the activity key and never returns empty', () => {
+    expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Read · a.ts', toolCount: 1 }, t))
+      .toBe('[agentPane.activity|tool=Read · a.ts]')
+    expect(turnActivityLabel({ phase: 'tool', toolCount: 1 }, t)).toBe('[agentPane.activity|tool=]')
+    expect(turnActivityLabel({ phase: 'tool', toolCount: 1 }, t)).not.toBe('')
+  })
+
+  it('wraps the tool label with activitySteps when toolCount is greater than 1', () => {
+    expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Bash', toolCount: 3 }, t))
+      .toBe('[agentPane.activitySteps|label=[agentPane.activity|tool=Bash],n=3]')
+  })
+})
+
+describe('turnActivityKey', () => {
+  it('is phase and toolLabel only, so a clock tick cannot change it', () => {
+    expect(turnActivityKey({ phase: 'tool', toolLabel: 'Read', toolCount: 9 })).toBe('tool:Read')
+    expect(turnActivityKey(starting)).toBe('starting:')
+    expect(turnActivityKey({ phase: 'writing', toolCount: 2 })).toBe('writing:')
+  })
+})
+
+describe('formatElapsed', () => {
+  it('renders m:ss until 59:59 and h:mm:ss from one hour', () => {
+    expect(formatElapsed(0)).toBe('0:00')
+    expect(formatElapsed(1000)).toBe('0:01')
+    expect(formatElapsed(60_000)).toBe('1:00')
+    expect(formatElapsed(3_599_000)).toBe('59:59')
+    expect(formatElapsed(3_600_000)).toBe('1:00:00')
+    expect(formatElapsed(3_661_000)).toBe('1:01:01')
+  })
+
+  it('maps negatives and NaN to 0:00', () => {
+    expect(formatElapsed(-12)).toBe('0:00')
+    expect(formatElapsed(Number.NaN)).toBe('0:00')
+  })
+})

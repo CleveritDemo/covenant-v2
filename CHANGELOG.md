@@ -5,6 +5,18 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.90.0
+
+### Añadido
+- En Motor puedes elegir un recambio por si el proveedor no responde. Si el CLI primario cae por sobrecarga o rate limit a mitad de turno, Gravity lo reintenta una vez en frío con ese recambio y avisa en el chat; el turno siguiente vuelve al primario.
+
+### Corregido
+- El acta de una sala de Brainstorming ya no te empuja al final si subiste a leer mientras alguien habla.
+- Los agentes de la sala escriben en el idioma de la interfaz (español o inglés), no mezclan según el tema.
+
+### Cambiado
+- La espera del orador, el cierre y las burbujas en vivo de la sala quedan más quietos, y el badge de coordinación no se pinta en asientos que están hablando.
+
 ## v0.89.1
 
 ### Corregido

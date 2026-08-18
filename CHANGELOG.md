@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.84.0
+
+- Nuevo tipo «Un archivo» en el formulario de contextos: elegís el archivo del repo en el diálogo nativo y el contexto queda listo, sin carpeta raíz ni lista de rutas.
+- El riel de contextos del plano suma un botón para agregar un archivo del proyecto como contexto en un paso.
+- La cabecera del listado de contextos deja una sola entrada de alta: «Nuevo contexto».
+- El atajo que aparece al pasar el cursor por el botón de nuevo agente ya no usa la fuente monoespaciada elegida en Ajustes.
+
 ## v0.83.0
 
 - Al crear un agente puedes empezar desde tres plantillas nuevas: Investigación UX, Ingeniero DevOps e Ingeniero DevSecOps, cada una con su rol, su objetivo y sus reglas ya escritos.

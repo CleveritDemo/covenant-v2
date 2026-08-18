@@ -1535,10 +1535,7 @@ html[data-reduce-motion="true"] {
 }
 
 .tab-contexts__stack .agent-face {
-  margin-left: -5px;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--agent-face-color) 38%, transparent),
-    0 0 0 1.5px var(--bg-secondary);
+  margin-left: -4px;
 }
 
 .tab-contexts__stack .agent-face:first-child {
@@ -1546,7 +1543,7 @@ html[data-reduce-motion="true"] {
 }
 
 .tab-contexts__stack-more {
-  margin-left: 4px;
+  margin-left: 6px;
   color: var(--text-muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;

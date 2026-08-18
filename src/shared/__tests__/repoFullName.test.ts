@@ -35,4 +35,22 @@ describe('repoFullNameFromCloneUrl', () => {
     expect(repoFullNameFromCloneUrl('not-a-url')).toBe('')
     expect(repoFullNameFromCloneUrl('https://gitlab.com/owner/repo')).toBe('')
   })
+
+  it('parsea https con userinfo embebido', () => {
+    expect(
+      repoFullNameFromCloneUrl(
+        'https://carlosgallardo_credcorp@github.com/credicorp-internal/sanborn-platform.git',
+      ),
+    ).toBe('credicorp-internal/sanborn-platform')
+    expect(repoFullNameFromCloneUrl('https://user:ghp_xxx@github.com/Owner/Repo')).toBe('owner/repo')
+  })
+
+  it('parsea ssh con usuario distinto de git', () => {
+    expect(repoFullNameFromCloneUrl('ssh://deploy@github.com/owner/repo.git')).toBe('owner/repo')
+  })
+
+  it('sigue rechazando host ajeno y path incompleto con userinfo', () => {
+    expect(repoFullNameFromCloneUrl('https://user@gitlab.com/owner/repo.git')).toBe('')
+    expect(repoFullNameFromCloneUrl('https://user@github.com/owner')).toBe('')
+  })
 })

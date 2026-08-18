@@ -8,6 +8,7 @@ export interface AgentFaceProps {
   provider?: AgentCliProvider
   color: string
   size?: 'sm' | 'md'
+  stacked?: boolean
 }
 
 /** Cara de agente: monograma teñido + badge del CLI. */
@@ -16,9 +17,10 @@ export const AgentFace: React.FC<AgentFaceProps> = ({
   provider,
   color,
   size = 'md',
+  stacked = false,
 }) => (
   <span
-    className={`agent-face${size === 'sm' ? ' agent-face--sm' : ''}`}
+    className={`agent-face${size === 'sm' ? ' agent-face--sm' : ''}${stacked ? ' agent-face--stacked' : ''}`}
     style={{ '--agent-face-color': color } as React.CSSProperties}
     aria-hidden
   >

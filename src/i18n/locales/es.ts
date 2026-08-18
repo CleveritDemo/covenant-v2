@@ -1315,6 +1315,7 @@ const es = {
     promoteNoticeSkip: 'No viajan los contextos de resultados de agente, los agentes solo locales ni los chats.',
     promoteConfirm: 'Publicar',
     promoteNoOrgs: 'No tienes una organización donde puedas crear workspaces.',
+    promoteNoSession: 'Inicia sesión en Covenant con la cuenta de GitHub asociada a este workspace para poder publicarlo.',
     promotePhaseCreate: 'Creando workspace…',
     promotePhaseRepos: 'Vinculando repositorios…',
     promotePhaseUpload: 'Subiendo agentes y contextos…',

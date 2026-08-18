@@ -20,11 +20,11 @@ export function repoFullNameFromCloneUrl(url: string): string {
   if (!raw) return ''
 
   let path = ''
-  const https = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^?#]+)/i.exec(raw)
+  const https = /^(?:https?:\/\/)?(?:[^@\/\s]+@)?(?:www\.)?github\.com\/([^?#]+)/i.exec(raw)
   if (https?.[1]) {
     path = https[1]
   } else {
-    const ssh = /^(?:git@|ssh:\/\/git@)github\.com[/:]([^?#]+)/i.exec(raw)
+    const ssh = /^(?:ssh:\/\/)?(?:[^@\/\s]+@)?github\.com[/:]([^?#]+)/i.exec(raw)
     if (ssh?.[1]) path = ssh[1]
   }
   if (!path) return ''

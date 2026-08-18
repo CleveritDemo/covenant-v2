@@ -46,12 +46,14 @@ export const AgentFace: React.FC<{
   agent: ProjectAgentDefinition
   color?: string
   small?: boolean
-}> = ({ agent, color, small = false }) => (
+  stacked?: boolean
+}> = ({ agent, color, small = false, stacked = false }) => (
   <UiAgentFace
     monogram={agent.monogram || agentMonogram(agent.name ?? agent.id)}
     provider={agent.provider}
     color={color ?? agentFaceColor(agent)}
     size={small ? 'sm' : 'md'}
+    stacked={stacked}
   />
 )
 
@@ -147,7 +149,7 @@ export const TabContextsList: React.FC<Props> = ({
         role="img"
       >
         {users.slice(0, CONTEXT_USED_BY_LIMIT).map(agent => (
-          <AgentFace key={agent.id} agent={agent} small />
+          <AgentFace key={agent.id} agent={agent} small stacked />
         ))}
         {users.length > CONTEXT_USED_BY_LIMIT && (
           <span className="tab-contexts__stack-more">+{users.length - CONTEXT_USED_BY_LIMIT}</span>

@@ -458,6 +458,9 @@ export const App: React.FC = () => {
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   const [promoteWorkspaceTab, setPromoteWorkspaceTab] = useState<TabSession | null>(null)
   const [promoteWorkspaceOrgs, setPromoteWorkspaceOrgs] = useState<PromoteWorkspaceOrgOption[]>([])
+  const [promoteWorkspaceOrgsReason, setPromoteWorkspaceOrgsReason] = useState<
+    'signedOut' | 'noAdminOrg' | undefined
+  >()
   const [promoteWorkspaceRepos, setPromoteWorkspaceRepos] = useState<PromoteWorkspaceRepoOption[]>([])
   const [promoteWorkspaceBusy, setPromoteWorkspaceBusy] = useState(false)
   const [promoteWorkspacePhase, setPromoteWorkspacePhase] = useState<PromotePhase | undefined>()
@@ -2779,6 +2782,7 @@ export const App: React.FC = () => {
       setPromoteWorkspaceBusy(false)
       setPromoteWorkspacePhase(undefined)
       setPromoteWorkspaceError(undefined)
+      setPromoteWorkspaceOrgsReason(undefined)
       return
     }
     const folder = promoteWorkspaceTab.projectFolder?.trim() ?? ''
@@ -2787,6 +2791,7 @@ export const App: React.FC = () => {
     let cancelled = false
     void (async () => {
       const nextOrgs: PromoteWorkspaceOrgOption[] = []
+      let reason: 'signedOut' | 'noAdminOrg' = 'noAdminOrg'
       const covenant = getCovenantApi(accountIdForCwd(folder))
       if (covenant && hasCovenantWorkspacesApi(covenant)) {
         const status = await covenant.status()
@@ -2809,8 +2814,14 @@ export const App: React.FC = () => {
               if (!isOrgAdmin) continue
               nextOrgs.push({ slug, name: org.name?.trim() || slug })
             }
+          } else {
+            reason = 'signedOut'
           }
+        } else {
+          reason = 'signedOut'
         }
+      } else {
+        reason = 'signedOut'
       }
       let nextRepos: PromoteWorkspaceRepoOption[] = []
       if (folder) {
@@ -2830,6 +2841,7 @@ export const App: React.FC = () => {
       }
       if (cancelled) return
       setPromoteWorkspaceOrgs(nextOrgs)
+      setPromoteWorkspaceOrgsReason(reason)
       setPromoteWorkspaceRepos(nextRepos)
     })()
     return () => {
@@ -7631,6 +7643,7 @@ export const App: React.FC = () => {
         promoteWorkspaceOpen={promoteWorkspaceTab !== null}
         promoteWorkspaceFolderPath={promoteWorkspaceTab?.projectFolder?.trim() ?? ''}
         promoteWorkspaceOrgs={promoteWorkspaceOrgs}
+        promoteWorkspaceOrgsReason={promoteWorkspaceOrgsReason}
         promoteWorkspaceRepos={promoteWorkspaceRepos}
         promoteWorkspaceBusy={promoteWorkspaceBusy}
         promoteWorkspacePhase={promoteWorkspacePhase}

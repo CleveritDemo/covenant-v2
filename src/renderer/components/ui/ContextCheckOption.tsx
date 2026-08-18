@@ -108,6 +108,7 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
                 provider={user.provider}
                 color={user.color}
                 size="sm"
+                stacked
               />
             </span>
           ) : (

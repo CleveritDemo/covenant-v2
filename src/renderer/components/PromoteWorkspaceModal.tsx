@@ -26,6 +26,7 @@ interface Props {
   busy: boolean
   phase?: PromotePhase
   error?: string
+  orgsEmptyReason?: 'signedOut' | 'noAdminOrg'
   onClose: () => void
   onConfirm: (payload: PromoteWorkspaceConfirmPayload) => void
 }
@@ -38,6 +39,7 @@ export const PromoteWorkspaceModal: React.FC<Props> = ({
   busy,
   phase,
   error,
+  orgsEmptyReason,
   onClose,
   onConfirm,
 }) => {
@@ -124,7 +126,11 @@ export const PromoteWorkspaceModal: React.FC<Props> = ({
             {t('organizations.promoteOrgLabel')}
           </p>
           {orgs.length === 0 ? (
-            <p className="promote-workspace__empty">{t('organizations.promoteNoOrgs')}</p>
+            <p className="promote-workspace__empty">
+              {orgsEmptyReason === 'signedOut'
+                ? t('organizations.promoteNoSession')
+                : t('organizations.promoteNoOrgs')}
+            </p>
           ) : (
             <Select
               size="sm"

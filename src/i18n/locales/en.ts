@@ -1313,6 +1313,7 @@ const en = {
     promoteNoticeSkip: 'Agent result contexts, local-only agents, and chats do not travel.',
     promoteConfirm: 'Publish',
     promoteNoOrgs: 'You have no organization where you can create workspaces.',
+    promoteNoSession: 'Sign in to Covenant with the GitHub account bound to this workspace to publish it.',
     promotePhaseCreate: 'Creating workspace…',
     promotePhaseRepos: 'Linking repositories…',
     promotePhaseUpload: 'Uploading agents and contexts…',

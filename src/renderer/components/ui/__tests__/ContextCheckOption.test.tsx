@@ -11,11 +11,6 @@ import { ContextCheckOption } from '../ContextCheckOption'
 
 afterEach(cleanup)
 
-const cssPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../ContextCheckOption.css',
-)
-
 const namedUsers = (names: readonly string[], withColor: boolean) =>
   names.map((name, i) => ({
     id: `u-${i}`,
@@ -78,13 +73,48 @@ describe('ContextCheckOption usedBy stack', () => {
     expect(screen.getByText('+2')).toBeTruthy()
     expect(screen.getByLabelText(fiveLabel)).toBeTruthy()
   })
+
+  it('con 5 usedBy con color las 3 caras van stacked y muestran +2', () => {
+    const { container } = render(
+      <ContextCheckOption
+        name="Notes"
+        checked={false}
+        onChange={vi.fn()}
+        usedBy={namedUsers(fiveNames, true)}
+        usedByLabel={fiveLabel}
+      />,
+    )
+
+    const faces = container.querySelectorAll('.agent-face')
+    expect(faces).toHaveLength(3)
+    for (const face of faces) {
+      expect(face.classList.contains('agent-face--stacked')).toBe(true)
+    }
+    expect(screen.getByText('+2')).toBeTruthy()
+  })
 })
 
 describe('ContextCheckOption stacked face ring', () => {
   it('la cara apilada declara el anillo de --bg-secondary', () => {
-    const css = readFileSync(cssPath, 'utf8')
-    const faceBlock = css.match(/\.context-check-option__face \.agent-face\s*\{[^}]+\}/)?.[0] ?? ''
+    const css = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../AgentFace.css'),
+      'utf8',
+    )
+    const stackedBlock = css.match(/\.agent-face--stacked\s*\{[^}]+\}/)?.[0] ?? ''
 
-    expect(faceBlock).toContain('0 0 0 1.5px var(--bg-secondary)')
+    expect(stackedBlock).toContain('0 0 0 1.5px var(--bg-secondary)')
+  })
+})
+
+describe('AgentFace stacked brand hidden', () => {
+  it('el modificador stacked apaga el badge del CLI', () => {
+    const agentFaceCss = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../AgentFace.css'),
+      'utf8',
+    )
+    const brandBlock =
+      agentFaceCss.match(/\.agent-face--stacked \.agent-face__brand\s*\{[^}]+\}/)?.[0] ?? ''
+
+    expect(brandBlock).toMatch(/display:\s*none/)
   })
 })

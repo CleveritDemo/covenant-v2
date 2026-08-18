@@ -87,4 +87,16 @@ describe('PromoteWorkspaceModal', () => {
       (screen.getByRole('button', { name: 'organizations.promoteConfirm' }) as HTMLButtonElement).disabled,
     ).toBe(true)
   })
+
+  it('muestra promoteNoSession si la lista vacía es por falta de sesión', () => {
+    renderModal({ orgs: [], orgsEmptyReason: 'signedOut' })
+    expect(screen.getByText('organizations.promoteNoSession')).toBeTruthy()
+    expect(screen.queryByText('organizations.promoteNoOrgs')).toBeNull()
+  })
+
+  it('muestra promoteNoOrgs si la lista vacía es por rol', () => {
+    renderModal({ orgs: [], orgsEmptyReason: 'noAdminOrg' })
+    expect(screen.getByText('organizations.promoteNoOrgs')).toBeTruthy()
+    expect(screen.queryByText('organizations.promoteNoSession')).toBeNull()
+  })
 })

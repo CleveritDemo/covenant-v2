@@ -46,6 +46,7 @@ interface Props {
   promoteWorkspaceOpen: boolean
   promoteWorkspaceFolderPath: string
   promoteWorkspaceOrgs: PromoteWorkspaceOrgOption[]
+  promoteWorkspaceOrgsReason?: 'signedOut' | 'noAdminOrg'
   promoteWorkspaceRepos: PromoteWorkspaceRepoOption[]
   promoteWorkspaceBusy: boolean
   promoteWorkspacePhase?: 'create' | 'repos' | 'upload' | 'wiki'
@@ -105,6 +106,7 @@ export const AppModals: React.FC<Props> = ({
   promoteWorkspaceOpen,
   promoteWorkspaceFolderPath,
   promoteWorkspaceOrgs,
+  promoteWorkspaceOrgsReason,
   promoteWorkspaceRepos,
   promoteWorkspaceBusy,
   promoteWorkspacePhase,
@@ -196,6 +198,7 @@ export const AppModals: React.FC<Props> = ({
         open={promoteWorkspaceOpen}
         folderPath={promoteWorkspaceFolderPath}
         orgs={promoteWorkspaceOrgs}
+        orgsEmptyReason={promoteWorkspaceOrgsReason}
         repos={promoteWorkspaceRepos}
         busy={promoteWorkspaceBusy}
         phase={promoteWorkspacePhase}

@@ -28,9 +28,15 @@ import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
 import { type OnboardingCliRow } from './components/onboarding'
-import { clisAllMissing, mapCliRows, shouldOpenOnboarding } from './onboardingGate'
+import { clisAllMissing, mapCliRows } from './onboardingGate'
 import { ONBOARDING_VERSION, type OrchestratorPath } from '@shared/onboarding'
-import { onboardingStepsForPath } from '@shared/onboardingSteps'
+import {
+  canCompleteOnboarding,
+  isOnboardingIncomplete,
+  onboardingChromeHidden,
+  onboardingLockedSurface,
+  shouldWarnComposerMissingCli,
+} from '@shared/onboardingFlow'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
@@ -54,7 +60,7 @@ import {
   mergePlaneMiniThreadRows,
 } from './workspace/planeThreadNodes'
 import { claimPlaneSendSlot, releasePlaneSendSlot } from './planeSendSlot'
-import { markSplashUiReady, whenSplashDismissed } from './splash'
+import { markSplashUiReady } from './splash'
 import { BrainstormStartModal } from './workspace/BrainstormStartModal'
 import { BrainstormRoomView } from './workspace/BrainstormRoomView'
 import { BrainstormRoomsView } from './workspace/BrainstormRoomsView'
@@ -445,14 +451,11 @@ export const App: React.FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
-  const [onboardingOpen, setOnboardingOpen] = useState(false)
-  const [onboardingStep, setOnboardingStep] = useState(0)
   const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
   const [onboardingClisMissing, setOnboardingClisMissing] = useState(false)
   const [onboardingCliLoading, setOnboardingCliLoading] = useState(false)
   const [onboardingCliError, setOnboardingCliError] = useState(false)
-  const [onboardingTeamCreated, setOnboardingTeamCreated] = useState(false)
-  const onboardingAutoOpenedRef = useRef(false)
+  const onboardingClisRefreshOnceRef = useRef(false)
   const onboardingClisMissingLockedRef = useRef(false)
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
@@ -2384,7 +2387,13 @@ export const App: React.FC = () => {
     })
   }, [patchTabExplorer])
 
+  const persistOnboardingCompleted = useCallback((version: string) => {
+    void window.api.setConfig({ onboardingCompletedVersion: version })
+    setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
+  }, [])
+
   const handleAddTab = useCallback(() => {
+    if (isOnboardingIncomplete(config.onboardingCompletedVersion)) return
     const cat = orgWorkspaceCatalogRef.current
     if (catalogHasWorkspaces(cat)) {
       setOrgWorkspacePickerOpen(true)
@@ -2401,7 +2410,7 @@ export const App: React.FC = () => {
     })
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
-  }, [t, loadOrgWorkspaceCatalog])
+  }, [t, loadOrgWorkspaceCatalog, config.onboardingCompletedVersion])
 
   const handleOrgWorkspacesMutated = useCallback(() => {
     void loadOrgWorkspaceCatalog(true)
@@ -2424,6 +2433,14 @@ export const App: React.FC = () => {
     }
 
     const org = selection.orgWorkspace
+    if (canCompleteOnboarding({
+      incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
+      path: config.orchestratorPath,
+      trigger: 'org_workspace_tab',
+      cliAllMissing: clisAllMissing(onboardingClis),
+    })) {
+      persistOnboardingCompleted(ONBOARDING_VERSION)
+    }
     if (org.canPublish !== undefined) {
       const patched = patchOrgWorkspaceCatalogName(
         orgWorkspaceCatalogRef.current,
@@ -2557,12 +2574,16 @@ export const App: React.FC = () => {
   }, [
     applyOrgWorkspaceCatalog,
     persistOrgWorkspaceCatalogCache,
+    persistOnboardingCompleted,
     refreshAndSyncProjectAgents,
     rememberProjectAgent,
     reportOrgSyncPhase,
     syncOrgWorkspaceContent,
     syncTabWithProjectAgents,
     t,
+    config.onboardingCompletedVersion,
+    config.orchestratorPath,
+    onboardingClis,
   ])
 
   const cancelOrgWorkspaceSyncOrUpload = useCallback(() => {
@@ -3476,11 +3497,56 @@ export const App: React.FC = () => {
     const catalogKey = tabAgentCatalogKey(current)
     if (!cwd) return false
     const catalog = projectAgentsByCwdRef.current[catalogKey] ?? []
-    if (catalog.length > 0) return true
-    const hasAgentPane = (current.paneIds ?? []).some(
-      paneId => current.paneKinds?.[paneId] === 'agent',
+
+    const tabHasAgentPane = (tab: TabSession): boolean => (tab.paneIds ?? []).some(
+      paneId => tab.paneKinds?.[paneId] === 'agent',
     )
-    if (hasAgentPane) return true
+    const tabHasPaneForAgent = (tab: TabSession, agentId: string): boolean => (tab.paneIds ?? []).some(
+      paneId => tab.agentByPane?.[paneId]?.agentId === agentId,
+    )
+
+    const appendAgentPane = (agentId: string): void => {
+      const paneId = crypto.randomUUID()
+      rememberPaneCwd(paneId, cwd)
+      setTabs(prev => prev.map(tab => {
+        if (tab.id !== tabId) return tab
+        const paneWindows = { ...(tab.paneWindows ?? {}) }
+        paneWindows[paneId] = createPaneWindowState(paneWindows, false)
+        const paneKinds: Record<string, PaneKind> = {
+          ...(tab.paneKinds ?? {}),
+          [paneId]: 'agent',
+        }
+        return normalizeTabSession({
+          ...tab,
+          paneIds: [...tab.paneIds, paneId],
+          activePaneId: paneId,
+          paneKinds,
+          paneWindows,
+          agentByPane: {
+            ...(tab.agentByPane ?? {}),
+            [paneId]: { agentId },
+          },
+        })
+      }))
+    }
+
+    if (tabHasAgentPane(current)) return true
+
+    if (catalog.length > 0) {
+      let created = false
+      for (const agent of catalog) {
+        const tabNow = tabsRef.current.find(tab => tab.id === tabId)
+        if (!tabNow) break
+        if (tabHasPaneForAgent(tabNow, agent.id)) continue
+        created = true
+        appendAgentPane(agent.id)
+      }
+      if (created) {
+        scheduleSaveSession()
+        void refreshAndSyncProjectAgents(cwd, tabId)
+      }
+      return created || tabHasAgentPane(tabsRef.current.find(tab => tab.id === tabId) ?? current)
+    }
 
     let created = false
     const existing = new Set(catalog.map(agent => agent.id))
@@ -3501,28 +3567,7 @@ export const App: React.FC = () => {
         agentName: agent.name ?? definition.name ?? agent.id,
       })
 
-      const paneId = crypto.randomUUID()
-      rememberPaneCwd(paneId, cwd)
-      setTabs(prev => prev.map(tab => {
-        if (tab.id !== tabId) return tab
-        const paneWindows = { ...(tab.paneWindows ?? {}) }
-        paneWindows[paneId] = createPaneWindowState(paneWindows, false)
-        const paneKinds: Record<string, PaneKind> = {
-          ...(tab.paneKinds ?? {}),
-          [paneId]: 'agent',
-        }
-        return normalizeTabSession({
-          ...tab,
-          paneIds: [...tab.paneIds, paneId],
-          activePaneId: paneId,
-          paneKinds,
-          paneWindows,
-          agentByPane: {
-            ...(tab.agentByPane ?? {}),
-            [paneId]: { agentId: agent.id },
-          },
-        })
-      }))
+      appendAgentPane(agent.id)
     }
     scheduleSaveSession()
     void refreshAndSyncProjectAgents(cwd, tabId)
@@ -3553,21 +3598,7 @@ export const App: React.FC = () => {
         setOnboardingClisMissing(clisAllMissing(rows))
       }
     }
-  }, [])
-
-  const onboardingSteps = useMemo(
-    () => onboardingStepsForPath(config.orchestratorPath, {
-      clisMissing: onboardingClisMissing,
-    }),
-    [config.orchestratorPath, onboardingClisMissing],
-  )
-
-  const handleOnboardingNext = useCallback(() => {
-    setOnboardingStep(prev => Math.min(onboardingSteps.length - 1, prev + 1))
-  }, [onboardingSteps.length])
-
-  const handleOnboardingBack = useCallback(() => {
-    setOnboardingStep(prev => Math.max(0, prev - 1))
+    return rows
   }, [])
 
   const handleOnboardingSelectPath = useCallback((next: OrchestratorPath) => {
@@ -3575,69 +3606,22 @@ export const App: React.FC = () => {
     setConfig(prev => ({ ...prev, orchestratorPath: next }))
   }, [])
 
-  const persistOnboardingCompleted = useCallback((version: string) => {
-    void window.api.setConfig({ onboardingCompletedVersion: version })
-    setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
-  }, [])
-
-  const handleOnboardingCloseComplete = useCallback(() => {
-    setOnboardingOpen(false)
-    persistOnboardingCompleted(ONBOARDING_VERSION)
-  }, [persistOnboardingCompleted])
-
-  const handleOnboardingOpenBrainstorm = useCallback(() => {
-    const tabId = activeTabIdRef.current
-    handleOnboardingCloseComplete()
-    if (!tabId) return
-    setBrainstormViewByTab(prev => ({ ...prev, [tabId]: 'setup' }))
-  }, [handleOnboardingCloseComplete])
-
-  const handleOnboardingLoadOrgWorkspace = useCallback(() => {
-    handleOnboardingCloseComplete()
-    handleOrgWorkspacesMutated()
-    setOrgWorkspacePickerOpen(true)
-  }, [handleOnboardingCloseComplete, handleOrgWorkspacesMutated])
-
-  const handleOnboardingPickFolder = useCallback(() => {
-    void handlePickProjectFolder(activeTabIdRef.current)
-  }, [handlePickProjectFolder])
-
-  const handleOnboardingCreateTeam = useCallback(async () => {
-    try {
-      const created = await bootstrapProjectAgents(activeTabIdRef.current)
-      setOnboardingTeamCreated(created)
-    } catch {
-      setOnboardingTeamCreated(false)
-    }
-  }, [bootstrapProjectAgents])
-
   const handleReplayOnboarding = useCallback(() => {
     setSettingsOpen(false)
-    setOnboardingStep(0)
-    setOnboardingTeamCreated(false)
-    setOnboardingOpen(true)
-    onboardingClisMissingLockedRef.current = false
-    void refreshOnboardingClis()
     persistOnboardingCompleted('')
+    onboardingClisMissingLockedRef.current = false
+    onboardingClisRefreshOnceRef.current = false
+    void refreshOnboardingClis()
   }, [persistOnboardingCompleted, refreshOnboardingClis])
 
-  // Onboarding: primer arranque tras el fundido del splash (no roba foco antes).
   useEffect(() => {
     const ready = configReady && sessionReady.loaded
-    if (!shouldOpenOnboarding(config.onboardingCompletedVersion, ready)) return
-    if (onboardingAutoOpenedRef.current) return
-    onboardingAutoOpenedRef.current = true
+    if (!ready) return
+    if (!isOnboardingIncomplete(config.onboardingCompletedVersion)) return
+    if (onboardingClisRefreshOnceRef.current) return
+    onboardingClisRefreshOnceRef.current = true
     onboardingClisMissingLockedRef.current = false
     void refreshOnboardingClis()
-    let cancelled = false
-    void whenSplashDismissed().then(() => {
-      if (cancelled) return
-      setOnboardingOpen(true)
-      setOnboardingStep(0)
-    })
-    return () => {
-      cancelled = true
-    }
   }, [configReady, config.onboardingCompletedVersion, sessionReady.loaded, refreshOnboardingClis])
 
   /** Nuevo agente con la misma configuración (sin historial / sesión CLI). */
@@ -6668,6 +6652,16 @@ export const App: React.FC = () => {
   /** cwd de Ajustes: la misma búsqueda que ya usa el resto del archivo para "el cwd de esta pestaña". */
   const activeTab = tabs.find(t => t.id === activeTabId)
   const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
+  const ready = configReady && sessionReady.loaded
+  const incomplete = isOnboardingIncomplete(config.onboardingCompletedVersion)
+  const locked = incomplete && ready
+  const chrome = onboardingChromeHidden(incomplete)
+  const surface = onboardingLockedSurface({
+    incomplete,
+    path: config.orchestratorPath,
+    hasFolder: Boolean(activeTab?.projectFolder?.trim()),
+    hasAgents: Object.values(activeTab?.paneKinds ?? {}).some(kind => kind === 'agent'),
+  })
 
   /**
    * Salas de una pestaña sobre su plano. Van montadas dentro de
@@ -6751,6 +6745,14 @@ export const App: React.FC = () => {
               [tab.id]: [...(prev[tab.id] ?? []), room],
             }))
             setView(room.id)
+            if (canCompleteOnboarding({
+              incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
+              path: config.orchestratorPath,
+              trigger: 'business_ceremony',
+              cliAllMissing: clisAllMissing(onboardingClis),
+            })) {
+              persistOnboardingCompleted(ONBOARDING_VERSION)
+            }
           }}
         />
         {rooms.map(room => (
@@ -6817,6 +6819,7 @@ export const App: React.FC = () => {
         onOpenOrganizations={() => setOrgModalOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         onMusicPausedChange={handleMusicPausedChange}
+        hideOrganizations={chrome.hideOrganizations}
       />
 
       {/* ── Tab bar ── */}
@@ -6832,6 +6835,7 @@ export const App: React.FC = () => {
         busyTabIds={busyTabIds}
         tabActivityDots={tabActivityDots}
         canRenameTab={canRenameTab}
+        hideAdd={chrome.hideTabAdd}
       />
 
       {/* ── Main area ── */}
@@ -7104,7 +7108,23 @@ export const App: React.FC = () => {
                   bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
                   showBootstrapAgents={showBootstrapAgents}
                   canBootstrapAgents={canBootstrapAgents}
-                  onBootstrapAgents={() => { void bootstrapProjectAgents(tab.id) }}
+                  onBootstrapAgents={() => {
+                    void bootstrapProjectAgents(tab.id).then(bootstrapped => {
+                      if (!bootstrapped) return
+                      const tabNow = tabsRef.current.find(item => item.id === tab.id)
+                      const hasAgents = tabNow
+                        ? Object.values(tabNow.paneKinds ?? {}).some(kind => kind === 'agent')
+                        : false
+                      if (onboardingLockedSurface({
+                        incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
+                        path: config.orchestratorPath,
+                        hasFolder: Boolean(tab.projectFolder?.trim()),
+                        hasAgents,
+                      }).autoOpenCeremonyOverlay) {
+                        setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: 'setup' }))
+                      }
+                    })
+                  }}
                   activePaneId={tab.activePaneId}
                   entities={planeEntities}
                   onAddAgent={() => {
@@ -7241,6 +7261,27 @@ export const App: React.FC = () => {
                         images: images.length,
                         fifo: nextQueue.length,
                       })
+                      void (async () => {
+                        const rows = onboardingClis.length > 0
+                          ? onboardingClis
+                          : await refreshOnboardingClis()
+                        const cliAllMissing = clisAllMissing(rows)
+                        if (shouldWarnComposerMissingCli({
+                          incomplete,
+                          path: config.orchestratorPath,
+                          cliAllMissing,
+                        })) {
+                          return
+                        }
+                        if (canCompleteOnboarding({
+                          incomplete,
+                          path: config.orchestratorPath,
+                          trigger: 'engineer_human_send',
+                          cliAllMissing,
+                        })) {
+                          persistOnboardingCompleted(ONBOARDING_VERSION)
+                        }
+                      })()
                     }
                     setTabs(prev => {
                       const nextTabs = prev.map(tabItem => {
@@ -7521,6 +7562,19 @@ export const App: React.FC = () => {
                     if (handle) tabExplorerHostByTabRef.current.set(tab.id, handle)
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
+                  onboardingLocked={locked}
+                  orchestratorPath={config.orchestratorPath}
+                  onSelectOrchestratorPath={handleOnboardingSelectPath}
+                  onInviteToOrg={() => { setOrgModalOpen(true) }}
+                  hideComposer={!surface.showComposer && locked}
+                  hidePulse={chrome.hidePulse}
+                  hideWiki={chrome.hideWiki}
+                  hideLoops={chrome.hideLoops}
+                  agentCliMissing={shouldWarnComposerMissingCli({
+                    incomplete,
+                    path: config.orchestratorPath,
+                    cliAllMissing: onboardingClisMissing,
+                  })}
                 />
                       </div>
                   )
@@ -7660,27 +7714,6 @@ export const App: React.FC = () => {
         onThemeChange={handleThemeChange}
         onReplayOnboarding={handleReplayOnboarding}
         onAccountDeleted={handleGithubAccountDeleted}
-        onboardingOpen={onboardingOpen}
-        onboardingStep={onboardingStep}
-        onboardingSteps={onboardingSteps}
-        onboardingPath={config.orchestratorPath}
-        onboardingClis={onboardingClis}
-        onboardingCliLoading={onboardingCliLoading}
-        onboardingCliError={onboardingCliError}
-        onboardingTeamCreated={onboardingTeamCreated}
-        onboardingFolderPath={activeTab?.projectFolder?.trim() || null}
-        onboardingCanCreateTeam={Boolean(activeTab?.projectFolder?.trim())}
-        onboardingCanOpenBrainstorm={Boolean(activeTab?.projectFolder?.trim())}
-        onOnboardingNext={handleOnboardingNext}
-        onOnboardingBack={handleOnboardingBack}
-        onOnboardingSkip={handleOnboardingCloseComplete}
-        onOnboardingFinish={handleOnboardingCloseComplete}
-        onOnboardingRecheck={() => { void refreshOnboardingClis() }}
-        onOnboardingPickFolder={handleOnboardingPickFolder}
-        onOnboardingCreateTeam={() => { void handleOnboardingCreateTeam() }}
-        onOnboardingOpenBrainstorm={handleOnboardingOpenBrainstorm}
-        onOnboardingLoadOrgWorkspace={handleOnboardingLoadOrgWorkspace}
-        onOnboardingSelectPath={handleOnboardingSelectPath}
         onAgentProviderSelect={provider => {
           const pending = agentPicker
           setAgentPicker(null)

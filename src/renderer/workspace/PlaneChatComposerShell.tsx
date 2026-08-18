@@ -106,6 +106,7 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
           'plane-chat-composer__input-shell',
           recalling ? 'plane-chat-composer__input-shell--recalling' : '',
         ].filter(Boolean).join(' ')}
+        data-onboarding="composer-input"
       >
         <textarea
           ref={textareaRef as React.Ref<HTMLTextAreaElement>}

@@ -21,6 +21,7 @@ interface Props {
   tabActivityDots?: ReadonlyMap<string, PlaneActivityDotKind>
   /** False = no iniciar edición inline (p. ej. workspace org sin permiso). */
   canRenameTab?: (tab: TabSession) => boolean
+  hideAdd?: boolean
 }
 
 /** Expuesto a `App` para que ⌘W use el mismo modal que la cruz de la pestaña. */
@@ -32,6 +33,7 @@ export const TabBar = forwardRef<TabBarHandle, Props>(function TabBar({
   tabs, activeTabId, onSelect, onAdd, onClose, onRename, onReorder, busyTabIds,
   tabActivityDots,
   canRenameTab,
+  hideAdd = false,
 }, ref) {
   const { t } = useT()
   const [dragId, setDragId] = useState<string | null>(null)
@@ -148,7 +150,7 @@ export const TabBar = forwardRef<TabBarHandle, Props>(function TabBar({
             )
           })}
         </div>
-        <TabAddButton onClick={onAdd} />
+        {!hideAdd && <TabAddButton onClick={onAdd} />}
       </div>
 
       <ConfirmTerminalModal

@@ -39,6 +39,7 @@ export const PlaneProjectFolder: React.FC<PlaneProjectFolderProps> = ({
             hasFolder ? 'plane-project-folder__btn--set' : '',
           ].filter(Boolean).join(' ')}
           aria-label={actionLabel}
+          data-onboarding="project-folder"
           onClick={onSelect}
         >
           <Icon name={hasFolder ? 'folder-open' : 'folder'} size={12} />

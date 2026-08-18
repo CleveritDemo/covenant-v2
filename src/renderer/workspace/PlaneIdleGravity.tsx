@@ -1,6 +1,8 @@
 import React from 'react'
 import { Gravity } from '../agent/Gravity'
+import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PlaneOnboardingHome } from './PlaneOnboardingHome'
 import './PlaneIdleGravity.css'
 
 export interface PlaneIdleGravityProps {
@@ -21,6 +23,11 @@ export interface PlaneIdleGravityProps {
   showBootstrapAgents?: boolean
   canBootstrapAgents?: boolean
   onBootstrapAgents?: () => void
+  /** Primera vez: el plano es la casa; no hay wizard. */
+  onboardingLocked?: boolean
+  orchestratorPath?: '' | 'business' | 'engineer'
+  onSelectOrchestratorPath?: (path: 'business' | 'engineer') => void
+  onInviteToOrg?: () => void
 }
 
 /**
@@ -39,20 +46,32 @@ export const PlaneIdleGravity: React.FC<PlaneIdleGravityProps> = ({
   showBootstrapAgents = false,
   canBootstrapAgents = false,
   onBootstrapAgents,
+  onboardingLocked = false,
+  orchestratorPath = '',
+  onSelectOrchestratorPath,
+  onInviteToOrg,
 }) => {
+  const showPathPicker = Boolean(
+    onboardingLocked
+    && orchestratorPath === ''
+    && onSelectOrchestratorPath,
+  )
   // Sin carpeta: CTA de seleccionar folder. Con carpeta: CTA de crear equipo.
   // No mostramos «Crear equipo» deshabilitado — se sustituye por la instrucción.
+  // Con path vacío el picker manda; carpeta/equipo vuelven cuando ya hay path.
   const showSelectFolder = Boolean(
-    showBootstrapAgents
-      && !canBootstrapAgents
-      && selectFolderLabel
-      && onSelectProjectFolder,
+    !showPathPicker
+    && showBootstrapAgents
+    && !canBootstrapAgents
+    && selectFolderLabel
+    && onSelectProjectFolder,
   )
   const showCreateTeam = Boolean(
-    showBootstrapAgents
-      && canBootstrapAgents
-      && bootstrapAgentsLabel
-      && onBootstrapAgents,
+    !showPathPicker
+    && showBootstrapAgents
+    && canBootstrapAgents
+    && bootstrapAgentsLabel
+    && onBootstrapAgents,
   )
 
   const actionLabel = showSelectFolder
@@ -72,13 +91,67 @@ export const PlaneIdleGravity: React.FC<PlaneIdleGravityProps> = ({
       : undefined
 
   const meta = emptyTitle?.trim() || ''
-  const rawHint = showCreateTeam
-    ? (bootstrapAgentsHint?.trim() || bootstrapAgentsTitle?.trim() || '')
-    : (emptyHint?.trim() || '')
+  const rawHint = showPathPicker
+    ? ''
+    : showCreateTeam
+      ? (bootstrapAgentsHint?.trim() || bootstrapAgentsTitle?.trim() || '')
+      : (emptyHint?.trim() || '')
   const hint = rawHint && rawHint !== actionLabel ? rawHint : ''
+  const guideHint = Boolean(onboardingLocked && hint && showCreateTeam)
 
-  const showCopy = Boolean(meta || actionLabel || hint)
-  const interactive = Boolean(actionLabel && onAction)
+  const showCopy = Boolean(meta || actionLabel || hint || showPathPicker)
+  const interactive = Boolean((actionLabel && onAction) || showPathPicker)
+
+  const copy = (
+    <div className="plane-idle-gravity__copy">
+      {meta ? (
+        <p
+          className={
+            onboardingLocked
+              ? 'plane-idle-gravity__title'
+              : 'plane-idle-gravity__meta'
+          }
+        >
+          {meta}
+        </p>
+      ) : null}
+      {showPathPicker && onSelectOrchestratorPath ? (
+        <PlaneOnboardingHome
+          onSelectPath={onSelectOrchestratorPath}
+          onInviteToOrg={onInviteToOrg}
+        />
+      ) : null}
+      {actionLabel && onAction ? (
+        <Tooltip content={actionTitle || actionLabel}>
+          <button
+            type="button"
+            className="plane-idle-gravity__cta plane-idle-gravity__cta--ghost"
+            aria-label={actionTitle || actionLabel}
+            data-onboarding={showCreateTeam ? 'create-team' : undefined}
+            onClick={onAction}
+          >
+            {onboardingLocked && showSelectFolder ? (
+              <Icon name="folder" size={18} />
+            ) : null}
+            {onboardingLocked && showCreateTeam ? (
+              <Icon name="users" size={18} />
+            ) : null}
+            <span>{actionLabel}</span>
+          </button>
+        </Tooltip>
+      ) : null}
+      {hint ? (
+        <p
+          className={[
+            'plane-idle-gravity__hint',
+            guideHint ? 'plane-idle-gravity__hint--guide' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  )
 
   return (
     <div
@@ -87,28 +160,7 @@ export const PlaneIdleGravity: React.FC<PlaneIdleGravityProps> = ({
     >
       <div className="plane-idle-gravity__stack">
         <Gravity size="solo" />
-        {showCopy ? (
-          <div className="plane-idle-gravity__copy">
-            {meta ? (
-              <p className="plane-idle-gravity__meta">{meta}</p>
-            ) : null}
-            {actionLabel && onAction ? (
-              <Tooltip content={actionTitle || actionLabel}>
-                <button
-                  type="button"
-                  className="plane-idle-gravity__cta plane-idle-gravity__cta--ghost"
-                  aria-label={actionTitle || actionLabel}
-                  onClick={onAction}
-                >
-                  {actionLabel}
-                </button>
-              </Tooltip>
-            ) : null}
-            {hint ? (
-              <p className="plane-idle-gravity__hint">{hint}</p>
-            ) : null}
-          </div>
-        ) : null}
+        {showCopy ? copy : null}
       </div>
     </div>
   )

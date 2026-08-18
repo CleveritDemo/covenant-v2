@@ -59,6 +59,7 @@ export const PlaneChatComposerAgents: React.FC<PlaneChatComposerAgentsProps> = (
   return (
     <div
       className="plane-chat-composer__agents-wrap"
+      data-onboarding="composer-agents"
       data-fade-start={fadeStart ? '' : undefined}
       data-fade-end={fadeEnd ? '' : undefined}
     >

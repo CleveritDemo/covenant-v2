@@ -29,7 +29,9 @@ vi.mock('../PlaneChatContextsBar', () => ({ PlaneChatContextsBar: () => null }))
 vi.mock('../PlaneQuickChat', () => ({ PlaneQuickChat: () => null }))
 vi.mock('../PlaneContextPool', () => ({ PlaneContextPool: () => null }))
 vi.mock('../PlaneFabStack', () => ({ PlaneFabStack: () => null }))
-vi.mock('../PlaneLoopsSection', () => ({ PlaneLoopsSection: () => null }))
+vi.mock('../PlaneLoopsSection', () => ({
+  PlaneLoopsSection: () => <div data-testid="plane-loops-section" />,
+}))
 vi.mock('../PlaneBrainstormTable', () => ({ PlaneBrainstormTable: () => null }))
 vi.mock('../TabFileExplorerWindow', () => ({ TabFileExplorerWindow: () => null }))
 vi.mock('../PulseView', () => ({ PulseView: () => null }))
@@ -218,5 +220,32 @@ describe('chrome del plano bajo una vista de la app', () => {
     for (const selector of floating) {
       expect(container.querySelector(selector), selector).toBeNull()
     }
+  })
+})
+
+describe('chrome de onboarding in-plane', () => {
+  it('oculta Pulse y wiki cuando hidePulse y hideWiki', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        hidePulse
+        hideWiki
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'pulse.button' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'tabs.wikiMapButton' })).toBeNull()
+  })
+
+  it('no monta Loops si hideLoops', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        hideLoops
+        loopsOpen
+      />,
+    )
+
+    expect(screen.queryByTestId('plane-loops-section')).toBeNull()
   })
 })

@@ -410,6 +410,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
             variant="primary"
             size="sm"
             disabled={!canStart}
+            data-onboarding="brainstorm-start"
             onClick={handleStart}
           >
             {t('tabs.brainstormStart')}

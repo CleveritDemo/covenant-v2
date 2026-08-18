@@ -126,4 +126,9 @@ describe('composer en plano vacío', () => {
     render(<TabAgenticPlane {...baseProps} entities={[agentEntity]} />)
     expect(screen.getByTestId('plane-chat-composer')).toBeTruthy()
   })
+
+  it('no monta el composer con hideComposer aunque haya agentes', () => {
+    render(<TabAgenticPlane {...baseProps} entities={[agentEntity]} hideComposer />)
+    expect(screen.queryByTestId('plane-chat-composer')).toBeNull()
+  })
 })

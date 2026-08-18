@@ -24,6 +24,7 @@ interface TitlebarProps {
   onOpenOrganizations: () => void
   onOpenSettings: () => void
   onMusicPausedChange?: (paused: boolean) => void
+  hideOrganizations?: boolean
 }
 
 export const Titlebar: React.FC<TitlebarProps> = ({
@@ -39,6 +40,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   onOpenOrganizations,
   onOpenSettings,
   onMusicPausedChange,
+  hideOrganizations = false,
 }) => {
   const { t } = useT()
   const theme = getTheme(config.themeId)
@@ -72,15 +74,17 @@ export const Titlebar: React.FC<TitlebarProps> = ({
 
         <TitlebarClock />
 
-        <Button
-          variant="icon"
-          size="sm"
-          tabIndex={-1}
-          onClick={onOpenOrganizations}
-          aria-label={t('titlebar.organizationsAriaLabel')}
-        >
-          <Icon name="users" size={15} />
-        </Button>
+        {!hideOrganizations && (
+          <Button
+            variant="icon"
+            size="sm"
+            tabIndex={-1}
+            onClick={onOpenOrganizations}
+            aria-label={t('titlebar.organizationsAriaLabel')}
+          >
+            <Icon name="users" size={15} />
+          </Button>
+        )}
 
         <Button
           variant="icon"

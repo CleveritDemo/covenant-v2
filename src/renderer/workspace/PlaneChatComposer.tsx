@@ -32,6 +32,7 @@ import { PastedTextAttachment } from '../components/PastedTextAttachment'
 import { PlaneChatComposerShell } from './PlaneChatComposerShell'
 import { PlaneComposerAurora } from './PlaneComposerAurora'
 import { PlaneQueueFullNotice } from './PlaneQueueFullNotice'
+import { PlaneCliMissingNotice } from './PlaneCliMissingNotice'
 import { PlaneSketchButton } from './PlaneSketchButton'
 import { SketchModal } from './SketchModal'
 import { usePushToTalkSpeech, classifyDictationError } from '../pushToTalkSpeech'
@@ -147,6 +148,8 @@ export interface PlaneChatComposerProps {
    * Vacío si no hay hilo o falla la lectura: el composer no debe romperse.
    */
   onLoadPromptHistory?: (paneId: string, threadId: string | null) => Promise<string[]>
+  /** Sin CLI instalado: el envío muestra aviso y no sale. */
+  agentCliMissing?: boolean
 }
 
 export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
@@ -174,6 +177,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   cwd = '',
   onContextSaved,
   onLoadPromptHistory,
+  agentCliMissing = false,
 }) => {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
@@ -187,6 +191,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const [pendingContextIds, setPendingContextIds] = useState<string[]>([])
   const [dropActive, setDropActive] = useState(false)
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  const [cliMissingNotice, setCliMissingNotice] = useState(false)
   const [sketchOpen, setSketchOpen] = useState(false)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const pendingImagesRef = useRef(pendingImages)
@@ -315,6 +320,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const dismissQueueFullNotice = useCallback((): void => {
     if (queueFullNotice) onQueueFullNoticeDismiss?.()
   }, [queueFullNotice, onQueueFullNoticeDismiss])
+
+  useEffect(() => {
+    if (!agentCliMissing) setCliMissingNotice(false)
+  }, [agentCliMissing])
 
   /**
    * Issue elegido en el picker → contexto `jira` real en disco y adjunto a
@@ -450,6 +459,10 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   }, [contexts, noAgentSelected])
 
   const submit = useCallback((overrideText?: string): void => {
+    if (agentCliMissing) {
+      setCliMissingNotice(true)
+      return
+    }
     const typed = (overrideText ?? draft).trim()
     if (!selected || (!typed && pendingImages.length === 0 && pendingPastes.length === 0)) return
     const imagesSnapshot = pendingImages
@@ -480,6 +493,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
     pendingImages,
     pendingPastes,
     selected,
+    agentCliMissing,
   ])
 
   const mapDictationError = useCallback((code: string): string => {
@@ -680,6 +694,7 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
         ) : null}
 
         {queueFullNotice ? <PlaneQueueFullNotice /> : null}
+        {cliMissingNotice ? <PlaneCliMissingNotice /> : null}
 
         <PlaneChatComposerShell
           value={draft}

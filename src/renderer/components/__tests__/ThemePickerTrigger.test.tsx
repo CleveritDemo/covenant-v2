@@ -77,4 +77,25 @@ describe('Titlebar icon buttons', () => {
       expect(btn.className).toMatch(/\bbtn--sm\b/)
     }
   })
+
+  it('hideOrganizations=true oculta Organizations y deja Settings', () => {
+    render(
+      <Titlebar
+        config={{ ...CONFIG_DEFAULTS, themeId: 'matrix' }}
+        fontSize={14}
+        fontSizeMin={10}
+        fontSizeMax={24}
+        themePickerOpen={false}
+        hideOrganizations
+        onFontIncrease={() => {}}
+        onFontDecrease={() => {}}
+        onOpenThemePicker={() => {}}
+        onOpenOrganizations={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'titlebar.organizationsAriaLabel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'titlebar.settingsAriaLabel' })).toBeTruthy()
+  })
 })

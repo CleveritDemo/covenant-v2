@@ -1,7 +1,7 @@
 import type { AgentCliProvider } from './agentCliProviders'
 
 /** Versión del flujo de onboarding; al completarlo se persiste en AppConfig. */
-export const ONBOARDING_VERSION = '3'
+export const ONBOARDING_VERSION = '4'
 
 /** Los dos perfiles de arranque; deciden qué pasos ve el wizard. */
 export const ORCHESTRATOR_PATHS = ['business', 'engineer'] as const

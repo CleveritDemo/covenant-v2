@@ -10,16 +10,16 @@ describe('shouldOpenOnboarding', () => {
 
   it('does not open when completed version matches ONBOARDING_VERSION', () => {
     expect(shouldOpenOnboarding(ONBOARDING_VERSION, true)).toBe(false)
-    expect(shouldOpenOnboarding('3', true)).toBe(false)
+    expect(shouldOpenOnboarding('4', true)).toBe(false)
   })
 
   it('never opens when not ready', () => {
     expect(shouldOpenOnboarding('', false)).toBe(false)
-    expect(shouldOpenOnboarding('3', false)).toBe(false)
+    expect(shouldOpenOnboarding(ONBOARDING_VERSION, false)).toBe(false)
   })
 
   it('trims completed version before comparing', () => {
-    expect(shouldOpenOnboarding(' 3 ', true)).toBe(false)
+    expect(shouldOpenOnboarding(`  ${ONBOARDING_VERSION}  `, true)).toBe(false)
     expect(shouldOpenOnboarding('  ', true)).toBe(true)
   })
 

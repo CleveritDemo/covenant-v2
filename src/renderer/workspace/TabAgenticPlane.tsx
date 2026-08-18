@@ -18,6 +18,7 @@ import { PlaneFabStack } from './PlaneFabStack'
 import { fabAccelLabel, fabHintWithShortcut } from './planeFabHint'
 import { PlaneMap, type PlaneMapEntity } from './PlaneMap'
 import { PlaneIdleGravity } from './PlaneIdleGravity'
+import { OnboardingCoachMark } from './OnboardingCoachMark'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
@@ -68,6 +69,7 @@ import {
   WIKI_MODAL_WIDTH,
 } from '@shared/wikiModalPositions'
 import { mergeWikiNodeModalsOpen } from '@shared/wikiNodeModalOpen'
+import { resolveOnboardingGuideStep } from '@shared/onboardingGuideFlow'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { isMacOS } from '../platform'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -90,6 +92,16 @@ export type { PlaneMapEntity }
 export interface TabAgenticPlaneProps {
   emptyTitle: string
   emptyHint: string
+  /** Primera vez: el plano es el onboarding. */
+  onboardingLocked?: boolean
+  orchestratorPath?: '' | 'business' | 'engineer'
+  onSelectOrchestratorPath?: (path: 'business' | 'engineer') => void
+  onInviteToOrg?: () => void
+  hideComposer?: boolean
+  hidePulse?: boolean
+  hideWiki?: boolean
+  hideLoops?: boolean
+  agentCliMissing?: boolean
   /** Tab activa (modales portaled solo visibles aquí). */
   tabActive?: boolean
   agentFabTitle: string
@@ -348,6 +360,15 @@ export interface TabAgenticPlaneProps {
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   emptyTitle,
   emptyHint,
+  onboardingLocked = false,
+  orchestratorPath = '',
+  onSelectOrchestratorPath,
+  onInviteToOrg,
+  hideComposer = false,
+  hidePulse = false,
+  hideWiki = false,
+  hideLoops = false,
+  agentCliMissing = false,
   tabActive = true,
   agentFabTitle,
   terminalFabTitle,
@@ -919,7 +940,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     && !brainstormOverlayOpen && !pulseOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
   /** Sin agentes ni terminales no hay a quién hablar: el composer no se monta. */
-  const showPlaneComposer = entities.length > 0
+  const showPlaneComposer = entities.length > 0 && !hideComposer
+
+  const onboardingGuideStep = onboardingLocked
+    ? resolveOnboardingGuideStep({
+      path: orchestratorPath ?? '',
+      projectFolder,
+      hasAgents: entities.length > 0,
+      openChatAgentId,
+      brainstormOverlayOpen,
+      brainstormView,
+    })
+    : null
 
   const composerWorking = Boolean(
     openChatAgentId
@@ -1046,7 +1078,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
             onClick={() => closeOtherPlaneOverlays('none')}
           />
           {onBrainstormViewChange ? (
-            <span className="plane-brainstorm-anchor">
+            <span className="plane-brainstorm-anchor" data-onboarding="brainstorm-rail">
               <PlaneBrainstormsListButton
                 label={brainstormsListButtonLabel}
                 pressed={brainstormOverlayOpen || brainstormDockOpen}
@@ -1127,25 +1159,29 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ) : null}
           {/* Loops oculto temporalmente del rail; se retomará. PlaneLoopsSection sigue montada;
               reponer el botón aquí (PlaneLoopsButton con loopsOpen/onLoopsOpenChange). */}
-          <PlanePulseButton
-            label={t('pulse.button')}
-            pressed={pulseOpen}
-            onClick={() => {
-              if (pulseOpen) { setPulseOpen(false); return }
-              closeOtherPlaneOverlays('pulse')
-              setPulseOpen(true)
-            }}
-          />
-          <PlaneWikiMapButton
-            label={t('tabs.wikiMapButton')}
-            pressed={wikiMapOpen}
-            busy={sweepRunning || curatorThinking}
-            onClick={() => {
-              if (wikiMapOpen) { setWikiMapOpen(false); setWikiNodeModals([]); return }
-              closeOtherPlaneOverlays('wiki')
-              setWikiMapOpen(true)
-            }}
-          />
+          {!hidePulse ? (
+            <PlanePulseButton
+              label={t('pulse.button')}
+              pressed={pulseOpen}
+              onClick={() => {
+                if (pulseOpen) { setPulseOpen(false); return }
+                closeOtherPlaneOverlays('pulse')
+                setPulseOpen(true)
+              }}
+            />
+          ) : null}
+          {!hideWiki ? (
+            <PlaneWikiMapButton
+              label={t('tabs.wikiMapButton')}
+              pressed={wikiMapOpen}
+              busy={sweepRunning || curatorThinking}
+              onClick={() => {
+                if (wikiMapOpen) { setWikiMapOpen(false); setWikiNodeModals([]); return }
+                closeOtherPlaneOverlays('wiki')
+                setWikiMapOpen(true)
+              }}
+            />
+          ) : null}
           {projectFolder.trim() && onRevealProjectFolder ? (
             <PlaneRevealFolderButton
               folderPath={projectFolder}
@@ -1155,18 +1191,20 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ) : null}
         </PlaneToolsRail>
       )}
-      <PlaneLoopsSection
-        open={loopsOpen && !anyFullscreen && tabActive}
-        agents={loopAgents}
-        chains={loopChains}
-        liveByChainId={liveByChainId}
-        canStartChains={canStartLoopChains}
-        startBlockedHint={startLoopChainsBlockedHint}
-        onClose={() => onLoopsOpenChange(false)}
-        onChainsChange={onLoopChainsChange}
-        onStartChain={onStartLoopChain}
-        onStopChain={onStopLoopChain}
-      />
+      {!hideLoops ? (
+        <PlaneLoopsSection
+          open={loopsOpen && !anyFullscreen && tabActive}
+          agents={loopAgents}
+          chains={loopChains}
+          liveByChainId={liveByChainId}
+          canStartChains={canStartLoopChains}
+          startBlockedHint={startLoopChainsBlockedHint}
+          onClose={() => onLoopsOpenChange(false)}
+          onChainsChange={onLoopChainsChange}
+          onStartChain={onStartLoopChain}
+          onStopChain={onStopLoopChain}
+        />
+      ) : null}
       <PlaneMap
         idleAgentLabel={idleAgentLabel}
         entities={entities}
@@ -1276,7 +1314,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {showIdleGravity && (
         <PlaneIdleGravity
-          emptyTitle={entities.length === 0 ? emptyTitle : undefined}
+          emptyTitle={
+            entities.length === 0
+              ? (onboardingLocked ? t('tabs.planeOnboardingLead') : emptyTitle)
+              : undefined
+          }
           emptyHint={entities.length === 0 ? emptyHint : undefined}
           selectFolderLabel={projectFolderSelectLabel}
           selectFolderTitle={projectFolderEmptyHint}
@@ -1288,8 +1330,19 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           showBootstrapAgents={showBootstrapAgents && entities.length === 0}
           canBootstrapAgents={canBootstrapAgents}
           onBootstrapAgents={onBootstrapAgents}
+          onboardingLocked={onboardingLocked}
+          orchestratorPath={orchestratorPath}
+          onSelectOrchestratorPath={onSelectOrchestratorPath}
+          onInviteToOrg={onInviteToOrg}
         />
       )}
+
+      {onboardingGuideStep ? (
+        <OnboardingCoachMark
+          anchor={onboardingGuideStep.anchor}
+          message={t(onboardingGuideStep.messageKey)}
+        />
+      ) : null}
 
       {/* El pool no se retira con la sala: solo con mapa de wiki, Pulse y
           fullscreen; en la sala sube a 675 por elevated. Las líneas de
@@ -1411,6 +1464,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               cwd={projectFolder}
               onContextSaved={onContextSaved}
               onLoadPromptHistory={onLoadPromptHistory}
+              agentCliMissing={agentCliMissing}
             />
           ) : null}
         />

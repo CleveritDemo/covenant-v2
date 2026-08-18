@@ -37,6 +37,11 @@ export function isInstallingUpdate(): boolean {
   return installing
 }
 
+/** `true` solo en un paquete MSIX/AppX de Microsoft Store. */
+export function isStoreBuild(): boolean {
+  return process.windowsStore === true
+}
+
 /** Traza del updater a fichero: sin esto un fallo de instalación no deja rastro. */
 function log(message: string): void {
   console.log(`[updater] ${message}`)
@@ -104,6 +109,7 @@ function stopSilentChecks(): void {
 }
 
 function startSilentChecks(): void {
+  if (isStoreBuild()) return
   stopSilentChecks()
   firstCheckTimer = setTimeout(() => {
     firstCheckTimer = null
@@ -117,6 +123,7 @@ function startSilentChecks(): void {
  * El IPC `UPDATE_CHECK` manual sigue disponible siempre.
  */
 export function setAutoUpdatesEnabled(enabled: boolean): void {
+  if (isStoreBuild()) return
   if (!app.isPackaged) return
   const allow = shouldScheduleSilentUpdateChecks(enabled)
   if (allow === silentChecksAllowed) return
@@ -165,6 +172,11 @@ function wireUpdaterEvents(): void {
 }
 
 export function registerSelfUpdate(autoUpdatesEnabled = true): void {
+  if (isStoreBuild()) {
+    log('updater deshabilitado: build de Microsoft Store')
+    ipcMain.handle(IPC.UPDATE_STATE_GET, () => hydrateReadyFromStash())
+    return
+  }
   ipcMain.handle(IPC.UPDATE_STATE_GET, () => hydrateReadyFromStash())
   ipcMain.on(IPC.UPDATE_INSTALL, () => {
     if (state.kind === 'ready' || (state.kind === 'idle' && deferredReady)) {

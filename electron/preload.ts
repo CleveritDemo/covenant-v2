@@ -1349,6 +1349,7 @@ const api = {
 
   // ─── Window chrome ───
   platform: process.platform as NodeJS.Platform,
+  isStoreBuild: process.windowsStore === true,
   setTitleBarOverlay(color: string, symbolColor: string): void {
     ipcRenderer.send(IPC.WINDOW_SET_TITLEBAR_OVERLAY, color, symbolColor)
   },

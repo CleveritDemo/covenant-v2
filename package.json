@@ -17,6 +17,7 @@
     "dist:win-portable": "rm -rf dist && npm run build && electron-builder --win portable --x64 -c.npmRebuild=false",
     "dist:linux": "rm -rf dist && npm run build && electron-builder --linux --x64",
     "dist:win": "rm -rf dist && npm run build && electron-builder --win --x64",
+    "dist:win-appx": "rm -rf dist && npm run build && electron-builder --win appx --x64 -p never",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate:agents": "node scripts/migrate-agents-to-project.mjs",
@@ -154,6 +155,15 @@
     },
     "nsis": {
       "artifactName": "Covenant-Gravity-${version}-setup-${arch}.${ext}"
+    },
+    "appx": {
+      "identityName": "Cleverit.CovenantGravity",
+      "applicationId": "CovenantGravity",
+      "publisher": "CN=Cleverit Group SpA",
+      "publisherDisplayName": "Cleverit Group",
+      "languages": ["es-CL", "en-US"],
+      "backgroundColor": "#0b0b12",
+      "artifactName": "Covenant-Gravity-${version}-${arch}.${ext}"
     },
     "portable": {
       "artifactName": "${productName}-${version}-portable-${arch}.${ext}"

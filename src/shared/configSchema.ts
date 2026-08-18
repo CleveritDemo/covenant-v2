@@ -248,6 +248,15 @@ export function migrateAgentCliCommands(
   return out
 }
 
+/** Solo las escriben los canales GITHUB_ACCOUNT_*; CONFIG_SET las ignora. */
+export const CONFIG_KEYS_OWNED_BY_MAIN = ['githubAccounts', 'githubDefaultAccountId'] as const
+
+export function stripMainOwnedConfigKeys(partial: Partial<AppConfig>): Partial<AppConfig> {
+  const next: Partial<AppConfig> = { ...partial }
+  for (const key of CONFIG_KEYS_OWNED_BY_MAIN) delete next[key]
+  return next
+}
+
 export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const reduceMotion = typeof partial.reduceMotion === 'boolean'
     ? partial.reduceMotion

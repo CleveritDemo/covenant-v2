@@ -25,6 +25,7 @@ import { replaySplash } from '../splash'
 import { previewReleaseNotes, previewUpdateBanner } from '../updateBannerPreview'
 import { changelogRecentModifications } from '@shared/changelog'
 import type { UpdateState } from '@shared/updateState'
+import { isStoreBuild } from '../platform'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
 import changelogMd from '../../../CHANGELOG.md?raw'
 import './SettingsModal.css'
@@ -95,6 +96,33 @@ const SEARCH_INDEX = [
 
 /** Una escritura por ráfaga de tecleo, no una por pulsación. */
 const AUTOSAVE_DEBOUNCE_MS = 600
+
+/** Claves que el modal edita. El resto (p. ej. githubAccounts) lo escriben otros canales. */
+const SETTINGS_OWNED_KEYS: readonly (keyof AppConfig)[] = [
+  'githubToken',
+  'language',
+  'reduceMotion',
+  'musicEnabled',
+  'musicVolume',
+  'systemSoundsEnabled',
+  'discordPresenceEnabled',
+  'autoUpdatesEnabled',
+  'defaultWorkspacesDir',
+  'fontUi',
+  'fontMono',
+  'terminalLineHeight',
+  'agentCliCommands',
+  'otelEndpoint',
+  'otelProtocol',
+  'otelEnabled',
+  'otelHeaders',
+  'otelLogPrompts',
+  'otelLogToolIO',
+]
+
+export function pickSettingsOwnedConfig(cfg: AppConfig): Partial<AppConfig> {
+  return Object.fromEntries(SETTINGS_OWNED_KEYS.map(key => [key, cfg[key]])) as Partial<AppConfig>
+}
 
 export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = '', onReplayOnboarding, onAccountDeleted }) => {
   const { t } = useT()
@@ -269,7 +297,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     setErrors([])
   }
 
-  /** Config a persistir. */
+  /**
+   * Config a persistir. No reenviar el objeto entero: el snapshot es de arranque
+   * y no ve lo que escriben otros canales IPC (GITHUB_ACCOUNT_*).
+   */
   function buildConfig(): AppConfig {
     return mergeWithDefaults({
       ...config,
@@ -301,7 +332,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
     const errs = validateConfig(next)
     if (errs.length) { setErrors(errs); return }
 
-    const result = await window.api.setConfig(next)
+    const result = await window.api.setConfig(pickSettingsOwnedConfig(next))
     if (result.ok) {
       setErrors([])
       setSavedAt(new Date())
@@ -801,43 +832,49 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
               title={t('settings.aboutVersion', { version: appVersion })}
               anchor="settings-updates"
             >
-              <SettingToggle
-                checked={form.autoUpdatesEnabled}
-                onChange={checked => update('autoUpdatesEnabled', checked)}
-                title={t('settings.autoUpdatesTitle')}
-                description={t('settings.autoUpdatesDescription')}
-              />
-              <div className="settings-update-check">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={checking || forcing}
-                  onClick={() => void checkUpdates()}
-                >
-                  <Icon name="refresh" size={12} />
-                  {checking ? t('settings.checkUpdatesRunning') : t('settings.checkUpdates')}
-                </Button>
-                {updateState.kind === 'ready' ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={checking || forcing}
-                    onClick={() => window.api.installUpdate()}
-                  >
-                    {t('settings.restartToUpdate')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={checking || forcing}
-                    onClick={() => void forceUpdate()}
-                  >
-                    {forcing ? t('settings.checkUpdatesRunning') : t('settings.forceUpdate')}
-                  </Button>
-                )}
-                {checkMsg && <span className="settings-hint">{checkMsg}</span>}
-              </div>
+              {isStoreBuild ? (
+                <p className="settings-hint settings-hint--block">{t('settings.updatesStoreManaged')}</p>
+              ) : (
+                <>
+                  <SettingToggle
+                    checked={form.autoUpdatesEnabled}
+                    onChange={checked => update('autoUpdatesEnabled', checked)}
+                    title={t('settings.autoUpdatesTitle')}
+                    description={t('settings.autoUpdatesDescription')}
+                  />
+                  <div className="settings-update-check">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={checking || forcing}
+                      onClick={() => void checkUpdates()}
+                    >
+                      <Icon name="refresh" size={12} />
+                      {checking ? t('settings.checkUpdatesRunning') : t('settings.checkUpdates')}
+                    </Button>
+                    {updateState.kind === 'ready' ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={checking || forcing}
+                        onClick={() => window.api.installUpdate()}
+                      >
+                        {t('settings.restartToUpdate')}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={checking || forcing}
+                        onClick={() => void forceUpdate()}
+                      >
+                        {forcing ? t('settings.checkUpdatesRunning') : t('settings.forceUpdate')}
+                      </Button>
+                    )}
+                    {checkMsg && <span className="settings-hint">{checkMsg}</span>}
+                  </div>
+                </>
+              )}
             </SettingsSection>
           )}
 

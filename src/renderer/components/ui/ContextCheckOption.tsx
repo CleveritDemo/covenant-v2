@@ -37,6 +37,9 @@ export interface ContextCheckOptionProps {
   usedByLabel?: string
 }
 
+/** Máximo de caras en la pila; el resto va como «+N». Visual, no accesible. */
+export const CONTEXT_USED_BY_LIMIT = 3
+
 /** Opción multi-select de contexto (checkbox + nombre + kind). */
 export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
   name,
@@ -97,7 +100,7 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
     {kindLabel ? <span className="context-check-option__kind">{kindLabel}</span> : null}
     {usedBy && usedBy.length > 0 ? (
       <span className="context-check-option__stack" aria-label={usedByLabel}>
-        {usedBy.map(user => (
+        {usedBy.slice(0, CONTEXT_USED_BY_LIMIT).map(user => (
           user.color ? (
             <span key={user.id} className="context-check-option__face">
               <AgentFace
@@ -111,6 +114,11 @@ export const ContextCheckOption: React.FC<ContextCheckOptionProps> = ({
             <span key={user.id} className="context-check-option__monogram">{user.monogram}</span>
           )
         ))}
+        {usedBy.length > CONTEXT_USED_BY_LIMIT ? (
+          <span className="context-check-option__stack-more">
+            +{usedBy.length - CONTEXT_USED_BY_LIMIT}
+          </span>
+        ) : null}
       </span>
     ) : null}
   </label>

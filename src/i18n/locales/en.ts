@@ -49,6 +49,7 @@ const en = {
     aboutVersion: 'Covenant Gravity v{{version}}',
     autoUpdatesTitle: 'Automatic updates',
     autoUpdatesDescription: 'Check for new versions on launch and about once an hour. Turn off to only update when you ask.',
+    updatesStoreManaged: 'This install updates through the Microsoft Store.',
     forceUpdate: 'Update now',
     restartToUpdate: 'Restart to update',
     forceUpdateStarting: 'Downloading v{{version}}… Restart when it is ready.',

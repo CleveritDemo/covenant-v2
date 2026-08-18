@@ -31,7 +31,7 @@ import type { AppConfig } from '@shared/configSchema'
 import { decideRendererCrashRecovery } from '@shared/rendererCrashRecovery'
 import { shouldAlertOnHeap, type RendererVitals } from '@shared/rendererVitals'
 import { noteFatalFailure, type FatalStormState } from '@shared/mainFailureStorm'
-import { CONFIG_DEFAULTS, mergeWithDefaults, validateConfig } from '@shared/configSchema'
+import { CONFIG_DEFAULTS, mergeWithDefaults, stripMainOwnedConfigKeys, validateConfig } from '@shared/configSchema'
 import {
   DEFAULT_OVERLAY_COLOR,
   DEFAULT_OVERLAY_SYMBOL,
@@ -217,7 +217,8 @@ import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken, resolveGithubTokenWithSource } from './githubToken'
 import { sanitizeAccountLabel, type GithubAccount } from '@shared/githubAccounts'
-import { deleteAccountToken, readAccountToken, writeAccountToken } from './githubAccountStore'
+import { adoptOrphanAccounts } from './githubAccountRecovery'
+import { deleteAccountToken, listAccountTokenIds, readAccountToken, writeAccountToken } from './githubAccountStore'
 import { resolveWorkspaceAccountId, writeWorkspaceAccountId } from './githubWorkspaceAccount'
 import { describeCovenantSignInError } from '../src/shared/covenantAuthError'
 import {
@@ -435,6 +436,27 @@ function readConfig(): AppConfig {
   }
   if (!withDefaults.defaultWorkspacesDir?.trim()) {
     withDefaults.defaultWorkspacesDir = join(app.getPath('documents'), 'covenant')
+  }
+  try {
+    const recovered = adoptOrphanAccounts(
+      withDefaults.githubAccounts,
+      withDefaults.githubDefaultAccountId,
+      listAccountTokenIds(),
+    )
+    if (recovered.changed) {
+      withDefaults = {
+        ...withDefaults,
+        githubAccounts: recovered.accounts,
+        githubDefaultAccountId: recovered.defaultAccountId,
+      }
+      try {
+        writeConfig(withDefaults)
+      } catch {
+        /* la sesión sigue con las cuentas adoptadas aunque no se persistan */
+      }
+    }
+  } catch {
+    /* store ilegible: seguir sin recuperar */
   }
   return seedGithubAccountsFromLegacyToken(withDefaults)
 }
@@ -688,7 +710,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.CONFIG_GET, (): AppConfig => readConfig())
 
   ipcMain.handle(IPC.CONFIG_SET, (_e, partial: Partial<AppConfig>) => {
-    const next = mergeWithDefaults({ ...readConfig(), ...partial })
+    const next = mergeWithDefaults({ ...readConfig(), ...stripMainOwnedConfigKeys(partial) })
     const errs = validateConfig(next)
     if (errs.length) return { ok: false as const, errors: errs }
     writeConfig(next)

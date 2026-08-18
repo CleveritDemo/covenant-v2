@@ -16,6 +16,7 @@ import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
 import { Input } from '../components/ui/Input'
 import { AgentFace as UiAgentFace } from '../components/ui/AgentFace'
+import { CONTEXT_USED_BY_LIMIT } from '../components/ui/ContextCheckOption'
 import { CoordinationBadge } from '../components/ui/CoordinationBadge'
 import { contextIconName } from './tabContextKindIcons'
 import {
@@ -24,9 +25,6 @@ import {
   paletteColorForSeed,
   resolveContextColor,
 } from '@shared/tabContextAppearance'
-
-/** Máximo de caras en la pila de una fila; el resto va como «+N». */
-const STACK_LIMIT = 3
 
 interface Props {
   contexts: TabContext[]
@@ -148,11 +146,11 @@ export const TabContextsList: React.FC<Props> = ({
         aria-label={t('tabContexts.usedByAria', { agents: users.map(agentName).join(', ') })}
         role="img"
       >
-        {users.slice(0, STACK_LIMIT).map(agent => (
+        {users.slice(0, CONTEXT_USED_BY_LIMIT).map(agent => (
           <AgentFace key={agent.id} agent={agent} small />
         ))}
-        {users.length > STACK_LIMIT && (
-          <span className="tab-contexts__stack-more">+{users.length - STACK_LIMIT}</span>
+        {users.length > CONTEXT_USED_BY_LIMIT && (
+          <span className="tab-contexts__stack-more">+{users.length - CONTEXT_USED_BY_LIMIT}</span>
         )}
       </span>
     )

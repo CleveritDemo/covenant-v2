@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-const { readAccountToken, writeAccountToken, deleteAccountToken } = await import('../githubAccountStore')
+const { readAccountToken, writeAccountToken, deleteAccountToken, listAccountTokenIds } = await import('../githubAccountStore')
 
 describe('githubAccountStore', () => {
   it('ida y vuelta: lee el token que se escribió', () => {
@@ -65,5 +65,16 @@ describe('githubAccountStore', () => {
     deleteAccountToken('acc-1')
     expect(readAccountToken('acc-1')).toBeNull()
     expect(readAccountToken('acc-2')).toBe('tok-2')
+  })
+
+  it('listAccountTokenIds: claves con token no vacío, en orden de inserción', () => {
+    mockState.userDataDir = mkdtempSync(join(tmpdir(), 'gravity-gh-acc-'))
+    mockState.encryptionAvailable = false
+    writeFileSync(
+      join(mockState.userDataDir, 'github-tokens.json'),
+      JSON.stringify({ plain: { 'acc-b': 'tok-b', 'acc-a': 'tok-a', empty: '  ', skip: '' } }),
+      'utf8',
+    )
+    expect(listAccountTokenIds()).toEqual(['acc-b', 'acc-a'])
   })
 })

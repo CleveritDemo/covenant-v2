@@ -45,6 +45,14 @@ function writeStore(store: StoredTokens): void {
   writeFileSync(path, JSON.stringify({ plain: store }), 'utf8')
 }
 
+export function listAccountTokenIds(): string[] {
+  const store = readStore()
+  return Object.keys(store).filter((id) => {
+    const token = store[id]
+    return typeof token === 'string' && Boolean(token.trim())
+  })
+}
+
 export function readAccountToken(id: string): string | null {
   const token = readStore()[id]
   if (typeof token !== 'string' || !token.trim()) return null

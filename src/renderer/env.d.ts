@@ -26,7 +26,7 @@ export type GithubAccountsApi = {
 
 declare global {
   interface Window {
-    api: API & GithubAccountsApi & { covenant?: CovenantApi }
+    api: API & GithubAccountsApi & { covenant?: CovenantApi; isStoreBuild?: boolean }
   }
 }
 

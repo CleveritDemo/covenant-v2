@@ -1,0 +1,78 @@
+# Paquete AppX/MSIX de evaluación. NO forma parte del release: solo
+# workflow_dispatch. El canal de Windows sigue siendo NSIS en release.yml.
+name: Windows AppX (eval)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-appx:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # Antes de `npm ci`, no después: el binario de Electron lo baja su
+      # postinstall. Rutas literales — `${{ env.LOCALAPPDATA }}` resuelve vacío.
+      - name: Cache electron + electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-win-${{ hashFiles('package-lock.json') }}
+
+      - name: Install deps
+        shell: bash
+        env:
+          DEBUG: '@electron/get:*'
+        run: |
+          set -euo pipefail
+          attempt=1
+          max=3
+          until npm ci; do
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::npm ci failed after ${max} attempts"
+              exit 1
+            fi
+            echo "::warning::npm ci attempt ${attempt} failed; retrying in 20s"
+            attempt=$((attempt + 1))
+            sleep 20
+          done
+
+      - name: Build AppX
+        shell: bash
+        run: npm run dist:win-appx
+
+      - name: Sideload-sign the .appx
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-SelfSignedCertificate -Type Custom -Subject 'CN=Cleverit Group SpA' -CertStoreLocation Cert:\CurrentUser\My | Out-Null
+          $signtool = Get-ChildItem -Path ${env:ProgramFiles(x86)}, ${env:ProgramFiles} -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Select-Object -First 1
+          if (-not $signtool) {
+            Write-Warning 'signtool no aparece; se sube el .appx sin firmar'
+            exit 0
+          }
+          $appx = Get-ChildItem -Path dist -Filter *.appx -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $appx) {
+            Write-Warning 'no hay .appx en dist para firmar'
+            exit 0
+          }
+          & $signtool.FullName sign /fd SHA256 /a /n 'Cleverit Group SpA' $appx.FullName
+
+      - name: Upload Windows AppX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-appx
+          path: dist/*.appx
+          if-no-files-found: error

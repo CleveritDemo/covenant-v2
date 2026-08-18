@@ -166,4 +166,27 @@ describe('guardado al cambiar', () => {
 
     await waitFor(() => expect(screen.getByText(/settings\.savedAt:/)).toBeTruthy())
   })
+
+  it('el autosave no reenvía githubAccounts del snapshot de arranque', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    render(
+      <SettingsModal
+        config={{ ...config, githubAccounts: [{ id: 'a', label: 'x' }] }}
+        onSave={onSave}
+        onClose={() => {}}
+      />,
+    )
+    gotoAppearance()
+    fireEvent.click(screen.getByRole('button', { name: /settings.reduceMotionTitle/ }))
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(setConfig).toHaveBeenCalledTimes(1)
+    const payload = setConfig.mock.calls[0][0] as Record<string, unknown>
+    expect(payload).not.toHaveProperty('githubAccounts')
+    expect(payload).not.toHaveProperty('githubDefaultAccountId')
+    expect(payload.reduceMotion).toBe(true)
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0].githubAccounts).toEqual([{ id: 'a', label: 'x' }])
+  })
 })

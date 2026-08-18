@@ -45,6 +45,26 @@ function request(
 }
 
 describe('resolveProjectCwd', () => {
+  it('falls back to turn cwd when projectCwd is invalid, not home', () => {
+    const home = mkdtempSync(join(tmpdir(), 'gravity-home-fb-'))
+    const turnCwd = mkdtempSync(join(tmpdir(), 'gravity-turn-fb-'))
+    try {
+      expect(resolveProjectCwd({ cwd: turnCwd, projectCwd: '/no/existe/project' }, home)).toBe(turnCwd)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+      rmSync(turnCwd, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to home when projectCwd and cwd are invalid', () => {
+    const home = mkdtempSync(join(tmpdir(), 'gravity-home-both-'))
+    try {
+      expect(resolveProjectCwd({ cwd: '/no/existe/turn', projectCwd: '/no/existe/project' }, home)).toBe(home)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+
   it('prefers projectCwd over turn cwd for .gravity ops', () => {
     const home = mkdtempSync(join(tmpdir(), 'gravity-home-'))
     const project = mkdtempSync(join(tmpdir(), 'gravity-project-'))
@@ -364,6 +384,7 @@ describe('composePrompt identity', () => {
           provider: 'claude',
           permissionMode: 'auto',
           prompt: 'revisa esto',
+          cwd,
           // Un contexto recién descubierto en disco: `contextFilePath` y el
           // refresher ya caían al nombre de archivo; el preámbulo exigía
           // `issueKey` y por eso se callaba una issue que sí viajaba adjunta.
@@ -401,6 +422,7 @@ describe('composePrompt identity', () => {
           provider: 'claude',
           permissionMode: 'auto',
           prompt: 'revisa esto',
+          cwd,
           contexts: [
             {
               id: 'iaterminal:jira:grav-412',
@@ -657,6 +679,49 @@ describe('composePrompt identity', () => {
       '',
     )
     expect(prompt).not.toContain('## Wiki ingest decision')
+  })
+
+  it('usa projectCwd explícito para wiki ingest, no el cwd del turno', () => {
+    const turnCwd = mkdtempSync(join(tmpdir(), 'gravity-turn-wiki-'))
+    const projectWithWiki = mkdtempSync(join(tmpdir(), 'gravity-project-wiki-'))
+    const projectNoWiki = mkdtempSync(join(tmpdir(), 'gravity-project-nowiki-'))
+    try {
+      mkdirSync(join(projectWithWiki, PROJECT_DIR, 'wiki', 'pages'), { recursive: true })
+      writeFileSync(join(projectWithWiki, PROJECT_DIR, 'wiki', 'index.md'), '# Wiki index\n', 'utf8')
+
+      const caseA = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'hola',
+          cwd: turnCwd,
+        }),
+        turnCwd,
+        [],
+        '',
+        projectWithWiki,
+      )
+      expect(caseA).toContain('## Wiki ingest decision')
+
+      const caseB = composePrompt(
+        request({
+          provider: 'claude',
+          permissionMode: 'auto',
+          prompt: 'hola',
+          cwd: turnCwd,
+          projectCwd: projectWithWiki,
+        }),
+        turnCwd,
+        [],
+        '',
+        projectNoWiki,
+      )
+      expect(caseB).not.toContain('## Wiki ingest decision')
+    } finally {
+      rmSync(turnCwd, { recursive: true, force: true })
+      rmSync(projectWithWiki, { recursive: true, force: true })
+      rmSync(projectNoWiki, { recursive: true, force: true })
+    }
   })
 })
 

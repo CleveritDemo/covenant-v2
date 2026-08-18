@@ -182,7 +182,7 @@ export function startWikiCuratorTurn(
   }
 
   const init = isWikiCuratorInitCommand(message)
-  if (init) ensureWiki(cwd)
+  ensureWiki(cwd)
   const discovered = discoverTabContexts(cwd).contexts
   // Chat: solo wiki. Init: wiki + folderTree para explorar el proyecto read-only.
   let contexts = init

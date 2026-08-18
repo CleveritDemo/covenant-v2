@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentCliStartRequest } from '../../src/shared/agentCliTypes'
 import type { AppConfig } from '../../src/shared/configSchema'
 import { projectDirPath } from '../projectDir'
-import { applyWikiIngest, ensureWikiWithSeed } from '../wikiStore'
+import { applyWikiIngest, ensureWikiWithSeed, wikiRootPath } from '../wikiStore'
 import {
   clearWikiCuratorForTests,
   applyWikiCuratorConfigToApp,
@@ -319,6 +319,27 @@ describe('startWikiCuratorTurn provider', () => {
     expect(requests[0]!.prompt).toContain('## Init mode')
     expect(requests[0]!.contexts.some(c => c.kind === 'wiki')).toBe(true)
     expect(requests[0]!.contexts.some(c => c.kind === 'folderTree')).toBe(true)
+  })
+
+  it('turno manual sin init deja creado el árbol wiki/pages al terminar', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ia-wiki-curator-manual-tree-'))
+    dirs.push(cwd)
+
+    const runner: WikiCuratorRunner = (_request, _config, _home, handlers) => {
+      queueMicrotask(() => handlers.onDone(0))
+    }
+
+    expect(startWikiCuratorTurn(
+      fakeWindow(),
+      { cwd, message: 'hola' },
+      { agentCliCommands: {} } as AppConfig,
+      '/home',
+      { runner },
+    )).toEqual({ ok: true })
+
+    await vi.waitFor(() => {
+      expect(existsSync(join(wikiRootPath(cwd), 'pages'))).toBe(true)
+    }, { timeout: 3000 })
   })
 })
 

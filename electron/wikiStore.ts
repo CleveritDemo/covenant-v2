@@ -230,12 +230,16 @@ export function replaceWikiPagesFromServer(
 /**
  * Aplica upserts/deletes del fence, regenera index.md desde disco y appendea
  * la línea de log. Los slugs inválidos suman error y no tocan disco.
+ * No crea la wiki: quien quiera crearla debe llamar ensureWiki antes.
  */
 export function applyWikiIngest(
   cwd: string,
   ingest: WikiIngest,
   options: { agentId?: string } = {},
 ): WikiIngestResult {
+  if (!hasWiki(cwd)) {
+    return { ok: false, applied: 0, errors: ['wiki not initialized'] }
+  }
   const root = ensureWiki(cwd)
   const errors: string[] = []
   let applied = 0

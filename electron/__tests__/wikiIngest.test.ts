@@ -3,7 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { applyWikiIngestFromFinalText } from '../wikiIngest'
-import { wikiRootPath } from '../wikiStore'
+import { ensureWiki, wikiRootPath } from '../wikiStore'
 
 const roots: string[] = []
 
@@ -24,6 +24,7 @@ function fenced(json: string): string {
 describe('applyWikiIngestFromFinalText', () => {
   it('con persist true aplica las ops y limpia el fence del texto visible', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const result = applyWikiIngestFromFinalText(
       fenced('{"ops":[{"op":"upsert","slug":"auth-flow","title":"Auth flow","type":"decision","body":"Cómo entra el usuario."}],"log":"alta de auth-flow"}'),
       cwd,
@@ -61,6 +62,7 @@ describe('applyWikiIngestFromFinalText', () => {
 
   it('sin línea log autogenera el summary desde las ops', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngestFromFinalText(
       fenced('{"ops":[{"op":"upsert","slug":"a","title":"A","type":"concept","body":"x"},{"op":"upsert","slug":"b","title":"B","type":"concept","body":"y"},{"op":"delete","slug":"c"}]}'),
       cwd,
@@ -72,6 +74,7 @@ describe('applyWikiIngestFromFinalText', () => {
 
   it('respeta los caps: máximo 8 ops por turno y title recortado a 120', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const ops = Array.from({ length: 9 }, (_, index) => (
       `{"op":"upsert","slug":"p-${index}","title":"${'T'.repeat(200)}","type":"concept","body":"x"}`
     ))
@@ -88,6 +91,7 @@ describe('applyWikiIngestFromFinalText', () => {
 
   it('con persist false (flag ya persistido) limpia el fence sin re-aplicar', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const text = fenced('{"ops":[{"op":"upsert","slug":"a","title":"A","type":"concept","body":"x"}],"log":"alta"}')
     const first = applyWikiIngestFromFinalText(text, cwd, { agentId: 'tl', persist: true })
     expect(first.persisted).toBe(true)

@@ -4,6 +4,7 @@ import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyWikiIngest,
+  ensureWiki,
   readWikiLogTail,
   readWikiPages,
   replaceWikiLogFromServer,
@@ -33,6 +34,7 @@ describe('replaceWikiPagesFromServer', () => {
 
   it('reemplaza pages, borra las locales fuera del set y regenera el index', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [
         { op: 'upsert', slug: 'local-extra', title: 'Solo local', type: 'concept', body: 'x' },
@@ -61,6 +63,7 @@ describe('replaceWikiPagesFromServer', () => {
 
   it('NUNCA toca log.md', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [{ op: 'upsert', slug: 'alfa', title: 'Alfa', type: 'concept', body: 'a' }],
       log: 'línea que debe sobrevivir',
@@ -89,6 +92,7 @@ describe('replaceWikiPagesFromServer', () => {
 
   it('lista vacía con wiki existente vacía las pages y conserva el log', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [{ op: 'upsert', slug: 'alfa', title: 'Alfa', type: 'concept', body: 'a' }],
       log: 'alta',
@@ -150,6 +154,7 @@ describe('readWikiLogTail', () => {
     const cwd = makeRoot()
     expect(readWikiLogTail(cwd)).toEqual([])
 
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [{ op: 'upsert', slug: 'alfa', title: 'Alfa', type: 'concept', body: 'a' }],
       log: 'alta de alfa',
@@ -161,6 +166,7 @@ describe('readWikiLogTail', () => {
 
   it('cap de 50 líneas', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     for (let i = 0; i < 60; i += 1) {
       applyWikiIngest(cwd, { ops: [], log: `línea ${i}` })
     }

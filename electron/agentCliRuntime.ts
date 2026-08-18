@@ -189,13 +189,17 @@ function contextSessionKey(provider: AgentCliStartRequest['provider'], cliSessio
   return `${provider}\0${cliSessionId}`
 }
 
-/** Carpeta del proyecto (`.gravity/`); el spawn CLI sigue usando el cwd del turno. */
+/**
+ * Carpeta del proyecto (`.gravity/`); el spawn CLI sigue usando el cwd del turno.
+ * Un `projectCwd` inválido cae al cwd del turno, no a `home`.
+ */
 export function resolveProjectCwd(
   request: Pick<AgentCliStartRequest, 'cwd' | 'projectCwd'>,
   home: string,
 ): string {
   const project = (request.projectCwd ?? '').trim()
-  return resolveWorkingDirectory(project || request.cwd, home)
+  const turnCwd = resolveWorkingDirectory(request.cwd, home)
+  return project ? resolveWorkingDirectory(project, turnCwd) : turnCwd
 }
 
 function planContextDelivery(
@@ -761,6 +765,7 @@ export function composePrompt(
     Array.isArray(request.contexts) ? request.contexts : [],
     cwd,
   ),
+  projectCwd: string = resolveProjectCwd(request, cwd),
 ): string {
   const identityPrompt = buildAgentIdentityPrompt({
     name: request.name,
@@ -769,9 +774,8 @@ export function composePrompt(
     rules: request.rules,
   })
   const mcpCapabilityPrompt = buildMcpCapabilityPrompt(request.mcpsAllowed ?? [])
-  // `.gravity` vive en el proyecto, nunca en el worktree del turno (cwd) — el
-  // chequeo de snapshot usa el mismo cwd que el resto de operaciones de contexto.
-  const resultsCwd = (request.projectCwd ?? '').trim() || cwd
+  // `.gravity` vive en el proyecto resuelto (`projectCwd`), no en el cwd del turno.
+  const resultsCwd = projectCwd
   const jiraAttachedPrompt = buildJiraAttachedPrompt(
     collectAttachedJiraKeys(
       Array.isArray(request.contexts) ? request.contexts : [],
@@ -1198,7 +1202,7 @@ export function startAgentTurn(
   let delegateWarningsSent = false
   let delegateRepeatWarned = false
   const contextDelivery = planContextDelivery(request, projectCwd)
-  const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt)
+  const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt, projectCwd)
   let contextDeliveryCommitted = false
   const turnStartedAt = Date.now()
   const tokensAtStart = getContextDeliveryMetrics()

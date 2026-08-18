@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -66,6 +66,7 @@ describe('ensureWikiWithSeed', () => {
 
   it('con pages existentes no toca nada: ni pages, ni index, ni log', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [{ op: 'upsert', slug: 'auth', title: 'Auth', type: 'flow', body: 'x' }],
       log: 'alta',
@@ -110,8 +111,55 @@ describe('ensureWikiWithSeed', () => {
 })
 
 describe('applyWikiIngest', () => {
+  it('sin wiki no crea directorio ni fichero y devuelve wiki not initialized', () => {
+    const cwd = makeRoot()
+    const result = applyWikiIngest(cwd, {
+      ops: [{ op: 'upsert', slug: 'a', title: 'A', type: 'concept', body: 'x' }],
+      log: 'alta',
+    })
+    expect(result).toEqual({ ok: false, applied: 0, errors: ['wiki not initialized'] })
+    expect(existsSync(wikiRootPath(cwd))).toBe(false)
+  })
+
+  it('tras ensureWiki aplica ingest, regenera index.md y appendea log', () => {
+    const cwd = makeRoot()
+    ensureWiki(cwd)
+    const result = applyWikiIngest(cwd, {
+      ops: [{
+        op: 'upsert',
+        slug: 'auth-flow',
+        title: 'Auth Flow',
+        type: 'flow',
+        body: 'Cómo entra el usuario.',
+      }],
+      log: 'alta de auth-flow',
+    }, { agentId: 'tl' })
+    expect(result).toEqual({ ok: true, applied: 1, errors: [] })
+
+    const root = wikiRootPath(cwd)
+    expect(readFileSync(join(root, 'pages', 'auth-flow.md'), 'utf8')).toContain('Cómo entra el usuario.')
+    expect(readFileSync(join(root, 'index.md'), 'utf8')).toContain('[[auth-flow]]')
+    expect(readFileSync(join(root, 'log.md'), 'utf8'))
+      .toMatch(/- `[^`]+` — \[tl\] alta de auth-flow\n$/)
+  })
+
+  it('con pages/ existente pero sin index.md ni log.md los regenera al ingestar', () => {
+    const cwd = makeRoot()
+    const root = wikiRootPath(cwd)
+    mkdirSync(join(root, 'pages'), { recursive: true })
+    const result = applyWikiIngest(cwd, {
+      ops: [{ op: 'upsert', slug: 'a', title: 'A', type: 'concept', body: 'x' }],
+      log: 'alta',
+    })
+    expect(result).toEqual({ ok: true, applied: 1, errors: [] })
+    expect(existsSync(join(root, 'index.md'))).toBe(true)
+    expect(readFileSync(join(root, 'log.md'), 'utf8'))
+      .toMatch(/- `[^`]+` — alta\n$/)
+  })
+
   it('upsert escribe la page, regenera el index y appendea el log', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const result = applyWikiIngest(cwd, {
       ops: [{
         op: 'upsert',
@@ -141,6 +189,7 @@ describe('applyWikiIngest', () => {
 
   it('delete quita la page y su línea del index', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     applyWikiIngest(cwd, {
       ops: [
         { op: 'upsert', slug: 'alfa', title: 'Alfa', type: 'concept', body: 'a' },
@@ -161,12 +210,14 @@ describe('applyWikiIngest', () => {
 
   it('delete de una page inexistente no suma applied ni error', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const result = applyWikiIngest(cwd, { ops: [{ op: 'delete', slug: 'fantasma' }], log: null })
     expect(result).toEqual({ ok: true, applied: 0, errors: [] })
   })
 
   it('rechaza slugs con traversal sin escribir fuera de wiki/pages', () => {
     const cwd = makeRoot()
+    ensureWiki(cwd)
     const result = applyWikiIngest(cwd, {
       ops: [
         { op: 'upsert', slug: '../evil', title: 'Evil', type: 'concept', body: 'x' },

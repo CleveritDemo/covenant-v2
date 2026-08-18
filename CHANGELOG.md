@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.85.0
+
+- El chat del plano ya no queda en silencio mientras un agente trabaja: la línea de estado muestra la fase del turno (arrancando, cargando contexto, pensando, la herramienta en curso con su detalle y escribiendo la respuesta).
+- Esa misma línea trae un cronómetro del turno, así se ve de un golpe si lleva segundos o minutos, y cuenta los pasos de herramienta ya ejecutados.
+- Antes de este cambio el indicador se vaciaba justo al terminar de cargar el contexto y no volvía a decir nada hasta la primera herramienta.
+
 ## v0.84.0
 
 - Nuevo tipo «Un archivo» en el formulario de contextos: elegís el archivo del repo en el diálogo nativo y el contexto queda listo, sin carpeta raíz ni lista de rutas.

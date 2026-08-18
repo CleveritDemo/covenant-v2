@@ -84,6 +84,39 @@ export const AGENT_IDENTITY_TEMPLATES = [
       'agentPane.templateSecurityRule3',
     ],
   },
+  {
+    id: 'uxResearcher',
+    labelKey: 'agentPane.templateUxResearchLabel',
+    roleKey: 'agentPane.templateUxResearchRole',
+    objectiveKey: 'agentPane.templateUxResearchObjective',
+    ruleKeys: [
+      'agentPane.templateUxResearchRule1',
+      'agentPane.templateUxResearchRule2',
+      'agentPane.templateUxResearchRule3',
+    ],
+  },
+  {
+    id: 'devOpsEngineer',
+    labelKey: 'agentPane.templateDevOpsLabel',
+    roleKey: 'agentPane.templateDevOpsRole',
+    objectiveKey: 'agentPane.templateDevOpsObjective',
+    ruleKeys: [
+      'agentPane.templateDevOpsRule1',
+      'agentPane.templateDevOpsRule2',
+      'agentPane.templateDevOpsRule3',
+    ],
+  },
+  {
+    id: 'devSecOpsEngineer',
+    labelKey: 'agentPane.templateDevSecOpsLabel',
+    roleKey: 'agentPane.templateDevSecOpsRole',
+    objectiveKey: 'agentPane.templateDevSecOpsObjective',
+    ruleKeys: [
+      'agentPane.templateDevSecOpsRule1',
+      'agentPane.templateDevSecOpsRule2',
+      'agentPane.templateDevSecOpsRule3',
+    ],
+  },
 ] as const
 
 export type AgentIdentityTemplate = (typeof AGENT_IDENTITY_TEMPLATES)[number]

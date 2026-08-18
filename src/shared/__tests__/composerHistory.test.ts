@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_COMPOSER_HISTORY,
   composerHistoryFromEntries,
+  isHostInjectedFollowUp,
   recallStep,
   rememberComposerEntry,
 } from '../composerHistory'
@@ -66,6 +67,57 @@ describe('composerHistoryFromEntries', () => {
       { role: 'user', content: '   ' },
       { role: 'user', content: 'ok' },
     ])).toEqual(['ok'])
+  })
+
+  it('descarta follow-up de delegación por contenido sin presentation', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: 'humano' },
+      { role: 'user', content: '## Delegation result\nid: d1\nstatus: ok' },
+    ])).toEqual(['humano'])
+  })
+
+  it('descarta follow-up de orchestration limit por contenido', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: '## Orchestration limit\nround: 3' },
+    ])).toEqual([])
+  })
+
+  it('descarta follow-up de delegation fence problem por contenido', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: '## Delegation fence problem\nagent: qa' },
+    ])).toEqual([])
+  })
+
+  it('conserva mensaje humano que menciona un título de follow-up a mitad de texto', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: 'mira el ## Delegation result que salió' },
+    ])).toEqual(['mira el ## Delegation result que salió'])
+  })
+
+  it('descarta follow-up con espacios o saltos de línea delante', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: '  \n  ## Delegation result\nid: d1' },
+    ])).toEqual([])
+  })
+
+  it('mezcla humano + follow-up + humano conserva solo los humanos en orden', () => {
+    expect(composerHistoryFromEntries([
+      { role: 'user', content: 'primero' },
+      { role: 'user', content: '## Delegation result\nid: d1\nstatus: ok' },
+      { role: 'user', content: 'segundo' },
+    ])).toEqual(['primero', 'segundo'])
+  })
+})
+
+describe('isHostInjectedFollowUp', () => {
+  it('detecta los tres prefijos de follow-up del host', () => {
+    expect(isHostInjectedFollowUp('## Delegation result\nid: x')).toBe(true)
+    expect(isHostInjectedFollowUp('## Orchestration limit\nround: 1')).toBe(true)
+    expect(isHostInjectedFollowUp('## Delegation fence problem\nagent: qa')).toBe(true)
+  })
+
+  it('no confunde menciones a mitad de párrafo', () => {
+    expect(isHostInjectedFollowUp('mira el ## Delegation result que salió')).toBe(false)
   })
 })
 

@@ -7,6 +7,8 @@
  * (las flechas son del textarea), cualquier número es navegación.
  */
 
+import { looksLikeDelegationResultFollowUp } from './delegationResultCards'
+
 /** Entradas por sesión y por chat. Suficiente para ↑ sin buscador. */
 export const MAX_COMPOSER_HISTORY = 50
 
@@ -32,10 +34,21 @@ export function rememberComposerEntry(entries: string[], text: string): string[]
     : next
 }
 
+/** Follow-ups inyectados por el host que no deben entrar al historial ↑/↓. */
+export function isHostInjectedFollowUp(content: string): boolean {
+  const trimmed = content.trimStart()
+  return (
+    looksLikeDelegationResultFollowUp(content)
+    || trimmed.startsWith('## Orchestration limit')
+    || trimmed.startsWith('## Delegation fence problem')
+  )
+}
+
 /**
  * Siembra el historial desde el transcript persistido. Solo texto humano:
- * `role === 'user'` y nunca `presentation === 'delegationResult'` (tarjetas
- * inyectadas por el host). Recorre en orden cronológico y reusa
+ * `role === 'user'`. El campo `presentation` no lo escribe nadie todavía; el
+ * filtro real es por contenido con la misma regla que la UI del transcript
+ * (`isHostInjectedFollowUp`). Recorre en orden cronológico y reusa
  * `rememberComposerEntry` para heredar colapso de duplicado y tope.
  */
 export function composerHistoryFromEntries(
@@ -45,6 +58,7 @@ export function composerHistoryFromEntries(
   for (const entry of entries) {
     if (entry.role !== 'user') continue
     if (entry.presentation === 'delegationResult') continue
+    if (isHostInjectedFollowUp(entry.content)) continue
     history = rememberComposerEntry(history, entry.content)
   }
   return history

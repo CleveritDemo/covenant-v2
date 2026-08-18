@@ -5,6 +5,10 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.81.2
+
+- **Crear equipo monta el pack Covenant**: desde el plano vacío u onboarding, el botón genera TL, TL Turbo, Frontend, Backend, QA, Product Designer y Product Owner con nombres de rol (no de persona), proveedores, reglas y delegación como en este proyecto.
+
 ## v0.81.1
 
 - Las fichas de agente del listado de Brainstorming rooms se ven con el mismo relieve que las del plano.

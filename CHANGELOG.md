@@ -5,6 +5,15 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.89.0
+
+### Cambiado
+- El mapa neuronal de la wiki se queda vivo al cerrarlo: el barrido y el curador siguen corriendo en background y el botón muestra un punto de actividad, en vez de perder el progreso al ocultar el mapa. El render 3D se apaga mientras está escondido.
+
+### Corregido
+- Un turno de agente ya no puede crear la wiki por accidente: la carpeta `.gravity/wiki` solo la crean el curador, el barrido, el CTA del mapa o la bajada de una organización. Con la wiki sin inicializar, el ingest no toca el disco.
+- La escritura de `.gravity` ya no puede terminar en la carpeta personal: si la ruta del proyecto llega inválida, se usa la del turno en curso. El prompt del agente y el guardado usan ahora exactamente la misma ruta resuelta.
+
 ## v0.88.0
 
 ### Corregido

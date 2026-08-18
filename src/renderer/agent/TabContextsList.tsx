@@ -34,7 +34,6 @@ interface Props {
   agents?: ProjectAgentDefinition[]
   selectedId: string | null
   onNew: () => void
-  onNewFile: () => void
   onSelect: (contextId: string) => void
   onEdit: (context: TabContext) => void
   onDelete: (context: TabContext) => void
@@ -63,7 +62,6 @@ export const TabContextsList: React.FC<Props> = ({
   agents = [],
   selectedId,
   onNew,
-  onNewFile,
   onSelect,
   onEdit,
   onDelete,
@@ -213,10 +211,6 @@ export const TabContextsList: React.FC<Props> = ({
         <Button variant="secondary" onClick={onNew}>
           <Icon name="plus" size={14} />
           {t('tabContexts.new')}
-        </Button>
-        <Button variant="secondary" onClick={onNewFile}>
-          <Icon name="files" size={14} />
-          {t('tabContexts.newFile')}
         </Button>
       </div>
 

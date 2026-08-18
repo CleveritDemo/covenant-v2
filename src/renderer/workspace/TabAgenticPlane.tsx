@@ -105,6 +105,7 @@ export interface TabAgenticPlaneProps {
   contextPoolTitle: string
   contextPoolConfigureLabel: string
   contextPoolCreateLabel: string
+  contextPoolAddFileLabel: string
   contextPoolChipHint?: string
   contextPoolAssignLabel: string
   contextPoolAssignEmptyHint: string
@@ -147,6 +148,7 @@ export interface TabAgenticPlaneProps {
   onFocusWindow: (paneId: string) => void
   onConfigureContexts: () => void
   onCreateContext: () => void
+  onAddFileContext: () => void
   /** Clic en chip del pool → editar ese contexto (sin DnD). */
   onOpenContext?: (contextId: string) => void
   /** Elimina un contexto del catálogo (org o local). */
@@ -354,6 +356,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   contextPoolTitle,
   contextPoolConfigureLabel,
   contextPoolCreateLabel,
+  contextPoolAddFileLabel,
   contextPoolChipHint,
   contextPoolAssignLabel,
   contextPoolAssignEmptyHint,
@@ -391,6 +394,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onFocusWindow,
   onConfigureContexts,
   onCreateContext,
+  onAddFileContext,
   onOpenContext,
   onDeleteContext,
   onAssignContext,
@@ -1299,6 +1303,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
           createLabel={contextPoolCreateLabel}
+          addFileLabel={contextPoolAddFileLabel}
           chipActionHint={contextPoolChipHint}
           assignLabel={contextPoolAssignLabel}
           assignEmptyHint={contextPoolAssignEmptyHint}
@@ -1313,6 +1318,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           agents={contextPoolAgents}
           onConfigure={onConfigureContexts}
           onCreate={onCreateContext}
+          onAddFile={onAddFileContext}
           onOpenContext={onOpenContext}
           onDeleteContext={onDeleteContext}
           onToggleAssign={onToggleAgentContext}

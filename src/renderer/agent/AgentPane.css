@@ -2115,7 +2115,8 @@ html[data-reduce-motion="true"] {
     inset 0 0 0 1px color-mix(in srgb, #000 20%, transparent);
 }
 
-.tab-contexts__editor > label {
+.tab-contexts__editor > label,
+.tab-contexts__single-file {
   display: flex;
   flex-direction: column;
   gap: 5px;

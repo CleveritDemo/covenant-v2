@@ -42,6 +42,7 @@
 }
 
 .plane-context-pool__configure,
+.plane-context-pool__add-file,
 .plane-context-pool__create {
   display: inline-flex;
   align-items: center;
@@ -60,6 +61,7 @@
 }
 
 .plane-context-pool__configure:hover,
+.plane-context-pool__add-file:hover,
 .plane-context-pool__create:hover {
   color: var(--text);
   border-color: transparent;

@@ -40,7 +40,6 @@ const renderList = (contexts: TabContext[], agents: ProjectAgentDefinition[]) =>
     agents={agents}
     selectedId={null}
     onNew={() => {}}
-    onNewFile={() => {}}
     onSelect={() => {}}
     onEdit={() => {}}
     onDelete={() => {}}
@@ -71,6 +70,12 @@ describe('TabContextsList', () => {
     expect(container.querySelector('.agent-face')?.textContent).toBe('TL')
     expect(container.querySelector('.agent-face__brand')).toBeNull()
     expect(container.querySelector('.tab-contexts__role')).toBeNull()
+  })
+
+  it('en la cabecera del listado solo queda Nuevo contexto', () => {
+    renderList([notesContext], [techLead])
+    expect(screen.getByRole('button', { name: 'tabContexts.new' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'tabContexts.newFile' })).toBeNull()
   })
 
   it('deja el glifo por kind en los contextos de proyecto', () => {

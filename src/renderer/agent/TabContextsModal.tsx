@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { TabContext } from '@shared/tabContext'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
-import { planContextsFromFiles } from '@shared/contextFromFile'
 import { toggleAgentContextId } from '@shared/tabContextAgentUsage'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
@@ -121,55 +120,6 @@ export const TabContextsModal: React.FC<Props> = ({
     }
   }
 
-  const addFilesAsContexts = async (): Promise<void> => {
-    const workingCwd = resolveCwd()
-    if (!workingCwd) {
-      setListError(t('tabContexts.missingCwd'))
-      return
-    }
-    try {
-      const result = await window.api.selectProjectFiles({
-        cwd: workingCwd,
-        title: t('tabContexts.pickProjectFilesTitle'),
-      })
-      if (!result.ok) {
-        if (result.cancelled) return
-        if (result.error === 'outside project folder') {
-          setListError(t('tabContexts.pickOutsideProject'))
-          return
-        }
-        setListError(result.error ?? t('tabContexts.previewError'))
-        return
-      }
-
-      const plan = planContextsFromFiles(result.paths, contexts)
-      for (const context of plan.created) {
-        const materialized = await window.api.materializeTabContext({ context, cwd: workingCwd })
-        if (!materialized.ok) {
-          setListError(materialized.error ?? t('tabContexts.previewError'))
-          return
-        }
-      }
-
-      setListError('')
-      onRefresh()
-      if (plan.created.length > 0) {
-        setSelectedId(plan.created[plan.created.length - 1].id)
-        return
-      }
-      if (plan.skipped.length > 0) {
-        const skippedId = plan.skipped[0].contextId
-        setSelectedId(skippedId)
-        const existing = contexts.find(context => context.id === skippedId)
-        setListError(t('tabContexts.fileAlreadyAdded', {
-          name: existing?.name ?? skippedId,
-        }))
-      }
-    } catch (error) {
-      setListError(error instanceof Error ? error.message : t('tabContexts.previewError'))
-    }
-  }
-
   /** Aplica o quita el contexto al agente sin salir del listado. */
   const toggleAgentContext = async (
     agent: ProjectAgentDefinition,
@@ -223,7 +173,6 @@ export const TabContextsModal: React.FC<Props> = ({
               formOpenedFromFocusRef.current = false
               setFormSession({ mode: 'create' })
             }}
-            onNewFile={() => { void addFilesAsContexts() }}
             onSelect={setSelectedId}
             onEdit={context => {
               formOpenedFromFocusRef.current = false

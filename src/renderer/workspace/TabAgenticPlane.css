@@ -345,7 +345,8 @@
   padding: 2px 5px;
   border-radius: 5px;
   background: color-mix(in srgb, currentColor 16%, transparent);
-  font-family: var(--font-mono);
+  /* `--font-mono` la reescribe Ajustes con `config.fontMono` (ver el efecto de tipografía en App.tsx ~línea 1500), así que un atajo de teclado terminaba dibujado con la fuente mono elegida por el usuario. */
+  font-family: var(--font-ui);
   font-size: 10.5px;
   font-weight: 500;
 }

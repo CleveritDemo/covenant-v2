@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isSingleFileDraft,
   planContextsFromFiles,
   singleFileContextName,
 } from '../contextFromFile'
@@ -18,6 +19,31 @@ describe('singleFileContextName', () => {
   it('devuelve el último segmento tras normalizar barras', () => {
     expect(singleFileContextName('src/renderer/App.tsx')).toBe('App.tsx')
     expect(singleFileContextName('src\\renderer\\App.tsx')).toBe('App.tsx')
+  })
+})
+
+describe('isSingleFileDraft', () => {
+  const draft = {
+    kind: 'files' as const,
+    paths: ['src/App.tsx'],
+    rootPath: '',
+    referenceOnly: true as const,
+  }
+
+  it('es true solo con files, referencia viva, raíz vacía y una ruta', () => {
+    expect(isSingleFileDraft(draft)).toBe(true)
+    expect(isSingleFileDraft({ ...draft, rootPath: undefined })).toBe(true)
+    expect(isSingleFileDraft({ ...draft, paths: ['src/App.tsx', '  '] })).toBe(true)
+  })
+
+  it('es false si falta cualquiera de las cuatro condiciones', () => {
+    expect(isSingleFileDraft({ ...draft, kind: 'spreadsheet' })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, referenceOnly: false })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, referenceOnly: undefined })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, rootPath: 'src' })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, paths: [] })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, paths: ['src/A.tsx', 'src/B.tsx'] })).toBe(false)
+    expect(isSingleFileDraft({ ...draft, paths: ['  '] })).toBe(false)
   })
 })
 

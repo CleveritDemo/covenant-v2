@@ -65,6 +65,9 @@ export interface PlaneContextPoolProps {
   /** Agentes del plano (orden de la columna). */
   agents: PlaneContextPoolAgent[]
   onConfigure: () => void
+  /** Abre el picker nativo y crea un contexto files por archivo. */
+  addFileLabel?: string
+  onAddFile?: () => void
   /** Abre el modal de contextos directo en el formulario de creación. */
   onCreate: () => void
   /** Abre ese contexto para editarlo. */
@@ -94,6 +97,8 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   cwd = '',
   agents,
   onConfigure,
+  addFileLabel,
+  onAddFile,
   onCreate,
   onOpenContext,
   onDeleteContext,
@@ -341,13 +346,27 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         </button>
       </Tooltip>
 
+      {onAddFile ? (
+        <Tooltip content={addFileLabel}>
+          <button
+            type="button"
+            className="plane-context-pool__add-file"
+            aria-label={addFileLabel}
+            onClick={onAddFile}
+            {...itemProps(visibleContexts.length + 1)}
+          >
+            <Icon name="files" size={12} />
+          </button>
+        </Tooltip>
+      ) : null}
+
       <Tooltip content={createLabel}>
         <button
           type="button"
           className="plane-context-pool__create"
           aria-label={createLabel}
           onClick={onCreate}
-          {...itemProps(visibleContexts.length + 1)}
+          {...itemProps(visibleContexts.length + (onAddFile ? 2 : 1))}
         >
           <Icon name="plus" size={12} />
         </button>

@@ -11,6 +11,16 @@ export function singleFileContextName(path: string): string {
   return segments[segments.length - 1] ?? normalized
 }
 
+/** Vista «Un archivo» del kind `files`: referencia viva, sin raíz y una sola ruta. */
+export function isSingleFileDraft(
+  context: Pick<TabContext, 'kind' | 'paths' | 'rootPath' | 'referenceOnly'>,
+): boolean {
+  if (context.kind !== 'files') return false
+  if (context.referenceOnly !== true) return false
+  if (context.rootPath?.trim()) return false
+  return normalizePaths(context.paths).length === 1
+}
+
 export interface PickedFileContextPlan {
   created: TabContext[]
   skipped: Array<{ path: string; contextId: string }>

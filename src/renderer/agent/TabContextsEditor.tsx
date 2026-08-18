@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { TabContext, TabContextKind, TabContextSymbolKind } from '@shared/tabContext'
-import { singleFileContextName } from '@shared/contextFromFile'
+import { isSingleFileDraft, singleFileContextName } from '@shared/contextFromFile'
 import {
   canonicalContextFileName,
   canonicalContextName,
@@ -102,6 +102,12 @@ export const TabContextsEditor: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [previewView, setPreviewView] = useState<'rendered' | 'source'>('rendered')
+  const [singleFileMode, setSingleFileMode] = useState(() => isSingleFileDraft(draft))
+  useEffect(() => {
+    setSingleFileMode(isSingleFileDraft(draft))
+    // Abrir otro contexto a editar recalcula; teclear (mismo id) no.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.id])
   /**
    * El input de búsqueda de Jira como estado, no como `useRef`: el picker
    * necesita re-renderizar cuando el elemento existe para colgarle el
@@ -143,6 +149,45 @@ export const TabContextsEditor: React.FC<Props> = ({
     const merged = [...existing, ...result.paths.filter(path => !existing.includes(path))]
     onUpdate({ paths: merged })
   }
+
+  const pickSingleFile = async (): Promise<void> => {
+    onActionError?.('')
+    const cwd = projectCwd.trim()
+    if (!cwd) {
+      onActionError?.(t('tabContexts.missingCwd'))
+      return
+    }
+    const result = await window.api.selectProjectFiles({
+      cwd,
+      title: t('tabContexts.pickProjectFilesTitle'),
+    })
+    if (!result.ok) {
+      if (result.cancelled) return
+      onActionError?.(
+        result.error === 'outside project folder'
+          ? t('tabContexts.pickOutsideProject')
+          : (result.error ?? t('tabContexts.previewError')),
+      )
+      return
+    }
+    const route = (result.paths[0] ?? '').trim()
+    if (!route) return
+    const autoName = canonicalContextName('files', { rootPath: draft.rootPath }).trim()
+    const isAutoName = !draft.name.trim() || draft.name.trim() === autoName
+    if (isAutoName) {
+      const name = singleFileContextName(route)
+      onUpdate({
+        paths: [route],
+        referenceOnly: true,
+        rootPath: '',
+        name,
+        fileName: normalizeContextFileName(name),
+      })
+      return
+    }
+    onUpdate({ paths: [route], referenceOnly: true, rootPath: '' })
+  }
+
   const hostOwnedReadOnly = readOnlyChangelog || readOnlyAgentResult
   // Un contexto "guardado" es uno que ya está en el catálogo vivo del padre —
   // la vista previa (TAB_CONTEXT_PREVIEW) no escribe a disco, así que
@@ -185,13 +230,32 @@ export const TabContextsEditor: React.FC<Props> = ({
                 <span className="tab-contexts__kind-group-label">{t(group.labelKey)}</span>
                 <div className="tab-contexts__kinds">
                   {group.kinds.map(kind => (
-                    <TabContextKindCard
-                      key={kind}
-                      label={t(`tabContexts.kind_${kind}`)}
-                      icon={KIND_ICONS[kind]}
-                      selected={draft.kind === kind}
-                      onSelect={() => onSelectKind(kind)}
-                    />
+                    <React.Fragment key={kind}>
+                      <TabContextKindCard
+                        label={t(`tabContexts.kind_${kind}`)}
+                        icon={KIND_ICONS[kind]}
+                        selected={kind === 'files'
+                          ? draft.kind === 'files' && !singleFileMode
+                          : draft.kind === kind}
+                        onSelect={() => {
+                          setSingleFileMode(false)
+                          onSelectKind(kind)
+                        }}
+                      />
+                      {kind === 'files' ? (
+                        <TabContextKindCard
+                          label={t('tabContexts.kind_singleFile')}
+                          icon="file"
+                          selected={singleFileMode && draft.kind === 'files'}
+                          onSelect={() => {
+                            setSingleFileMode(true)
+                            onSelectKind('files')
+                            onUpdate({ referenceOnly: true, rootPath: '' })
+                            void pickSingleFile()
+                          }}
+                        />
+                      ) : null}
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
@@ -199,77 +263,98 @@ export const TabContextsEditor: React.FC<Props> = ({
           </div>
         )}
 
-        {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' ? (
-          <TabContextRootPathField
-            value={draft.rootPath ?? ''}
-            projectCwd={projectCwd}
-            onChange={rootPath => onUpdate({ rootPath })}
-            onPickError={onActionError}
-          />
-        ) : null}
-
-        {(draft.kind === 'files' || draft.kind === 'symbols' || draft.kind === 'spreadsheet') && (
-          <label>
-            <span className="tab-contexts__paths-label">
-              {t('tabContexts.paths')}
+        {singleFileMode ? (
+          <div className="tab-contexts__single-file">
+            <span>{t('tabContexts.singleFileLabel')}</span>
+            <div className="tab-contexts__file-row">
+              <span>
+                {(draft.paths ?? []).map(path => path.trim()).find(Boolean)
+                  || t('tabContexts.singleFileEmpty')}
+              </span>
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!projectCwd.trim()}
-                onClick={() => { void importFiles() }}
+                onClick={() => { void pickSingleFile() }}
               >
-                {t('tabContexts.importFiles')}
+                {t('tabContexts.singleFilePick')}
               </Button>
-            </span>
-            <TabContextFilePicker
-              cwd={projectCwd}
-              rootPath={draft.rootPath}
-              paths={draft.paths ?? []}
-              onError={onActionError}
-              onAdd={added => {
-                const existingPaths = (draft.paths ?? []).map(path => path.trim()).filter(Boolean)
-                const autoName = canonicalContextName('files', { rootPath: draft.rootPath }).trim()
-                const isAutoName = !draft.name.trim() || draft.name.trim() === autoName
-                if (
-                  draft.kind === 'files'
-                  && existingPaths.length === 0
-                  && added.length === 1
-                  && isAutoName
-                ) {
-                  const route = added[0].trim()
-                  const name = singleFileContextName(route)
-                  onUpdate({
-                    paths: [...existingPaths, ...added],
-                    name,
-                    fileName: normalizeContextFileName(name),
-                  })
-                  return
-                }
-                onUpdate({
-                  paths: [...existingPaths, ...added],
-                })
-              }}
-            />
-            <TextArea
-              rows={5}
-              value={(draft.paths ?? []).join('\n')}
-              placeholder={t(draft.kind === 'spreadsheet'
-                ? 'tabContexts.pathsPlaceholderSpreadsheet'
-                : draft.kind === 'files'
-                  ? 'tabContexts.pathsPlaceholderFiles'
-                  : 'tabContexts.pathsPlaceholder')}
-              onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
-            />
-          </label>
-        )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' ? (
+              <TabContextRootPathField
+                value={draft.rootPath ?? ''}
+                projectCwd={projectCwd}
+                onChange={rootPath => onUpdate({ rootPath })}
+                onPickError={onActionError}
+              />
+            ) : null}
 
-        {(draft.kind === 'files' || draft.kind === 'spreadsheet') && (
-          <SettingToggle
-            checked={draft.referenceOnly === true}
-            onChange={checked => onUpdate({ referenceOnly: checked || undefined })}
-            title={t('tabContexts.referenceOnly')}
-            description={t('tabContexts.referenceOnlyHint')}
-          />
+            {(draft.kind === 'files' || draft.kind === 'symbols' || draft.kind === 'spreadsheet') && (
+              <label>
+                <span className="tab-contexts__paths-label">
+                  {t('tabContexts.paths')}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!projectCwd.trim()}
+                    onClick={() => { void importFiles() }}
+                  >
+                    {t('tabContexts.importFiles')}
+                  </Button>
+                </span>
+                <TabContextFilePicker
+                  cwd={projectCwd}
+                  rootPath={draft.rootPath}
+                  paths={draft.paths ?? []}
+                  onError={onActionError}
+                  onAdd={added => {
+                    const existingPaths = (draft.paths ?? []).map(path => path.trim()).filter(Boolean)
+                    const autoName = canonicalContextName('files', { rootPath: draft.rootPath }).trim()
+                    const isAutoName = !draft.name.trim() || draft.name.trim() === autoName
+                    if (
+                      draft.kind === 'files'
+                      && existingPaths.length === 0
+                      && added.length === 1
+                      && isAutoName
+                    ) {
+                      const route = added[0].trim()
+                      const name = singleFileContextName(route)
+                      onUpdate({
+                        paths: [...existingPaths, ...added],
+                        name,
+                        fileName: normalizeContextFileName(name),
+                      })
+                      return
+                    }
+                    onUpdate({
+                      paths: [...existingPaths, ...added],
+                    })
+                  }}
+                />
+                <TextArea
+                  rows={5}
+                  value={(draft.paths ?? []).join('\n')}
+                  placeholder={t(draft.kind === 'spreadsheet'
+                    ? 'tabContexts.pathsPlaceholderSpreadsheet'
+                    : draft.kind === 'files'
+                      ? 'tabContexts.pathsPlaceholderFiles'
+                      : 'tabContexts.pathsPlaceholder')}
+                  onChange={event => onUpdate({ paths: event.target.value.split(/\r?\n/) })}
+                />
+              </label>
+            )}
+
+            {(draft.kind === 'files' || draft.kind === 'spreadsheet') && (
+              <SettingToggle
+                checked={draft.referenceOnly === true}
+                onChange={checked => onUpdate({ referenceOnly: checked || undefined })}
+                title={t('tabContexts.referenceOnly')}
+                description={t('tabContexts.referenceOnlyHint')}
+              />
+            )}
+          </>
         )}
 
         {draft.kind === 'symbols' && (

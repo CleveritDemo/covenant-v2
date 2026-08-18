@@ -23,6 +23,7 @@ import { TabBar, type TabBarHandle } from './components/TabBar'
 import { TerminalPane } from './terminal/TerminalPane'
 import { AgentPane } from './agent/AgentPane'
 import { TabContextsModal } from './agent/TabContextsModal'
+import { addFileContextsFromPicker } from './agent/addFileContexts'
 import { AppModals } from './components/AppModals'
 import { HeroConfirmOverlay } from './components/HeroConfirmOverlay'
 import { type OrgWorkspaceSelection } from './components/OrgWorkspaceTabPickerModal'
@@ -3999,6 +4000,24 @@ export const App: React.FC = () => {
     setPlaneContextsModalTabId(tabId)
   }, [])
 
+  const handleAddFileContextFromPlane = useCallback(async (tabId: string) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const cwd = tab.projectFolder?.trim() || ''
+    const contexts = tabContextsByTabRef.current[tabId] ?? []
+    const result = await addFileContextsFromPicker({
+      cwd,
+      contexts,
+      pickTitle: t('tabContexts.pickProjectFilesTitle'),
+    })
+    if (result.ok) {
+      if (result.created.length > 0) await refreshTabContexts(tabId)
+      return
+    }
+    if (result.cancelled) return
+    handleConfigureContextsFromPlane(tabId)
+  }, [t, refreshTabContexts, handleConfigureContextsFromPlane])
+
   const handleOpenContextFromPlane = useCallback((tabId: string, contextId: string) => {
     setPlaneContextsCreate(false)
     setPlaneContextsModalTabId(tabId)
@@ -7002,6 +7021,7 @@ export const App: React.FC = () => {
                   contextPoolTitle={t('tabs.planeContextPoolTitle')}
                   contextPoolConfigureLabel={t('tabContexts.manage')}
                   contextPoolCreateLabel={t('tabContexts.createTitle')}
+                  contextPoolAddFileLabel={t('tabContexts.newFile')}
                   contextPoolChipHint={t('tabs.planeContextPoolChipHint')}
                   contextPoolAssignLabel={t('tabs.planeContextPoolAssign')}
                   contextPoolAssignEmptyHint={t('tabs.planeContextPoolAssignEmpty')}
@@ -7052,6 +7072,7 @@ export const App: React.FC = () => {
                   onFocusWindow={paneId => handleFocusPaneWindow(tab.id, paneId)}
                   onConfigureContexts={() => handleConfigureContextsFromPlane(tab.id)}
                   onCreateContext={() => handleCreateContextFromPlane(tab.id)}
+                  onAddFileContext={() => { void handleAddFileContextFromPlane(tab.id) }}
                   onOpenContext={contextId => {
                     handleOpenContextFromPlane(tab.id, contextId)
                   }}

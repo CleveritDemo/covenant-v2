@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AGENT_CLI_PROVIDER_IDS,
   agentCliCommand,
+  agentCliInstallCommand,
   agentCliSpec,
   type AgentCliProvider,
   type AgentCliResolution,
 } from '@shared/agentCliProviders'
 import { useT } from '@i18n/useT'
+import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Icon } from './ui/Icon'
 import { BrandIcon } from './ui/BrandIcon'
@@ -14,6 +16,70 @@ import './AgentCliTable.css'
 
 /** Margen para no lanzar una comprobación por tecla mientras se escribe la ruta. */
 const CHECK_DEBOUNCE_MS = 400
+const COPY_FEEDBACK_MS = 2000
+
+/** Ayuda accionable solo cuando el CLI no está en el PATH. */
+const AgentCliRowHelp: React.FC<{
+  provider: AgentCliProvider
+  onLocatePath: (path: string) => void
+}> = ({ provider, onLocatePath }) => {
+  const { t } = useT()
+  const spec = agentCliSpec(provider)
+  const command = agentCliInstallCommand(provider)
+  const docsUrl = spec.install?.docsUrl
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => () => {
+    if (copyTimer.current) clearTimeout(copyTimer.current)
+  }, [])
+
+  const handleCopy = (): void => {
+    void navigator.clipboard.writeText(command).then(() => {
+      setCopied(true)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_MS)
+    })
+  }
+
+  const handleLocate = async (): Promise<void> => {
+    const result = await window.api.pickAgentCliBinary({
+      title: t('settings.cliLocateBinaryTitle', { label: spec.label }),
+      buttonLabel: t('settings.cliLocateBinaryConfirm'),
+    })
+    if (result?.path) onLocatePath(result.path)
+  }
+
+  return (
+    <div className="agent-cli-row__help">
+      {command ? (
+        <div className="agent-cli-row__help-actions">
+          <code className="agent-cli-row__cmd-copy">{command}</code>
+          <Button size="xs" variant="ghost" onClick={handleCopy}>
+            {copied ? t('settings.cliInstallCopied') : t('settings.cliInstallCopy')}
+          </Button>
+        </div>
+      ) : null}
+      <div className="agent-cli-row__help-actions">
+        {docsUrl ? (
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => void window.api.openExternalUrl(docsUrl)}
+          >
+            {t('settings.cliInstallDocs')}
+          </Button>
+        ) : null}
+        <Button size="xs" variant="secondary" onClick={() => void handleLocate()}>
+          {t('settings.cliLocateBinary')}
+        </Button>
+      </div>
+      <p className="agent-cli-row__note" data-state="missing">
+        {t('settings.cliNotFoundHint')}
+      </p>
+    </div>
+  )
+}
 
 type RowState = { status: 'checking' } | { status: 'done'; resolution: AgentCliResolution }
 
@@ -144,11 +210,17 @@ export const AgentCliTable: React.FC<Props> = ({ commands, onChange }) => {
                     spellCheck={false}
                     autoComplete="off"
                   />
-                  <p className="agent-cli-row__note" data-state={state}>
-                    {state === 'found' && resolution?.path}
-                    {state === 'missing' && t('settings.cliNotFoundHint')}
-                    {state === 'checking' && t('settings.cliChecking')}
-                  </p>
+                  {state === 'missing' ? (
+                    <AgentCliRowHelp
+                      provider={provider}
+                      onLocatePath={path => handleChange(provider, path)}
+                    />
+                  ) : (
+                    <p className="agent-cli-row__note" data-state={state}>
+                      {state === 'found' && resolution?.path}
+                      {state === 'checking' && t('settings.cliChecking')}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

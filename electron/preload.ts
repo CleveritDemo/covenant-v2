@@ -191,6 +191,9 @@ const api = {
   resolveAgentCli(provider: AgentCliProvider, command?: string): Promise<AgentCliResolution | null> {
     return ipcRenderer.invoke(IPC.AGENT_CLI_RESOLVE, provider, command)
   },
+  pickAgentCliBinary(options?: { title?: string; buttonLabel?: string }): Promise<{ path: string | null }> {
+    return ipcRenderer.invoke(IPC.AGENT_CLI_PICK_BINARY, options)
+  },
   detectOnboardingClis(): Promise<OnboardingCliStatus[]> {
     return ipcRenderer.invoke(IPC.ONBOARDING_DETECT_CLIS)
   },

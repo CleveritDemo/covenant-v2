@@ -1,0 +1,55 @@
+.context-files-report {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
+}
+
+.context-files-report__tabs {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  gap: 4px;
+}
+
+.context-files-report__tabs .ui-tooltip {
+  flex: 0 0 auto;
+}
+
+.context-files-report__tab {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.context-files-report__tab--active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.context-files-report__path {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.context-files-report__panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}

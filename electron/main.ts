@@ -2728,6 +2728,44 @@ function registerIpc(): void {
       )
     },
   )
+  ipcMain.handle(
+    IPC.AGENT_CLI_PICK_BINARY,
+    async (event, raw?: { title?: string; buttonLabel?: string }): Promise<{ path: string | null }> => {
+      try {
+        const options = raw && typeof raw === 'object' ? raw : {}
+        const title = typeof options.title === 'string' && options.title.trim()
+          ? options.title.trim()
+          : undefined
+        const buttonLabel = typeof options.buttonLabel === 'string' && options.buttonLabel.trim()
+          ? options.buttonLabel.trim()
+          : undefined
+        const win = BrowserWindow.fromWebContents(event.sender)
+          ?? BrowserWindow.getFocusedWindow()
+          ?? BrowserWindow.getAllWindows()[0]
+          ?? null
+        const dialogOpts: Electron.OpenDialogOptions = {
+          title,
+          buttonLabel,
+          properties: ['openFile'],
+          ...(process.platform === 'win32'
+            ? {
+                filters: [
+                  { name: 'Executables', extensions: ['exe', 'cmd', 'bat', 'com'] },
+                  { name: 'All files', extensions: ['*'] },
+                ],
+              }
+            : {}),
+        }
+        const picked = win
+          ? await dialog.showOpenDialog(win, dialogOpts)
+          : await dialog.showOpenDialog(dialogOpts)
+        if (picked.canceled || !picked.filePaths[0]) return { path: null }
+        return { path: resolve(picked.filePaths[0]) }
+      } catch {
+        return { path: null }
+      }
+    },
+  )
   ipcMain.handle(IPC.ONBOARDING_DETECT_CLIS, () => detectOnboardingClis(readConfig()))
 
   ipcMain.on(IPC.BRAINSTORM_START, (event, config: BrainstormStartConfig) => {

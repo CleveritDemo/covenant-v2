@@ -104,6 +104,61 @@ export interface FenceChunk {
 }
 
 const FENCE_RE = /^\s*```(\S*)\s*$/
+const PATH_HEADING_RE = /^###\s+(.+?)\s*$/
+
+export interface ContextPathSection {
+  path: string
+  body: string
+}
+
+/** Recorre `auto` y abre sección en cada `### <ruta>` fuera de un fence. */
+export function splitPathSections(auto: string): ContextPathSection[] {
+  const out: ContextPathSection[] = []
+  let path: string | null = null
+  let bodyLines: string[] = []
+  let inFence = false
+
+  const flush = (): void => {
+    if (path === null) return
+    const body = bodyLines.join('\n')
+    if (body.trim()) out.push({ path, body })
+    path = null
+    bodyLines = []
+  }
+
+  for (const line of auto.replace(/\r\n/g, '\n').split('\n')) {
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence
+      if (path !== null) bodyLines.push(line)
+      continue
+    }
+    const heading = !inFence ? line.match(PATH_HEADING_RE) : null
+    if (heading) {
+      flush()
+      path = heading[1]
+      continue
+    }
+    if (path !== null) bodyLines.push(line)
+  }
+  flush()
+  return out
+}
+
+/** Texto previo al primer `###` de sección; vacío si no hay encabezado. */
+export function contextPreambleText(auto: string): string {
+  const preamble: string[] = []
+  let inFence = false
+  for (const line of auto.replace(/\r\n/g, '\n').split('\n')) {
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence
+      preamble.push(line)
+      continue
+    }
+    if (!inFence && PATH_HEADING_RE.test(line)) return preamble.join('\n').trim()
+    preamble.push(line)
+  }
+  return ''
+}
 
 /**
  * Trocea un cuerpo Markdown en tramos cercados y no cercados.

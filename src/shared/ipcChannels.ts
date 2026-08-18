@@ -19,6 +19,8 @@ export const IPC = {
   AGENT_CLI_LIST_MODELS: 'agentCli:listModels',
   /** Renderer → main: ¿está el CLI de este provider en el PATH? Ruta y versión. */
   AGENT_CLI_RESOLVE: 'agentCli:resolve',
+  /** Renderer → main: diálogo nativo para elegir el binario del CLI. */
+  AGENT_CLI_PICK_BINARY: 'agentCli:pickBinary',
   /** Renderer → main: detecta qué CLIs de agente están instalados (onboarding). */
   ONBOARDING_DETECT_CLIS: 'onboarding:detectClis',
   /** Renderer → main: iniciar sala de brainstorm round-robin. */

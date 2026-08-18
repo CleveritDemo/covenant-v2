@@ -1354,6 +1354,7 @@ html[data-reduce-motion="true"] {
   min-width: 0;
   min-height: 0;
   height: 100%;
+  --context-preview-gutter: 14px;
   padding: 14px;
   /* Scrollea ContextPreviewBody, no el panel. */
   overflow: hidden;

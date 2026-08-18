@@ -2,17 +2,20 @@ import React, { useMemo, useState } from 'react'
 import type { TFunction } from 'i18next'
 import type { TabContext, TabContextKind } from '@shared/tabContext'
 import {
+  contextPreambleText,
   contextReportCounts,
   countFolderNodes,
   parseContextDoc,
   parseFolderTree,
   splitFences,
+  splitPathSections,
   type ContextDoc,
   type FolderNode,
 } from '@shared/contextReportDoc'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { JsonTree, parseJsonTree } from '../components/JsonTree'
+import { ContextFilesReport } from './ContextFilesReport'
 import './ContextReport.css'
 
 /** Texto de la primera `<small>` del meta: `148 carpetas · 3 anotadas`. */
@@ -171,6 +174,22 @@ const ContextBody: React.FC<{ kind: TabContextKind; auto: string }> = ({ kind, a
   switch (kind) {
     case 'folderTree':
       return <FolderTreeBody auto={auto} />
+    case 'files':
+    case 'spreadsheet':
+    case 'symbols': {
+      const sections = splitPathSections(auto)
+      if (sections.length < 2) return <GenericBody auto={auto} />
+      const preamble = contextPreambleText(auto)
+      return (
+        <>
+          {preamble ? <GenericBody auto={preamble} /> : null}
+          <ContextFilesReport
+            sections={sections}
+            renderBody={body => <GenericBody auto={body} />}
+          />
+        </>
+      )
+    }
     // `deps` no tiene vista propia: el manifiesto JSON lo pinta el árbol del
     // genérico (y Cargo.toml/go.mod, que no son JSON, caen a texto).
     default:

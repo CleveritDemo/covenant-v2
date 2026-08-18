@@ -20,6 +20,8 @@
   line-height: 1.5;
   white-space: pre;
   overflow-x: auto;
+  /* Ítem flex con overflow es contenedor de scroll: min-size automático 0; sin esto flexbox lo encoge y recorta el texto. */
+  flex: none;
 }
 
 .context-report__empty {

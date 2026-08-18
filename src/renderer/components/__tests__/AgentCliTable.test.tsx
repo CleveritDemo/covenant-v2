@@ -25,10 +25,20 @@ function resolution(provider: AgentCliProvider, path: string | null, version = '
 }
 
 const resolveAgentCli = vi.fn()
+const pickAgentCliBinary = vi.fn()
+const openExternalUrl = vi.fn()
 
 beforeEach(() => {
   resolveAgentCli.mockReset()
-  vi.stubGlobal('window', Object.assign(window, { api: { resolveAgentCli } }))
+  pickAgentCliBinary.mockReset()
+  openExternalUrl.mockReset()
+  pickAgentCliBinary.mockResolvedValue({ path: null })
+  openExternalUrl.mockResolvedValue({ ok: true })
+  ;(window as unknown as { api: Record<string, unknown> }).api = {
+    resolveAgentCli,
+    pickAgentCliBinary,
+    openExternalUrl,
+  }
 })
 
 afterEach(() => {
@@ -63,6 +73,73 @@ describe('AgentCliTable', () => {
 
     fireEvent.click(screen.getByText('Claude Code'))
     expect(screen.getByText('/usr/local/bin/x')).toBeTruthy()
+    expect(document.querySelector('.agent-cli-row__help')).toBeNull()
+  })
+
+  it('en un CLI no encontrado muestra comando, docs y localizar el binario', async () => {
+    resolveAgentCli.mockImplementation((provider: AgentCliProvider) =>
+      Promise.resolve(resolution(provider, provider === 'claude' ? null : '/usr/bin/x')),
+    )
+
+    render(<AgentCliTable commands={{}} onChange={() => {}} />)
+    await waitFor(() => expect(screen.getByText('settings.cliNotFound')).toBeTruthy())
+
+    fireEvent.click(screen.getByText('Claude Code'))
+    expect(screen.getByText('npm install -g @anthropic-ai/claude-code')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.cliInstallCopy' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.cliInstallDocs' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'settings.cliLocateBinary' })).toBeTruthy()
+    expect(screen.getByText('settings.cliNotFoundHint')).toBeTruthy()
+  })
+
+  it('sin metadatos de instalación solo ofrece localizar el binario', async () => {
+    resolveAgentCli.mockImplementation((provider: AgentCliProvider) =>
+      Promise.resolve(resolution(provider, provider === 'cursor' ? null : '/usr/bin/x')),
+    )
+
+    render(<AgentCliTable commands={{}} onChange={() => {}} />)
+    await waitFor(() => expect(screen.getByText('settings.cliNotFound')).toBeTruthy())
+
+    fireEvent.click(screen.getByText('Cursor Agent'))
+    expect(screen.queryByText(/npm install -g/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'settings.cliInstallCopy' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'settings.cliInstallDocs' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'settings.cliLocateBinary' })).toBeTruthy()
+  })
+
+  it('al elegir un binario persiste la ruta por el mismo camino del input', async () => {
+    resolveAgentCli.mockImplementation((provider: AgentCliProvider) =>
+      Promise.resolve(resolution(provider, provider === 'claude' ? null : '/usr/bin/x')),
+    )
+    pickAgentCliBinary.mockResolvedValue({ path: '/opt/homebrew/bin/claude' })
+    const onChange = vi.fn()
+
+    render(<AgentCliTable commands={{}} onChange={onChange} />)
+    await waitFor(() => expect(screen.getByText('settings.cliNotFound')).toBeTruthy())
+
+    fireEvent.click(screen.getByText('Claude Code'))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.cliLocateBinary' }))
+    await waitFor(() => {
+      expect(pickAgentCliBinary).toHaveBeenCalledWith({
+        title: 'settings.cliLocateBinaryTitle:Claude Code',
+        buttonLabel: 'settings.cliLocateBinaryConfirm',
+      })
+      expect(onChange).toHaveBeenCalledWith('claude', '/opt/homebrew/bin/claude')
+    })
+  })
+
+  it('con el binario encontrado no monta el bloque de ayuda', async () => {
+    resolveAgentCli.mockImplementation((provider: AgentCliProvider) =>
+      Promise.resolve(resolution(provider, '/usr/local/bin/x')),
+    )
+
+    render(<AgentCliTable commands={{}} onChange={() => {}} />)
+    await waitFor(() => expect(screen.getAllByText('v1.0.0').length).toBe(PROVIDER_COUNT))
+
+    fireEvent.click(screen.getByText('Claude Code'))
+    expect(document.querySelector('.agent-cli-row__help')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'settings.cliLocateBinary' })).toBeNull()
+    expect(screen.queryByText('settings.cliNotFoundHint')).toBeNull()
   })
 
   it('descarta una respuesta que llega tarde y conserva la de la última comprobación', async () => {

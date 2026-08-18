@@ -84,6 +84,8 @@ export interface AgentCliProviderSpec {
     nativeSkillNamespaces?: boolean
     mcpAllowlist?: boolean
   }
+  /** Ayuda cuando el binario no está en el PATH. Verificado contra el registro de npm el 2026-08-18: no añadas paquetes sin comprobar. */
+  install?: { npmPackage?: string; docsUrl?: string }
 }
 
 const withModel = (flag: string, model: string | undefined): string[] =>
@@ -139,6 +141,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...withModel('--model', model),
     ],
     capabilities: { nativeSkills: true, nativeSkillNamespaces: true, mcpAllowlist: true },
+    install: { npmPackage: '@anthropic-ai/claude-code', docsUrl: 'https://github.com/anthropics/claude-code' },
   },
   cursor: {
     label: 'Cursor Agent',
@@ -186,6 +189,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...withModel('--model', model),
     ],
     capabilities: { mcpAllowlist: true },
+    install: { npmPackage: '@github/copilot', docsUrl: 'https://github.com/github/copilot-cli' },
   },
   codex: {
     label: 'Codex',
@@ -205,6 +209,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...withModel('-m', model),
       prompt,
     ],
+    install: { npmPackage: '@openai/codex', docsUrl: 'https://github.com/openai/codex' },
   },
   gemini: {
     label: 'Gemini',
@@ -228,6 +233,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...withModel('-m', model),
     ],
     capabilities: { mcpAllowlist: true },
+    install: { npmPackage: '@google/gemini-cli', docsUrl: 'https://github.com/google-gemini/gemini-cli' },
   },
   kimi: {
     label: 'Kimi',
@@ -270,6 +276,7 @@ export const AGENT_CLI_PROVIDERS = {
       prompt,
     ],
     capabilities: { nativeSkills: true },
+    install: { npmPackage: 'opencode-ai' },
   },
   pi: {
     label: 'Pi',
@@ -293,6 +300,7 @@ export const AGENT_CLI_PROVIDERS = {
       prompt,
     ],
     capabilities: { nativeSkills: true, nativeSkillNamespaces: true },
+    install: { npmPackage: '@earendil-works/pi-coding-agent', docsUrl: 'https://github.com/earendil-works/pi' },
   },
   hermes: {
     label: 'Hermes',
@@ -326,6 +334,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...(mode === 'auto' ? ['--always-approve'] : []),
       ...withModel('-m', model),
     ],
+    install: { npmPackage: '@vibe-kit/grok-cli' },
   },
 } satisfies Record<string, AgentCliProviderSpec>
 
@@ -358,6 +367,12 @@ export function providerCapabilities(
     nativeSkillNamespaces: caps?.nativeSkillNamespaces === true,
     mcpAllowlist: caps?.mcpAllowlist === true,
   }
+}
+
+/** `npm install -g <pkg>` o '' si el proveedor no tiene paquete verificado. */
+export function agentCliInstallCommand(provider: AgentCliProvider): string {
+  const pkg = agentCliSpec(provider).install?.npmPackage
+  return pkg ? `npm install -g ${pkg}` : ''
 }
 
 /** Ejecutable configurado por el usuario, o el default del proveedor. */

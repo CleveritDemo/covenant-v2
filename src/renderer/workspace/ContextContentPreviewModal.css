@@ -39,8 +39,12 @@
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  /* Margin negativo + padding: el divisor llega a los bordes con el canalón de cada host. */
+  padding: 10px var(--context-preview-gutter, 0px);
+  margin-inline: calc(-1 * var(--context-preview-gutter, 0px));
+  margin-bottom: 12px;
+  min-height: 34px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   font-size: 11px;
 }
 
@@ -60,6 +64,7 @@
 /* El toggle se ancla a la esquina en vez de flotar en el centro de la fila.
    Sin toggle el ancla la hereda la ruta, que es el último hijo. */
 .context-content-preview .tab-contexts__preview-meta > *:last-child {
+  flex: 0 0 auto;
   margin-left: auto;
 }
 

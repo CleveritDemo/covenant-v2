@@ -149,3 +149,32 @@
 .agent-cli-row__note[data-state='missing'] {
   color: var(--danger);
 }
+
+.agent-cli-row__help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-cli-row__help-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.agent-cli-row__cmd-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  user-select: text;
+  overflow-x: auto;
+  white-space: nowrap;
+}

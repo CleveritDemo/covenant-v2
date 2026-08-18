@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_CLI_PROVIDERS, providerCapabilities } from '../agentCliProviders'
+import {
+  AGENT_CLI_PROVIDER_IDS,
+  AGENT_CLI_PROVIDERS,
+  agentCliInstallCommand,
+  agentCliSpec,
+  providerCapabilities,
+} from '../agentCliProviders'
 
 const claudeArgs = (over: Partial<Parameters<typeof AGENT_CLI_PROVIDERS.claude.args>[0]> = {}) =>
   AGENT_CLI_PROVIDERS.claude.args({ prompt: 'hola', cwd: '/repo', mode: 'auto', ...over })
@@ -101,5 +107,31 @@ describe('capacidades por proveedor', () => {
     expect(providerCapabilities('cursor')).toEqual({
       nativeSkills: false, nativeSkillNamespaces: false, mcpAllowlist: false,
     })
+  })
+})
+
+describe('agentCliInstallCommand', () => {
+  it('devuelve npm install -g para claude', () => {
+    expect(agentCliInstallCommand('claude')).toBe('npm install -g @anthropic-ai/claude-code')
+  })
+
+  it('devuelve npm install -g para opencode', () => {
+    expect(agentCliInstallCommand('opencode')).toBe('npm install -g opencode-ai')
+  })
+
+  it('es vacío para cursor, kimi y hermes', () => {
+    expect(agentCliInstallCommand('cursor')).toBe('')
+    expect(agentCliInstallCommand('kimi')).toBe('')
+    expect(agentCliInstallCommand('hermes')).toBe('')
+  })
+})
+
+describe('install metadata', () => {
+  it('docsUrl y npmPackage presentes no están vacíos', () => {
+    for (const id of AGENT_CLI_PROVIDER_IDS) {
+      const install = agentCliSpec(id).install
+      if (install?.docsUrl !== undefined) expect(install.docsUrl).not.toBe('')
+      if (install?.npmPackage !== undefined) expect(install.npmPackage).not.toBe('')
+    }
   })
 })

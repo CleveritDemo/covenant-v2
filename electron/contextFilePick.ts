@@ -22,3 +22,29 @@ export function relativeProjectFilePaths(
   }
   return { ok: true, paths }
 }
+
+export function partitionProjectFilePaths(
+  root: string,
+  absPaths: string[],
+): { inside: Array<{ abs: string; rel: string }>; outside: string[] } {
+  const rootAbs = resolve(root)
+  const inside: Array<{ abs: string; rel: string }> = []
+  const outside: string[] = []
+  const seenInside = new Set<string>()
+  const seenOutside = new Set<string>()
+  for (const abs of absPaths) {
+    const resolved = resolve(abs)
+    const rel = relative(rootAbs, resolved)
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+      if (seenOutside.has(resolved)) continue
+      seenOutside.add(resolved)
+      outside.push(resolved)
+      continue
+    }
+    const normalized = rel.split('\\').join('/')
+    if (seenInside.has(normalized)) continue
+    seenInside.add(normalized)
+    inside.push({ abs: resolved, rel: normalized })
+  }
+  return { inside, outside }
+}

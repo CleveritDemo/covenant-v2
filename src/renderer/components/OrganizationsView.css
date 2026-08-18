@@ -76,18 +76,20 @@
  * larga estiraba la vista en vez de scrollear dentro.
  *
  * El cuerpo no scrollea entero, igual que en el modal: scrollea cada columna.
+ *
+ * Sin canalón ni columna de lectura: `.orgs-shell` (OrganizationsModal.css) es
+ * un layout de app de tres columnas y va de borde a borde. El `max-width:
+ * 1180px` vive en PulseView.css, documento scrolleable; aquí no aplica.
  */
 .organizations-view__body {
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 8px 24px 32px;
+  padding: 8px 0 0;
 }
 
 .organizations-view__body > * {
   width: 100%;
   min-height: 0;
-  max-width: 1180px;
-  margin: 0 auto;
 }

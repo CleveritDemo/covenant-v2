@@ -8,20 +8,6 @@
   background: color-mix(in srgb, var(--bg) 70%, var(--surface));
 }
 
-.git-diff-pane__hint {
-  margin: 0;
-  padding: 12px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-.git-diff-pane__hint--error {
-  color: var(--danger);
-  font-family: var(--font-ui);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 .git-diff-pane__loading {
   display: flex;
   justify-content: center;

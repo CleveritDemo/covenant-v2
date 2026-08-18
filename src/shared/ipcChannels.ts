@@ -210,6 +210,8 @@ export const IPC = {
   GITHUB_WORKSPACE_ACCOUNT_GET: 'github:workspaceAccount:get',
   /** Renderer → main (invoke): ligar/desligar cuenta al workspace */
   GITHUB_WORKSPACE_ACCOUNT_SET: 'github:workspaceAccount:set',
+  /** Renderer → main (invoke): repos visibles para una cuenta del llavero */
+  GITHUB_REPOS_LIST: 'github:reposList',
 
   /** Renderer → main (invoke): estado de sesión Covenant */
   COVENANT_STATUS: 'covenant:status',

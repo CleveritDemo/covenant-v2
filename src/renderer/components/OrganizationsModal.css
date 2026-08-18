@@ -492,6 +492,24 @@
   min-width: 160px;
 }
 
+.orgs-inline-form__manual {
+  min-width: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-top: 6px;
+}
+
+.orgs-inline-form__manual-summary {
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.orgs-inline-form__manual-summary:hover {
+  color: var(--text);
+}
+
 /* Zona de riesgo: borde rojo, botón callado. */
 .orgs-danger-zone {
   display: flex;

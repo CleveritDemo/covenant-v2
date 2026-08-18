@@ -7,7 +7,7 @@ export type AddFileContextsResult =
   | {
     ok: false
     cancelled?: false
-    error: 'outside-project' | 'no-cwd' | 'failed'
+    error: 'too-large' | 'no-cwd' | 'failed'
     message?: string
   }
 
@@ -29,11 +29,12 @@ export async function addFileContextsFromPicker({
     const result = await window.api.selectProjectFiles({
       cwd: workingCwd,
       title: pickTitle,
+      importOutside: true,
     })
     if (!result.ok) {
       if (result.cancelled) return { ok: false, cancelled: true }
-      if (result.error === 'outside project folder') {
-        return { ok: false, error: 'outside-project' }
+      if (result.error === 'file too large') {
+        return { ok: false, error: 'too-large' }
       }
       return { ok: false, error: 'failed', message: result.error }
     }

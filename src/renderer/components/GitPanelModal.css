@@ -113,7 +113,7 @@
 }
 
 .git-panel-changes__diff-body > .git-diff-pane__body,
-.git-panel-changes__diff-body > .git-diff-pane__hint,
+.git-panel-changes__diff-body > .git-diff-empty,
 .git-panel-changes__diff-body > .git-diff-pane__loading {
   flex: 1;
   min-height: 0;

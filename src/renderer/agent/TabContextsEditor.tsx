@@ -164,13 +164,16 @@ export const TabContextsEditor: React.FC<Props> = ({
     const result = await window.api.selectProjectFiles({
       cwd,
       title: t('tabContexts.pickProjectFilesTitle'),
+      importOutside: true,
     })
     if (!result.ok) {
       if (result.cancelled) return
       onActionError?.(
-        result.error === 'outside project folder'
-          ? t('tabContexts.pickOutsideProject')
-          : (result.error ?? t('tabContexts.previewError')),
+        result.error === 'file too large'
+          ? t('tabContexts.importTooLarge')
+          : result.error === 'root outside import folder'
+            ? t('tabContexts.importRootConflict')
+            : (result.error ?? t('tabContexts.previewError')),
       )
       return
     }

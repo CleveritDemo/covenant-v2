@@ -93,7 +93,9 @@ beforeEach(() => {
   covenant.workspaceReposList.mockImplementation(() => ok([]))
   githubAccountsList.mockReset()
   githubAccountsList.mockResolvedValue({ ok: true, accounts: [], defaultAccountId: '' })
-  vi.stubGlobal('window', Object.assign(window, { api: { covenant, githubAccountsList } }))
+  vi.stubGlobal('window', Object.assign(window, {
+    api: { covenant, githubAccountsList, githubReposList: vi.fn().mockResolvedValue({ repos: [], truncated: false }) },
+  }))
 })
 
 afterEach(cleanup)

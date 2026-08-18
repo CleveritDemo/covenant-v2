@@ -124,6 +124,7 @@ describe('TabContextsEditor — vista Un archivo', () => {
       expect(selectProjectFiles).toHaveBeenCalledWith({
         cwd: '/repo',
         title: 'tabContexts.pickProjectFilesTitle',
+        importOutside: true,
       })
     })
     expect(onUpdate).toHaveBeenCalledWith({ referenceOnly: true, rootPath: '' })
@@ -167,12 +168,45 @@ describe('TabContextsEditor — vista Un archivo', () => {
     expect(onActionError).toHaveBeenCalledTimes(1)
   })
 
-  it('fuera del proyecto avisa con pickOutsideProject', async () => {
-    selectProjectFiles.mockResolvedValue({ ok: false, error: 'outside project folder' })
+  it('copia un archivo de fuera a .gravity/files y deja el draft en referencia', async () => {
+    selectProjectFiles.mockResolvedValue({
+      ok: true,
+      paths: ['.gravity/files/x.pdf'],
+      imported: ['.gravity/files/x.pdf'],
+    })
+    const { onUpdate } = renderEditor()
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_singleFile' }))
+    await waitFor(() => {
+      expect(selectProjectFiles).toHaveBeenCalledWith({
+        cwd: '/repo',
+        title: 'tabContexts.pickProjectFilesTitle',
+        importOutside: true,
+      })
+    })
+    expect(onUpdate).toHaveBeenCalledWith({
+      paths: ['.gravity/files/x.pdf'],
+      referenceOnly: true,
+      rootPath: '',
+      name: 'x.pdf',
+      fileName: 'x.pdf.md',
+    })
+  })
+
+  it('archivo demasiado grande avisa con importTooLarge', async () => {
+    selectProjectFiles.mockResolvedValue({ ok: false, error: 'file too large' })
     const { onActionError } = renderEditor()
     fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_singleFile' }))
     await waitFor(() => {
-      expect(onActionError).toHaveBeenCalledWith('tabContexts.pickOutsideProject')
+      expect(onActionError).toHaveBeenCalledWith('tabContexts.importTooLarge')
+    })
+  })
+
+  it('raíz fuera de la carpeta de import avisa con importRootConflict', async () => {
+    selectProjectFiles.mockResolvedValue({ ok: false, error: 'root outside import folder' })
+    const { onActionError } = renderEditor()
+    fireEvent.click(screen.getByRole('radio', { name: 'tabContexts.kind_singleFile' }))
+    await waitFor(() => {
+      expect(onActionError).toHaveBeenCalledWith('tabContexts.importRootConflict')
     })
   })
 

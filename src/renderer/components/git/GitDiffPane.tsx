@@ -3,6 +3,7 @@ import type { GitTarget } from '@shared/gitSessionTypes'
 import { parseGitUnifiedDiff, type GitFileDiff } from '@shared/gitDiff'
 import { useT } from '@i18n/useT'
 import { Spinner } from '../ui/Spinner'
+import { GitDiffEmptyState } from './GitDiffEmptyState'
 import './GitDiffPane.css'
 
 export interface GitDiffSelection {
@@ -17,27 +18,32 @@ interface GitDiffPaneProps {
   refreshToken: number
 }
 
+function isUntrackedFolder(selection: GitDiffSelection | null): boolean {
+  return Boolean(selection && selection.area === 'untracked' && selection.path.endsWith('/'))
+}
+
 export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, refreshToken }) => {
   const { t } = useT()
   const [diff, setDiff] = useState<GitFileDiff | null>(null)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
   const path = selection?.path ?? ''
   const area = selection?.area ?? 'worktree'
   const targetPath = target.path ?? ''
   const targetSessionId = target.sessionId ?? ''
+  const untrackedFolder = isUntrackedFolder(selection)
 
   useEffect(() => {
-    if (!path) {
+    if (!path || untrackedFolder) {
       setDiff(null)
-      setError('')
+      setError(false)
       setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
     setDiff(null)
-    setError('')
+    setError(false)
     void (async (): Promise<void> => {
       try {
         const r = await window.api.gitDiffFile(
@@ -48,15 +54,17 @@ export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, ref
         if (cancelled) return
         if (!r.ok && !r.stdout) {
           setDiff(null)
-          setError(r.stderr.trim() || t('git.diffFileError'))
+          setError(true)
+          if (r.stderr) console.debug(r.stderr)
           return
         }
         setDiff(parseGitUnifiedDiff(r.stdout))
-        setError('')
+        setError(false)
       } catch (e) {
         if (cancelled) return
         setDiff(null)
-        setError(e instanceof Error ? e.message : String(e))
+        setError(true)
+        console.debug(e)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -64,13 +72,20 @@ export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, ref
     return () => {
       cancelled = true
     }
-    // `t` no va en deps: en react-i18next puede cambiar de identidad y reentrar
-    // el efecto en bucle (setDiff → render → nuevo t → cancel → …).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t solo para mensajes
-  }, [path, area, refreshToken, targetPath, targetSessionId])
+  }, [path, area, untrackedFolder, refreshToken, targetPath, targetSessionId])
 
   if (!path) {
-    return <p className="git-diff-pane__hint">{t('git.diffEmptyHint')}</p>
+    return <GitDiffEmptyState icon="file" title={t('git.diffEmptyHint')} />
+  }
+
+  if (untrackedFolder) {
+    return (
+      <GitDiffEmptyState
+        icon="folder"
+        title={t('git.diffUntrackedFolderTitle')}
+        hint={t('git.diffUntrackedFolderHint')}
+      />
+    )
   }
 
   if (loading || (!diff && !error)) {
@@ -83,18 +98,21 @@ export const GitDiffPane: React.FC<GitDiffPaneProps> = ({ target, selection, ref
 
   if (error) {
     return (
-      <p className="git-diff-pane__hint git-diff-pane__hint--error" role="alert">
-        {error}
-      </p>
+      <GitDiffEmptyState
+        icon="file"
+        tone="error"
+        title={t('git.diffErrorTitle')}
+        hint={t('git.diffErrorHint')}
+      />
     )
   }
 
   if (!diff || diff.binary) {
-    return <p className="git-diff-pane__hint">{t('git.diffBinary')}</p>
+    return <GitDiffEmptyState icon="file" title={t('git.diffBinary')} />
   }
 
   if (diff.hunks.length === 0) {
-    return <p className="git-diff-pane__hint">{t('git.diffNoChanges')}</p>
+    return <GitDiffEmptyState icon="file" title={t('git.diffNoChanges')} />
   }
 
   return (

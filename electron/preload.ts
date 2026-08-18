@@ -44,6 +44,7 @@ import type {
 } from '../src/shared/githubActionsTypes'
 import type { GithubTokenSource } from './githubToken'
 import type { GithubAccount } from '../src/shared/githubAccounts'
+import type { GithubRepoListResult } from '../src/shared/githubRepoPicker'
 import type {
   CovenantDefault,
   CovenantMember,
@@ -519,8 +520,9 @@ const api = {
     cwd: string
     rootPath?: string
     title?: string
+    importOutside?: boolean
   }): Promise<
-    | { ok: true; paths: string[] }
+    | { ok: true; paths: string[]; imported?: string[] }
     | { ok: false; cancelled?: boolean; error?: string }
   > {
     return ipcRenderer.invoke(IPC.SELECT_PROJECT_FILES, options)
@@ -722,6 +724,9 @@ const api = {
     accountId: string | null,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.GITHUB_WORKSPACE_ACCOUNT_SET, cwd, accountId)
+  },
+  githubReposList(accountId: string, query: string): Promise<GithubRepoListResult> {
+    return ipcRenderer.invoke(IPC.GITHUB_REPOS_LIST, accountId, query)
   },
 
   covenant: {

@@ -48,17 +48,17 @@ describe('addFileContextsFromPicker', () => {
     expect(materializeTabContext).not.toHaveBeenCalled()
   })
 
-  it('fuera del proyecto no materializa', async () => {
+  it('archivo demasiado grande llega como too-large', async () => {
     selectProjectFiles.mockResolvedValue({
       ok: false,
-      error: 'outside project folder',
+      error: 'file too large',
     })
     const result = await addFileContextsFromPicker({
       cwd: '/repo',
       contexts: [],
       pickTitle: 'Elegí archivos',
     })
-    expect(result).toEqual({ ok: false, error: 'outside-project' })
+    expect(result).toEqual({ ok: false, error: 'too-large' })
     expect(materializeTabContext).not.toHaveBeenCalled()
   })
 
@@ -103,6 +103,7 @@ describe('addFileContextsFromPicker', () => {
     expect(selectProjectFiles).toHaveBeenCalledWith({
       cwd: '/repo',
       title: 'Elegí archivos',
+      importOutside: true,
     })
   })
 

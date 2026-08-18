@@ -1,6 +1,7 @@
 import { describeFetchError, httpFetch } from './httpFetch'
 import type { GitHubActionsRun, GitHubJob } from '../src/shared/githubActionsTypes'
 import type { GithubIssueRef, GithubIssueSnapshot } from '../src/shared/githubIssue'
+import type { GithubRepoOption } from '../src/shared/githubRepoPicker'
 
 export class GitHubApiError extends Error {
   readonly status: number
@@ -295,4 +296,69 @@ export async function githubGetIssue(
     milestone: raw.milestone ? (stringField(asRecord(raw.milestone).title) || null) : null,
     comments,
   }
+}
+
+export function mapRestRepo(raw: unknown): GithubRepoOption | null {
+  const item = asRecord(raw)
+  const fullName = stringField(item.full_name)
+  const cloneUrl = stringField(item.clone_url)
+  if (!fullName || !cloneUrl) return null
+  return {
+    fullName,
+    cloneUrl,
+    isPrivate: Boolean(item.private),
+    archived: Boolean(item.archived),
+    pushedAt: stringField(item.pushed_at) || stringField(item.updated_at),
+    description: stringField(item.description),
+  }
+}
+
+/**
+ * Repos visibles para el token: owner + collaborator + org member.
+ * Para en cuanto una página traiga <100 o al llegar a `maxPages`.
+ */
+export async function fetchGithubUserRepos(
+  token: string,
+  maxPages = 5,
+): Promise<{ repos: GithubRepoOption[]; truncated: boolean }> {
+  const repos: GithubRepoOption[] = []
+  let truncated = false
+  const pages = Math.max(1, maxPages)
+  for (let page = 1; page <= pages; page++) {
+    const url =
+      `https://api.github.com/user/repos?per_page=100&sort=pushed` +
+      `&affiliation=owner,collaborator,organization_member&page=${page}`
+    const response = await githubFetch(token, url)
+    const body = await response.json()
+    const items = Array.isArray(body) ? body : []
+    for (const item of items) {
+      const mapped = mapRestRepo(item)
+      if (mapped) repos.push(mapped)
+    }
+    if (items.length < 100) {
+      truncated = false
+      break
+    }
+    truncated = true
+  }
+  return { repos, truncated }
+}
+
+export async function searchGithubRepos(
+  token: string,
+  query: string,
+): Promise<{ repos: GithubRepoOption[]; truncated: boolean }> {
+  const url =
+    `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}+fork:true` +
+    `&per_page=50&sort=updated`
+  const response = await githubFetch(token, url)
+  const body = asRecord(await response.json())
+  const items = Array.isArray(body.items) ? body.items : []
+  const repos: GithubRepoOption[] = []
+  for (const item of items) {
+    const mapped = mapRestRepo(item)
+    if (mapped) repos.push(mapped)
+  }
+  const totalCount = typeof body.total_count === 'number' ? body.total_count : 0
+  return { repos, truncated: totalCount > items.length }
 }

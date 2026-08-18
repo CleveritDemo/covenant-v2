@@ -13,7 +13,7 @@ import {
 } from 'fs'
 import { join, normalize, resolve, relative, isAbsolute, dirname, basename, extname } from 'path'
 import { projectDirName } from './projectDir'
-import { relativeProjectFilePaths } from './contextFilePick'
+import { partitionProjectFilePaths, relativeProjectFilePaths } from './contextFilePick'
 import { appendCrashDiagnostics, describeError } from './crashLog'
 import { openExternalHttpUrl } from './openExternalUrl'
 import {
@@ -130,6 +130,7 @@ import {
   previewGithubIssue,
   searchGithubIssuesQuick,
 } from './githubIssueOps'
+import { listGithubReposFor } from './githubRepoOps'
 import {
   startBrainstormRoom,
   stopBrainstormRoom,
@@ -939,10 +940,16 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.SELECT_PROJECT_FILES, async (event, raw: unknown) => {
-    const options = (raw ?? {}) as { cwd?: unknown; rootPath?: unknown; title?: unknown }
+    const options = (raw ?? {}) as {
+      cwd?: unknown
+      rootPath?: unknown
+      title?: unknown
+      importOutside?: unknown
+    }
     const cwdRaw = typeof options.cwd === 'string' ? options.cwd.trim() : ''
     if (!cwdRaw) return { ok: false as const, error: 'missing cwd' }
     const cwd = resolve(cwdRaw)
+    const importOutside = options.importOutside === true
 
     const requested = typeof options.rootPath === 'string' ? options.rootPath.trim() : ''
     const candidate = resolve(cwd, requested || '.')
@@ -973,7 +980,42 @@ function registerIpc(): void {
         files.push(source)
       }
       if (files.length === 0) return { ok: false as const, error: 'nothing picked' }
-      return relativeProjectFilePaths(root, files)
+      if (!importOutside) return relativeProjectFilePaths(root, files)
+
+      const { inside, outside } = partitionProjectFilePaths(root, files)
+      if (root !== cwd && outside.length > 0) {
+        return { ok: false as const, error: 'root outside import folder' }
+      }
+
+      const destDir = join(cwd, projectDirName(cwd), 'files')
+      const insideByAbs = new Map(inside.map((entry) => [entry.abs, entry.rel]))
+      const paths: string[] = []
+      const imported: string[] = []
+      const seenAbs = new Set<string>()
+      for (const source of files) {
+        const abs = resolve(source)
+        if (seenAbs.has(abs)) continue
+        seenAbs.add(abs)
+        const rel = insideByAbs.get(abs)
+        if (rel !== undefined) {
+          paths.push(rel)
+          continue
+        }
+        const stat = statSync(source)
+        if (stat.size > MAX_CONTEXT_IMPORT_BYTES) {
+          return { ok: false as const, error: 'file too large' }
+        }
+        mkdirSync(destDir, { recursive: true })
+        const target = uniqueImportTarget(destDir, basename(source))
+        copyFileSync(source, target)
+        const importedRel = relative(cwd, target).split('\\').join('/')
+        paths.push(importedRel)
+        imported.push(importedRel)
+      }
+      if (paths.length === 0) return { ok: false as const, error: 'nothing picked' }
+      return imported.length > 0
+        ? { ok: true as const, paths, imported }
+        : { ok: true as const, paths }
     } catch (error) {
       return { ok: false as const, error: (error as Error).message }
     }
@@ -1869,6 +1911,22 @@ function registerIpc(): void {
       return { ok: true as const }
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.GITHUB_REPOS_LIST, async (_e, rawAccountId: unknown, rawQuery: unknown) => {
+    try {
+      const accountId = typeof rawAccountId === 'string' ? rawAccountId.trim() : ''
+      const query = typeof rawQuery === 'string' ? rawQuery : ''
+      let token: string | null = accountId ? readAccountToken(accountId) : null
+      if (!(token ?? '').trim()) token = await resolveGithubToken(readConfig())
+      return await listGithubReposFor(token, query)
+    } catch (error) {
+      return {
+        repos: [],
+        truncated: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
     }
   })
 

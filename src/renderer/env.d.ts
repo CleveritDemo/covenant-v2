@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { API } from '../../electron/preload'
+import type { GithubRepoListResult } from '../shared/githubRepoPicker'
 import type { CovenantApi } from './covenantApi'
 
 export type GithubAccountRef = { id: string; label: string }
@@ -24,9 +25,14 @@ export type GithubAccountsApi = {
   ): Promise<{ ok: true } | { ok: false; error: string }>
 }
 
+/** Contrato del listado de repos (main lo publica en paralelo). Nunca rechaza. */
+export type GithubReposListApi = {
+  githubReposList(accountId: string, query: string): Promise<GithubRepoListResult>
+}
+
 declare global {
   interface Window {
-    api: API & GithubAccountsApi & { covenant?: CovenantApi; isStoreBuild?: boolean }
+    api: API & GithubAccountsApi & GithubReposListApi & { covenant?: CovenantApi; isStoreBuild?: boolean }
   }
 }
 

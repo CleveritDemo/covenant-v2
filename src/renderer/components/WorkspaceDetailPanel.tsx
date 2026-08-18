@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   getCovenantApi,
@@ -12,6 +12,8 @@ import { Input } from './ui/Input'
 import { Icon } from './ui/Icon'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { MemberPickRow, SectionStatus } from './OrgSectionStatus'
+import { GithubRepoPicker } from './GithubRepoPicker'
+import type { GithubRepoOption } from '../../shared/githubRepoPicker'
 import { normalizeRepoFullName, repoFullNameFromCloneUrl } from '../../shared/repoFullName'
 import { workspacePeopleRows } from '../../shared/orgPeople'
 
@@ -246,6 +248,7 @@ function WorkspaceReposSection({
 }): React.ReactElement {
   const { t } = useT()
   const folderHintId = useId()
+  const folderNameRef = useRef<HTMLInputElement>(null)
   const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
   const available = hasCovenantWorkspaceReposApi(covenant)
   const [repos, setRepos] = useState<CovenantWorkspaceRepoRecord[]>([])
@@ -255,6 +258,8 @@ function WorkspaceReposSection({
   const [adding, setAdding] = useState(false)
   const [cloneUrlDraft, setCloneUrlDraft] = useState('')
   const [folderNameDraft, setFolderNameDraft] = useState('')
+  const [pickedFullName, setPickedFullName] = useState('')
+  const [manualOpen, setManualOpen] = useState(false)
 
   const loadRepos = useCallback(async (): Promise<void> => {
     if (!covenant || !available || !slug || !workspaceId) {
@@ -282,20 +287,34 @@ function WorkspaceReposSection({
     setAdding(false)
     setCloneUrlDraft('')
     setFolderNameDraft('')
+    setPickedFullName('')
+    setManualOpen(false)
   }, [workspaceId])
 
   const canMutate = available && canManage && !busy && !parentBusy
   const cloneUrl = cloneUrlDraft.trim()
-  const derivedFullName = repoFullNameFromCloneUrl(cloneUrl)
+  const derivedFullName = pickedFullName
+    ? normalizeRepoFullName(pickedFullName)
+    : repoFullNameFromCloneUrl(cloneUrl)
   const isDuplicate = Boolean(
     derivedFullName
     && repos.some(repo => normalizeRepoFullName(repo.repoFullName) === derivedFullName),
   )
   const canAdd = canMutate && cloneUrl.length > 0 && !isDuplicate
 
+  function handlePick(repo: GithubRepoOption): void {
+    setCloneUrlDraft(repo.cloneUrl)
+    setPickedFullName(repo.fullName)
+    setManualOpen(true)
+    setError(null)
+    window.requestAnimationFrame(() => folderNameRef.current?.focus())
+  }
+
   async function handleAdd(): Promise<void> {
     if (!covenant || !canMutate || cloneUrl.length === 0) return
-    const fullName = repoFullNameFromCloneUrl(cloneUrl)
+    const fullName = pickedFullName
+      ? normalizeRepoFullName(pickedFullName)
+      : repoFullNameFromCloneUrl(cloneUrl)
     if (!fullName) {
       setError(t('organizations.repoUrlInvalid'))
       return
@@ -324,6 +343,8 @@ function WorkspaceReposSection({
     }
     setCloneUrlDraft('')
     setFolderNameDraft('')
+    setPickedFullName('')
+    setManualOpen(false)
     setAdding(false)
     await loadRepos()
   }
@@ -380,24 +401,45 @@ function WorkspaceReposSection({
         <>
           {adding && canManage ? (
             <div className="orgs-inline-form">
-              <div className="orgs-inline-form__row">
-                <div className="orgs-inline-form__grow">
-                  <SettingsField label={t('organizations.addRepo')} compact>
-                    <Input
-                      type="text"
-                      size="sm"
-                      value={cloneUrlDraft}
-                      disabled={!canMutate}
-                      onChange={e => setCloneUrlDraft(e.target.value)}
-                      placeholder={t('organizations.repoCloneUrlPlaceholder')}
-                      spellCheck={false}
-                      aria-label={t('organizations.repoCloneUrlPlaceholder')}
-                    />
-                  </SettingsField>
+              <GithubRepoPicker
+                accountId={accountId}
+                disabled={!canMutate}
+                excludeFullNames={repos.map(repo => repo.repoFullName)}
+                onPick={handlePick}
+              />
+              <details
+                className="orgs-inline-form__manual"
+                open={manualOpen}
+                onToggle={event => setManualOpen((event.currentTarget as HTMLDetailsElement).open)}
+              >
+                <summary className="orgs-inline-form__manual-summary">
+                  {t('organizations.repoPickerManual')}
+                </summary>
+                <div className="orgs-inline-form__row">
+                  <div className="orgs-inline-form__grow">
+                    <SettingsField label={t('organizations.addRepo')} compact>
+                      <Input
+                        type="text"
+                        size="sm"
+                        value={cloneUrlDraft}
+                        disabled={!canMutate}
+                        onChange={e => {
+                          setCloneUrlDraft(e.target.value)
+                          setPickedFullName('')
+                        }}
+                        placeholder={t('organizations.repoCloneUrlPlaceholder')}
+                        spellCheck={false}
+                        aria-label={t('organizations.repoCloneUrlPlaceholder')}
+                      />
+                    </SettingsField>
+                  </div>
                 </div>
+              </details>
+              <div className="orgs-inline-form__row">
                 <div className="orgs-inline-form__grow">
                   <SettingsField label={t('organizations.repoFolderNameLabel')} compact>
                     <Input
+                      ref={folderNameRef}
                       type="text"
                       size="sm"
                       value={folderNameDraft}

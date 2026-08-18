@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.86.0
+
+- Ajustes > GitHub pasa de un único token a una lista de cuentas: cada una con su etiqueta, su comprobación de credenciales y la opción de marcarla por defecto.
+- Cada workspace elige con qué cuenta de GitHub trabaja, desde un botón nuevo en el plano. La elección se guarda en `.gravity/github.json` del proyecto y no contiene el token: los tokens quedan cifrados en la carpeta de la aplicación.
+- GitHub Actions, el detalle de ejecuciones y el clonado de workspaces de organización usan la cuenta del workspace; si no eligió ninguna, siguen usando la cuenta por defecto, la variable de entorno o el credential helper, en ese orden.
+- La sesión de Covenant ahora es una por cuenta: dos cuentas pueden quedar firmadas a la vez sin pisarse, Organizations suma un selector de cuenta cuando hay más de una, y cerrar sesión en una no cierra la otra.
+- Si se borra una cuenta, los workspaces que la tenían elegida vuelven solos a la cuenta por defecto la próxima vez que se los lee.
+
 ## v0.85.0
 
 - El chat del plano ya no queda en silencio mientras un agente trabaja: la línea de estado muestra la fase del turno (arrancando, cargando contexto, pensando, la herramienta en curso con su detalle y escribiendo la respuesta).

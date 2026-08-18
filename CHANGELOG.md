@@ -5,6 +5,17 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.88.0
+
+### Corregido
+- Las cuentas de GitHub ya no desaparecen al guardar otro ajuste: el autosave de Ajustes dejó de reenviar el llavero completo. Los tokens que quedaron huérfanos vuelven solos como «Cuenta 1», «Cuenta 2»… al abrir la app, sin regenerar nada.
+
+### Añadido
+- Paquete MSIX/AppX de evaluación para Windows, fuera del canal de release: se arma con `npm run dist:win-appx` o con el workflow manual «Windows AppX (eval)». En un build de Microsoft Store, Ajustes avisa que las actualizaciones llegan por la Store en vez de ofrecer el auto-update.
+
+### Cambiado
+- Las pilas de caras de agente en los listados de contexto se cortan en tres con un «+N», con el mismo anillo separador del pane.
+
 ## v0.87.0
 
 - Escribir `#` en el chat ahora también busca issues de GitHub del repositorio del workspace, no solo las de Jira.

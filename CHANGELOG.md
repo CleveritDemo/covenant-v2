@@ -5,7 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
-<<<<<<< HEAD
+## v0.98.2
+El onboarding solo aparece en la primera apertura con plano vacío. Si ya tienes agentes o terminal, el composer vuelve y el recorrido se marca completado solo.
+
+## v0.98.1
+Al pulsar el motor primario en la config del agente, el respaldo pasa a serlo; si no hay respaldo, se quita la selección. Antes tres guardados seguidos se pisaban y el clic no hacía nada.
+
 ## v0.98.0
 ### Sketch
 - Nueva herramienta de texto: haces clic en el lienzo, escribes encima y ⌘Enter (o salir del campo) hornea la anotación en el dibujo; Escape la descarta.
@@ -15,10 +20,6 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 - Debajo del aviso se muestra el mensaje real de git cuando aporta detalle.
 ### Windows
 - Los botones de la ventana salen en el orden del sistema (− □ ×). En macOS no cambia nada.
-=======
-## v0.97.4
-Al pulsar el motor primario en la config del agente, el respaldo pasa a serlo; si no hay respaldo, se quita la selección. Antes tres guardados seguidos se pisaban y el clic no hacía nada.
->>>>>>> f744897 (release: v0.97.4 — clic en motor primario promueve respaldo o limpia selección)
 
 ## v0.97.3
 El onboarding ya no tapa el plano con un wizard: el primer paso es elegir rol Planear o Ejecutar. Rehacer el recorrido vuelve a preguntar el rol y borra path y señales.

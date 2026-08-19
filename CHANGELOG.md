@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.8
+Saltar a una intervención desde el riel de rondas de una sala ya no descuadra la aplicación: antes el clic movía la ventana entera, cortaba la tira de pestañas y dejaba una franja vacía abajo, sin forma de volver. Ahora solo se desplaza el acta de la sala.
+
 ## v0.98.7
 Los chips de la conversación muestran las delegaciones en curso aunque el carril aún no haya arrancado, con un rótulo legible. Al pulsar uno se abre ese hilo.
 

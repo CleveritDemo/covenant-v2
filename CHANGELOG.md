@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.94.0
+
+### Añadido
+- En el acta de una sala de brainstorm aparece «Ir al último mensaje» cuando subes a leer: vuelve al fondo y reanuda el seguimiento. El mismo control vive en el kit y lo reusa el pane de agente.
+
 ## v0.93.0
 
 ### Añadido

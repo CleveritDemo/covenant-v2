@@ -42,8 +42,12 @@ import {
 } from '@shared/onboardingFlow'
 import {
   resolveOnboardingGuideStep,
+  isDismissibleGuideStep,
   type OnboardingGuideStep,
 } from '@shared/onboardingGuideFlow'
+import {
+  resolveContextAssignOutcome,
+} from '@shared/onboardingContextAssign'
 import {
   buildGuideResolveArgs,
   composerEngineMissingForTab,
@@ -4183,12 +4187,20 @@ export const App: React.FC = () => {
     toPaneId: string,
     contextId: string,
   ) => {
-    handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
+    let assignmentOccurred = false
+    void handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
       if (isAgentOwnResultContext(previous.id, contextId)) return previous
-      const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
+      const prior = previous.contextIds ?? []
+      const nextIds = [...new Set([...prior, contextId])]
+      if (nextIds.length > prior.length) {
+        assignmentOccurred = true
+      }
       return { ...previous, contextIds: nextIds }
+    }).then(ok => {
+      if (ok && assignmentOccurred) {
+        persistOnboardingSignals({ onboardingAssignedContext: true })
+      }
     })
-    persistOnboardingSignals({ onboardingAssignedContext: true })
   }, [persistOnboardingSignals])
 
   /**
@@ -4206,11 +4218,20 @@ export const App: React.FC = () => {
     if (!root) return
     const agent = (projectAgentsByCwdRef.current[root] ?? []).find(item => item.id === agentId)
     if (!agent) return
+    const outcome = resolveContextAssignOutcome({
+      currentIds: agent.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(agent.id, contextId),
+      mode: 'assign',
+    })
+    if (outcome === 'rejected') return
     const next = addAgentContextId(agent, contextId)
     if (!next) return
-    persistOnboardingSignals({ onboardingAssignedContext: true })
     void window.api.upsertProjectAgent(root, next).then(result => {
-      if (result.ok) rememberProjectAgent(root, result.agent)
+      if (result.ok) {
+        rememberProjectAgent(root, result.agent)
+        persistOnboardingSignals({ onboardingAssignedContext: true })
+      }
     })
   }, [rememberProjectAgent, persistOnboardingSignals])
 
@@ -4219,8 +4240,15 @@ export const App: React.FC = () => {
     paneId: string,
     contextId: string,
   ) => {
-    persistOnboardingSignals({ onboardingAssignedContext: true })
-    handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    const previous = tab ? resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current) : null
+    const outcome = resolveContextAssignOutcome({
+      currentIds: previous?.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(previous?.id, contextId),
+      mode: 'toggle',
+    })
+    void handleAgentMetaChangeRef.current(tabId, paneId, previous => {
       const selected = new Set(previous.contextIds ?? [])
       if (selected.has(contextId)) {
         selected.delete(contextId)
@@ -4230,6 +4258,10 @@ export const App: React.FC = () => {
         selected.add(contextId)
       }
       return { ...previous, contextIds: [...selected] }
+    }).then(ok => {
+      if (ok && outcome === 'added') {
+        persistOnboardingSignals({ onboardingAssignedContext: true })
+      }
     })
   }, [persistOnboardingSignals])
 
@@ -7962,6 +7994,7 @@ export const App: React.FC = () => {
                   onboardingGuideStep={resolveGuideStepForTab(tab)}
                   onboardingGuideDismissLabel={t('tabs.onboardingGuide.dismiss')}
                   onOnboardingGuideDismiss={step => {
+                    if (!isDismissibleGuideStep(step)) return
                     const current = config.onboardingGuideDone ?? []
                     if (current.includes(step)) return
                     persistOnboardingSignals({ onboardingGuideDone: [...current, step] })

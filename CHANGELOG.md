@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.7
+Los chips de la conversación muestran las delegaciones en curso aunque el carril aún no haya arrancado, con un rótulo legible. Al pulsar uno se abre ese hilo.
+
 ## v0.98.6
 ### Windows
 - Los agentes con Codex y Claude Code vuelven a responder: el prompt ya no viaja en la línea de comandos, que cortaba en 8191 caracteres y devolvía «La línea de comandos es demasiado larga» en cuanto el agente tenía contextos o equipo.

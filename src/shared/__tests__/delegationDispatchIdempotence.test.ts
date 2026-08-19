@@ -106,6 +106,15 @@ describe('delegationDispatchKey', () => {
 })
 
 describe('dispatch key repeat guard', () => {
+  function releaseDelegateDispatchKeyForJob(
+    keysByJob: Map<string, string>,
+    delegationId: string,
+  ): void {
+    for (const [key, value] of keysByJob.entries()) {
+      if (value === delegationId) keysByJob.delete(key)
+    }
+  }
+
   it('bloquea cuando la clave ya está en el mapa aunque el job no rastree el hilo', () => {
     const job = createOrchestrationJob('orch')
     const existingDelegationId = 'del-first'
@@ -134,5 +143,49 @@ describe('dispatch key repeat guard', () => {
     const keysByJob = new Map<string, string>()
 
     expect(keysByJob.get(dispatchKey)).toBeUndefined()
+  })
+
+  it('libera la clave tras resultado fail y permite re-despachar el mismo objetivo', () => {
+    const dispatchKey = delegationDispatchKey({
+      toAgentId: 'frontend',
+      objective: 'añade JumpToLatest button al acta del pane',
+    })
+    const firstDelegationId = 'del-fail'
+    const keysByJob = new Map<string, string>([[dispatchKey, firstDelegationId]])
+
+    expect(keysByJob.get(dispatchKey)).toBe(firstDelegationId)
+
+    releaseDelegateDispatchKeyForJob(keysByJob, firstDelegationId)
+
+    expect(keysByJob.get(dispatchKey)).toBeUndefined()
+    keysByJob.set(dispatchKey, 'del-retry')
+    expect(keysByJob.get(dispatchKey)).toBe('del-retry')
+  })
+
+  it('libera la clave tras resultado aborted y permite re-despachar el mismo objetivo', () => {
+    const dispatchKey = delegationDispatchKey({
+      toAgentId: 'frontend',
+      objective: 'escribe tests del guard de duplicados',
+    })
+    const firstDelegationId = 'del-aborted'
+    const keysByJob = new Map<string, string>([[dispatchKey, firstDelegationId]])
+
+    releaseDelegateDispatchKeyForJob(keysByJob, firstDelegationId)
+
+    expect(keysByJob.get(dispatchKey)).toBeUndefined()
+    keysByJob.set(dispatchKey, 'del-retry')
+    expect(keysByJob.get(dispatchKey)).toBe('del-retry')
+  })
+
+  it('mantiene la clave tras resultado ok y sigue bloqueando re-despacho', () => {
+    const dispatchKey = delegationDispatchKey({
+      toAgentId: 'frontend',
+      objective: 'añade JumpToLatest button al acta del pane',
+    })
+    const firstDelegationId = 'del-ok'
+    const keysByJob = new Map<string, string>([[dispatchKey, firstDelegationId]])
+
+    expect(keysByJob.get(dispatchKey)).toBe(firstDelegationId)
+    expect(Boolean(keysByJob.get(dispatchKey))).toBe(true)
   })
 })

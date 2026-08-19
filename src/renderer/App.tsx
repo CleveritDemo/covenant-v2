@@ -369,6 +369,18 @@ function reorderPaneIdsAfterClose(paneIds: string[], closedPaneId: string): stri
   return paneIds.filter(id => id !== closedPaneId)
 }
 
+function releaseDelegateDispatchKeyForJob(
+  delegateDispatchKeysByJobRef: React.MutableRefObject<Map<string, Map<string, string>>>,
+  jobId: string,
+  delegationId: string,
+): void {
+  const keysByJob = delegateDispatchKeysByJobRef.current.get(jobId)
+  if (!keysByJob) return
+  for (const [key, value] of keysByJob.entries()) {
+    if (value === delegationId) keysByJob.delete(key)
+  }
+}
+
 /** Marca que las pestañas ya fueron cargadas desde persistencia (o se creó la primera). */
 type SessionReady = { loaded: boolean }
 
@@ -5353,6 +5365,9 @@ export const App: React.FC = () => {
     job.pending.delete(result.id)
     let remaining = job.pending.size
     job.completedResults.push(result)
+    if (result.status === 'fail' || result.status === 'aborted') {
+      releaseDelegateDispatchKeyForJob(delegateDispatchKeysByJobRef, job.jobId, result.id)
+    }
     syncAwaitingFromPending()
 
     const worktreeInfo = worktreesByDelegationRef.current.get(result.id)
@@ -5735,6 +5750,7 @@ export const App: React.FC = () => {
           ...(toPaneId ? { toPaneId } : {}),
           ...(abortedThreadId ? { toThreadId: abortedThreadId } : {}),
         })
+        releaseDelegateDispatchKeyForJob(delegateDispatchKeysByJobRef, job.jobId, id)
       }
     }
 

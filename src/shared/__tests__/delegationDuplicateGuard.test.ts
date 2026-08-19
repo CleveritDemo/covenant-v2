@@ -3,6 +3,8 @@ import {
   DUPLICATE_OBJECTIVE_THRESHOLD,
   buildDuplicateDelegationFollowUp,
   buildRepeatedDispatchFollowUp,
+  extractObjectivePathTokens,
+  extractObjectiveShortTokens,
   findDuplicateDelegation,
   normalizeObjective,
   objectiveSimilarity,
@@ -122,6 +124,60 @@ describe('findDuplicateDelegation', () => {
     expect(findDuplicateDelegation({
       toAgentId: 'frontend-2',
       objective,
+      registry,
+    })?.delegationId).toBe('d-live')
+  })
+
+  it('mismo texto largo cambiando solo el archivo objetivo → no duplicado', () => {
+    const sharedPrefix = [
+      'implementa el componente JumpToLatest con accesibilidad teclado focus visible aria labels',
+      'pruebas unitarias cobertura completa del acta del pane agente composer scroll follow y mensajes en',
+    ].join(' ')
+    const liveObjective = `${sharedPrefix} src/shared/delegationDuplicateGuard.ts`
+    const nextObjective = `${sharedPrefix} src/renderer/App.tsx`
+    const registry = registryWith({ objective: liveObjective })
+    expect(objectiveSimilarity(liveObjective, nextObjective)).toBeGreaterThanOrEqual(
+      DUPLICATE_OBJECTIVE_THRESHOLD,
+    )
+    expect(findDuplicateDelegation({
+      toAgentId: 'frontend',
+      objective: nextObjective,
+      registry,
+    })).toBeUndefined()
+  })
+
+  it('mismo texto cambiando solo un token de un carácter → no duplicado', () => {
+    const liveObjective = 'ajusta la vista A del composer para alinear el botón de citar'
+    const nextObjective = 'ajusta la vista B del composer para alinear el botón de citar'
+    const registry = registryWith({ objective: liveObjective })
+    expect(objectiveSimilarity(liveObjective, nextObjective)).toBe(1)
+    expect(findDuplicateDelegation({
+      toAgentId: 'frontend',
+      objective: nextObjective,
+      registry,
+    })).toBeUndefined()
+  })
+
+  it('objetivos idénticos siguen siendo duplicados tras los pre-chequeos', () => {
+    const registry = registryWith({ objective })
+    expect(findDuplicateDelegation({
+      toAgentId: 'frontend',
+      objective: `${objective} `,
+      registry,
+    })?.delegationId).toBe('d-live')
+  })
+
+  it('paráfrasis sin rutas ni tokens cortos distintos sigue bloqueando por similitud', () => {
+    const registry = registryWith({ objective })
+    const paraphrase = 'añade JumpToLatest button al acta pane'
+    expect(extractObjectivePathTokens(objective).size).toBe(0)
+    expect(extractObjectivePathTokens(paraphrase).size).toBe(0)
+    expect([...extractObjectiveShortTokens(objective)].sort()).toEqual(
+      [...extractObjectiveShortTokens(paraphrase)].sort(),
+    )
+    expect(findDuplicateDelegation({
+      toAgentId: 'frontend',
+      objective: paraphrase,
       registry,
     })?.delegationId).toBe('d-live')
   })

@@ -26,6 +26,47 @@ function objectiveTokens(raw: string): Set<string> {
   return new Set(normalizeObjective(raw).split(' ').filter(token => token.length > 2))
 }
 
+function isPathLikeToken(token: string): boolean {
+  return token.includes('/') || /\.\w{1,5}$/.test(token)
+}
+
+/** Tokens con forma de ruta o archivo en el objetivo crudo (case-insensitive). */
+export function extractObjectivePathTokens(raw: string): Set<string> {
+  const tokens = new Set<string>()
+  for (const match of String(raw ?? '').matchAll(/\S+/g)) {
+    const token = match[0]
+    if (isPathLikeToken(token)) tokens.add(token.toLowerCase())
+  }
+  return tokens
+}
+
+/** Tokens de 1–2 caracteres del objetivo normalizado. */
+export function extractObjectiveShortTokens(raw: string): Set<string> {
+  return new Set(
+    normalizeObjective(raw).split(' ').filter(token => token.length >= 1 && token.length <= 2),
+  )
+}
+
+function sameTokenSet(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const token of a) {
+    if (!b.has(token)) return false
+  }
+  return true
+}
+
+function pathTokensDiffer(rawA: string, rawB: string): boolean {
+  const aPaths = extractObjectivePathTokens(rawA)
+  const bPaths = extractObjectivePathTokens(rawB)
+  return aPaths.size > 0 && bPaths.size > 0 && !sameTokenSet(aPaths, bPaths)
+}
+
+function shortTokensDiffer(rawA: string, rawB: string): boolean {
+  const aShort = extractObjectiveShortTokens(rawA)
+  const bShort = extractObjectiveShortTokens(rawB)
+  return !sameTokenSet(aShort, bShort)
+}
+
 /** Jaccard 0..1 sobre tokens del objetivo normalizado (descarta ≤2 caracteres). */
 export function objectiveSimilarity(a: string, b: string): number {
   const aSet = objectiveTokens(a)
@@ -54,6 +95,8 @@ export function findDuplicateDelegation(input: {
   for (const entry of input.registry.values()) {
     if (!LIVE_STATUSES.has(entry.status)) continue
     if (canonicalAgentId(entry.toAgentId) !== agentId) continue
+    if (pathTokensDiffer(input.objective, entry.objective)) continue
+    if (shortTokensDiffer(input.objective, entry.objective)) continue
     if (objectiveSimilarity(input.objective, entry.objective) >= threshold) return entry
   }
   return undefined

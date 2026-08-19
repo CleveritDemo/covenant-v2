@@ -140,6 +140,12 @@ export interface AppConfig {
   onboardingCompletedVersion: string
   /** Perfil de orquestador elegido en el wizard (`''` = aún no eligió). */
   orchestratorPath: OrchestratorPath | ''
+  /** El humano ya envió su primer mensaje en el plano. */
+  onboardingSentFirstMessage: boolean
+  /** Ya asignó un contexto a un agente. */
+  onboardingAssignedContext: boolean
+  /** Pasos de la guía cerrados con «Entendido». */
+  onboardingGuideDone: string[]
   /**
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
@@ -205,6 +211,9 @@ export const CONFIG_DEFAULTS: AppConfig = {
   agentCliCommands: {},
   onboardingCompletedVersion: '',
   orchestratorPath: '',
+  onboardingSentFirstMessage: false,
+  onboardingAssignedContext: false,
+  onboardingGuideDone: [],
   wikiCurator: {},
   otelEndpoint: '',
   otelProtocol: 'http/protobuf',
@@ -220,6 +229,23 @@ export function sanitizeOnboardingCompletedVersion(value: unknown): string {
   const trimmed = value.trim()
   if (!trimmed || trimmed.length > 32) return ''
   return trimmed
+}
+
+/** Pasos cerrados de la guía: no-array → []; strings trim, no vacías, ≤64 chars, dedupe, tope 32. */
+export function sanitizeOnboardingGuideDone(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const trimmed = item.trim()
+    if (!trimmed || trimmed.length > 64) continue
+    if (seen.has(trimmed)) continue
+    seen.add(trimmed)
+    out.push(trimmed)
+    if (out.length >= 32) break
+  }
+  return out
 }
 
 /** Claves previas a `agentCliCommands` (una por proveedor). */
@@ -293,6 +319,15 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const orchestratorPath = Object.prototype.hasOwnProperty.call(partial, 'orchestratorPath')
     ? sanitizeOrchestratorPath(partial.orchestratorPath)
     : CONFIG_DEFAULTS.orchestratorPath
+  const onboardingSentFirstMessage = typeof partial.onboardingSentFirstMessage === 'boolean'
+    ? partial.onboardingSentFirstMessage
+    : CONFIG_DEFAULTS.onboardingSentFirstMessage
+  const onboardingAssignedContext = typeof partial.onboardingAssignedContext === 'boolean'
+    ? partial.onboardingAssignedContext
+    : CONFIG_DEFAULTS.onboardingAssignedContext
+  const onboardingGuideDone = Object.prototype.hasOwnProperty.call(partial, 'onboardingGuideDone')
+    ? sanitizeOnboardingGuideDone(partial.onboardingGuideDone)
+    : CONFIG_DEFAULTS.onboardingGuideDone
   const rawRecord = partial as Record<string, unknown>
   const catalogKeyPresent = Object.prototype.hasOwnProperty.call(
     rawRecord,
@@ -330,6 +365,9 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     defaultWorkspacesDir,
     onboardingCompletedVersion,
     orchestratorPath,
+    onboardingSentFirstMessage,
+    onboardingAssignedContext,
+    onboardingGuideDone,
     wikiCurator,
     githubAccounts,
     githubDefaultAccountId,
@@ -395,6 +433,20 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (sanitizeOrchestratorPath(config.orchestratorPath) !== config.orchestratorPath) {
     errors.push('orchestratorPath inválido')
+  }
+  if (typeof config.onboardingSentFirstMessage !== 'boolean') {
+    errors.push('onboardingSentFirstMessage debe ser un boolean')
+  }
+  if (typeof config.onboardingAssignedContext !== 'boolean') {
+    errors.push('onboardingAssignedContext debe ser un boolean')
+  }
+  const sanitizedGuideDone = sanitizeOnboardingGuideDone(config.onboardingGuideDone)
+  const rawGuideDone = config.onboardingGuideDone
+  const guideDoneMatches = Array.isArray(rawGuideDone)
+    && rawGuideDone.length === sanitizedGuideDone.length
+    && rawGuideDone.every((item, i) => item === sanitizedGuideDone[i])
+  if (!guideDoneMatches) {
+    errors.push('onboardingGuideDone inválido')
   }
   if (
     config.orgWorkspaceCatalogCache != null

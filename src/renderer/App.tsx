@@ -47,6 +47,7 @@ import {
 } from '@shared/onboardingGuideFlow'
 import {
   resolveContextAssignOutcome,
+  shouldPersistAssignedContext,
 } from '@shared/onboardingContextAssign'
 import {
   buildGuideResolveArgs,
@@ -4187,17 +4188,21 @@ export const App: React.FC = () => {
     toPaneId: string,
     contextId: string,
   ) => {
-    let assignmentOccurred = false
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    const previous = tab ? resolveTabAgentMeta(tab, toPaneId, projectAgentsByCwdRef.current) : null
+    const outcome = resolveContextAssignOutcome({
+      currentIds: previous?.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(previous?.id, contextId),
+      mode: 'assign',
+    })
     void handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
       if (isAgentOwnResultContext(previous.id, contextId)) return previous
       const prior = previous.contextIds ?? []
       const nextIds = [...new Set([...prior, contextId])]
-      if (nextIds.length > prior.length) {
-        assignmentOccurred = true
-      }
       return { ...previous, contextIds: nextIds }
     }).then(ok => {
-      if (ok && assignmentOccurred) {
+      if (ok && previous && shouldPersistAssignedContext(outcome)) {
         persistOnboardingSignals({ onboardingAssignedContext: true })
       }
     })
@@ -4225,12 +4230,18 @@ export const App: React.FC = () => {
       mode: 'assign',
     })
     if (outcome === 'rejected') return
+    if (outcome === 'already') {
+      persistOnboardingSignals({ onboardingAssignedContext: true })
+      return
+    }
     const next = addAgentContextId(agent, contextId)
     if (!next) return
     void window.api.upsertProjectAgent(root, next).then(result => {
       if (result.ok) {
         rememberProjectAgent(root, result.agent)
-        persistOnboardingSignals({ onboardingAssignedContext: true })
+        if (shouldPersistAssignedContext(outcome)) {
+          persistOnboardingSignals({ onboardingAssignedContext: true })
+        }
       }
     })
   }, [rememberProjectAgent, persistOnboardingSignals])
@@ -4259,7 +4270,7 @@ export const App: React.FC = () => {
       }
       return { ...previous, contextIds: [...selected] }
     }).then(ok => {
-      if (ok && outcome === 'added') {
+      if (ok && shouldPersistAssignedContext(outcome)) {
         persistOnboardingSignals({ onboardingAssignedContext: true })
       }
     })

@@ -615,11 +615,14 @@ export function markPendingSawBusyForPane(
 }
 
 /**
- * Cuánto se espera antes de cerrar un pending que nunca se vio ocupado.
+ * Cuánto se espera antes de cerrar un pending que nunca se vio ocupado (5 min).
  * Holgado a propósito: el precio de equivocarse por abajo es cerrar una
- * subtarea que estaba por arrancar.
+ * subtarea que estaba por arrancar. Se dobló desde 60 s porque un especialista
+ * puede tardar más de un minuto en publicar su primer estado busy.
+ * Efecto secundario aceptado: mientras corre esa gracia, un pending que nunca
+ * arrancó mantiene la fila en running y congela la cola humana de ese pane.
  */
-export const IDLE_PENDING_GRACE_MS = 60_000
+export const IDLE_PENDING_GRACE_MS = 300_000
 
 /**
  * Reconciliar idle pide haber visto al target ocupado con este pending: cerrar

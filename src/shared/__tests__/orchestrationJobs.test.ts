@@ -345,6 +345,11 @@ describe('pending sawBusy / idle reconcile gate', () => {
     })).toBe(true)
   })
 
+  // Contrato de producto: si cambia el valor hay que decidirlo, no arrastrarlo.
+  it('IDLE_PENDING_GRACE_MS es 5 min', () => {
+    expect(IDLE_PENDING_GRACE_MS).toBe(300_000)
+  })
+
   it('sin startedAt sigue mandando sawBusy: nada se cierra por accidente', () => {
     expect(canReconcileIdlePending(false, { nowMs: 9_999_999 })).toBe(false)
     expect(canReconcileIdlePending(undefined)).toBe(false)

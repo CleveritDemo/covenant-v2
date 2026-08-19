@@ -9,7 +9,7 @@ de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 ### Windows
 - Los agentes con Codex y Claude Code vuelven a responder: el prompt ya no viaja en la línea de comandos, que cortaba en 8191 caracteres y devolvía «La línea de comandos es demasiado larga» en cuanto el agente tenía contextos o equipo.
 - Con el resto de motores, si el prompt no cabe aparece un aviso que dice qué hacer, en lugar del error críptico de la consola.
-- Los errores del CLI se leen bien: se acabaron los acentos rotos tipo «l\ufffdnea».
+- Los errores del CLI se leen bien: se acabaron los acentos rotos en los mensajes de error de Windows.
 - Los botones de la ventana caben en la barra de título y los deshabilitados ya no ocupan hueco.
 
 ## v0.98.5

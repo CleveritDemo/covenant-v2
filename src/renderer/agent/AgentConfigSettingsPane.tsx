@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
 import { agentCliSpec, providerCapabilities, AGENT_CLI_PROVIDER_IDS } from '@shared/agentCliProviders'
-import { pickProviderChoice, providerMapsPlanMode } from '@shared/agentHarnessFallback'
+import { pickProviderChoice, providerMapsPlanMode, type ProviderPair } from '@shared/agentHarnessFallback'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
@@ -64,6 +64,8 @@ export interface AgentConfigSettingsPaneProps {
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider | undefined) => void
+  /** Un solo write del par primario/respaldo (evita pisar meta entre handlers). */
+  onChangeProviderPair: (pair: ProviderPair) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangeFallbackModel: (model: string) => void
@@ -145,6 +147,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
+  onChangeProviderPair,
   onChangeFallbackProvider,
   onChangeModel,
   onChangeFallbackModel,
@@ -264,23 +267,16 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             } : undefined}
             onChangeModel={onChangeModel}
             onChangeFallbackModel={onChangeFallbackModel}
-            onPick={id => {
-              const next = pickProviderChoice(
+            onPick={picked => {
+              onChangeProviderPair(pickProviderChoice(
                 {
                   provider: meta.provider,
                   fallbackProvider: fallbackId,
                   model: meta.model,
                   fallbackModel: meta.fallbackModel,
                 },
-                id,
-              )
-              if (next.provider !== meta.provider) {
-                onChangeProvider(next.provider)
-                onChangeModel(next.model ?? '')
-              }
-              if (next.fallbackProvider !== fallbackId) {
-                onChangeFallbackProvider(next.fallbackProvider)
-              }
+                picked,
+              ))
             }}
           />
           <p className="agent-config-settings__hint">{t('agentPane.fallbackProviderHint')}</p>

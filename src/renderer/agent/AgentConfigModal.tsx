@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
+import type { ProviderPair } from '@shared/agentHarnessFallback'
 import { agentCliSpec } from '@shared/agentCliProviders'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
@@ -73,6 +74,7 @@ export interface AgentConfigModalProps {
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
   onChangeProvider: (provider: AgentCliProvider | undefined) => void
+  onChangeProviderPair: (pair: ProviderPair) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangeFallbackModel: (model: string) => void
@@ -109,6 +111,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onOrchestrationWorkStyleChange,
   onChangeDelegateTo,
   onChangeProvider,
+  onChangeProviderPair,
   onChangeFallbackProvider,
   onChangeModel,
   onChangeFallbackModel,
@@ -480,6 +483,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onOrchestrationWorkStyleChange={onOrchestrationWorkStyleChange}
                 onChangeDelegateTo={onChangeDelegateTo}
                 onChangeProvider={onChangeProvider}
+                onChangeProviderPair={onChangeProviderPair}
                 onChangeFallbackProvider={onChangeFallbackProvider}
                 onChangeModel={onChangeModel}
                 onChangeFallbackModel={onChangeFallbackModel}

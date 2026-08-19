@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyProviderPairToMeta,
   claudeResultErrorText,
   isRetryableHarnessOutage,
   pickProviderChoice,
@@ -118,6 +119,43 @@ describe('pickProviderChoice', () => {
       { provider: 'claude', fallbackProvider: 'cursor', fallbackModel: 'gpt-4' },
       'codex',
     )).toEqual({ provider: 'claude', fallbackProvider: 'codex' })
+  })
+})
+
+describe('applyProviderPairToMeta', () => {
+  const previous = {
+    id: 'frontend',
+    provider: 'cursor' as const,
+    model: 'gpt-4',
+    fallbackProvider: 'claude' as const,
+    fallbackModel: 'sonnet',
+    cliSessionId: 'sess-1',
+    permissionMode: 'auto' as const,
+  }
+
+  it('clic en primario con respaldo lo promueve y tira la sesión', () => {
+    const next = applyProviderPairToMeta(previous, { provider: 'claude', model: 'sonnet' })
+    expect(next).toEqual({
+      id: 'frontend',
+      provider: 'claude',
+      model: 'sonnet',
+      permissionMode: 'auto',
+    })
+    expect(next).not.toHaveProperty('cliSessionId')
+    expect(next).not.toHaveProperty('fallbackProvider')
+  })
+
+  it('clic en primario sin respaldo deja el meta sin motores ni sesión', () => {
+    const next = applyProviderPairToMeta({
+      id: 'frontend',
+      provider: 'cursor' as const,
+      model: 'gpt-4',
+      cliSessionId: 'sess-1',
+      permissionMode: 'auto' as const,
+    }, {})
+    expect(next).toEqual({ id: 'frontend', permissionMode: 'auto' })
+    expect(next).not.toHaveProperty('provider')
+    expect(next).not.toHaveProperty('cliSessionId')
   })
 })
 

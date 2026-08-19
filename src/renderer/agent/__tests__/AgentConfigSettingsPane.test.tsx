@@ -4,7 +4,7 @@
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { AgentCliProvider, AgentPaneMeta } from '@shared/tabSession'
+import type { AgentPaneMeta } from '@shared/tabSession'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key }),
@@ -44,6 +44,7 @@ function renderSection(
       onOrchestrationWorkStyleChange={noop}
       onChangeDelegateTo={noop}
       onChangeProvider={noop}
+      onChangeProviderPair={noop}
       onChangeFallbackProvider={noop}
       onChangeModel={noop}
       onChangeFallbackModel={noop}
@@ -59,8 +60,7 @@ function renderSection(
 function renderEngine(
   meta: Partial<AgentPaneMeta> = {},
   handlers: {
-    onChangeProvider?: (provider: AgentCliProvider | undefined) => void
-    onChangeFallbackProvider?: (provider: AgentCliProvider | undefined) => void
+    onChangeProviderPair?: (pair: import('@shared/agentHarnessFallback').ProviderPair) => void
     onChangeFallbackModel?: (model: string) => void
     onChangeModel?: (model: string) => void
   } = {},
@@ -82,8 +82,9 @@ function renderEngine(
       onMaxDelegationsPerTurnChange={noop}
       onOrchestrationWorkStyleChange={noop}
       onChangeDelegateTo={noop}
-      onChangeProvider={handlers.onChangeProvider ?? noop}
-      onChangeFallbackProvider={handlers.onChangeFallbackProvider ?? noop}
+      onChangeProvider={noop}
+      onChangeProviderPair={handlers.onChangeProviderPair ?? noop}
+      onChangeFallbackProvider={noop}
       onChangeModel={handlers.onChangeModel ?? noop}
       onChangeFallbackModel={handlers.onChangeFallbackModel ?? noop}
       onChangePermission={noop}
@@ -134,49 +135,47 @@ describe('AgentConfigSettingsPane engine fallback', () => {
     expect(screen.getByRole('button', { name: 'agentPane.fallbackModelLabel' })).toBeTruthy()
   })
 
-  it('pulsar una card libre llama onChangeFallbackProvider con ese proveedor', () => {
-    const onChangeFallbackProvider = vi.fn()
-    const onChangeProvider = vi.fn()
-    renderEngine({}, { onChangeFallbackProvider, onChangeProvider })
+  it('pulsar una card libre asigna respaldo en un solo par', () => {
+    const onChangeProviderPair = vi.fn()
+    renderEngine({}, { onChangeProviderPair })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
-    expect(onChangeFallbackProvider).toHaveBeenCalledWith('claude')
-    expect(onChangeProvider).not.toHaveBeenCalled()
+    expect(onChangeProviderPair).toHaveBeenCalledWith({
+      provider: 'cursor',
+      fallbackProvider: 'claude',
+    })
   })
 
-  it('pulsar la card del respaldo llama onChangeFallbackProvider con undefined', () => {
-    const onChangeFallbackProvider = vi.fn()
-    renderEngine({ fallbackProvider: 'claude' }, { onChangeFallbackProvider })
+  it('pulsar la card del respaldo lo quita del par', () => {
+    const onChangeProviderPair = vi.fn()
+    renderEngine({ fallbackProvider: 'claude' }, { onChangeProviderPair })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
-    expect(onChangeFallbackProvider).toHaveBeenCalledWith(undefined)
+    expect(onChangeProviderPair).toHaveBeenCalledWith({ provider: 'cursor' })
   })
 
   it('pulsar el primario sin respaldo lo quita', () => {
-    const onChangeProvider = vi.fn()
-    renderEngine({}, { onChangeProvider })
+    const onChangeProviderPair = vi.fn()
+    renderEngine({}, { onChangeProviderPair })
     fireEvent.click(screen.getByRole('button', { name: /Cursor/i }))
-    expect(onChangeProvider).toHaveBeenCalledWith(undefined)
+    expect(onChangeProviderPair).toHaveBeenCalledWith({})
   })
 
   it('pulsar el primario con respaldo promueve el respaldo', () => {
-    const onChangeProvider = vi.fn()
-    const onChangeFallbackProvider = vi.fn()
-    const onChangeModel = vi.fn()
+    const onChangeProviderPair = vi.fn()
     renderEngine(
       { fallbackProvider: 'claude', fallbackModel: 'sonnet', model: 'gpt-4' },
-      { onChangeProvider, onChangeFallbackProvider, onChangeModel },
+      { onChangeProviderPair },
     )
     fireEvent.click(screen.getByRole('button', { name: /Cursor/i }))
-    expect(onChangeProvider).toHaveBeenCalledWith('claude')
-    expect(onChangeFallbackProvider).toHaveBeenCalledWith(undefined)
-    expect(onChangeModel).toHaveBeenCalledWith('sonnet')
+    expect(onChangeProviderPair).toHaveBeenCalledWith({
+      provider: 'claude',
+      model: 'sonnet',
+    })
   })
 
-  it('sin primario, la card libre llama onChangeProvider', () => {
-    const onChangeProvider = vi.fn()
-    const onChangeFallbackProvider = vi.fn()
-    renderEngine({ provider: undefined }, { onChangeProvider, onChangeFallbackProvider })
+  it('sin primario, la card libre lo asigna', () => {
+    const onChangeProviderPair = vi.fn()
+    renderEngine({ provider: undefined }, { onChangeProviderPair })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
-    expect(onChangeProvider).toHaveBeenCalledWith('claude')
-    expect(onChangeFallbackProvider).not.toHaveBeenCalled()
+    expect(onChangeProviderPair).toHaveBeenCalledWith({ provider: 'claude' })
   })
 })

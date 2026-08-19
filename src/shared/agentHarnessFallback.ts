@@ -35,6 +35,32 @@ function compactProviderPair(pair: ProviderPair): ProviderPair {
 }
 
 /**
+ * Sustituye el par de motores en un meta. Un solo update: handleAgentMetaChange
+ * lee el catálogo al entrar, y tres writes seguidas se pisan.
+ * Si cambia el primario, cae `cliSessionId` (la sesión es del CLI anterior).
+ */
+export function applyProviderPairToMeta<T extends ProviderPair & { cliSessionId?: string }>(
+  previous: T,
+  pair: ProviderPair,
+): T {
+  const {
+    provider: _provider,
+    fallbackProvider: _fallbackProvider,
+    model: _model,
+    fallbackModel: _fallbackModel,
+    cliSessionId,
+    ...rest
+  } = previous
+  const compacted = compactProviderPair(pair)
+  const keepSession = compacted.provider === previous.provider && Boolean(cliSessionId)
+  return {
+    ...rest,
+    ...compacted,
+    ...(keepSession ? { cliSessionId } : {}),
+  } as T
+}
+
+/**
  * Clic en una card del grid de motores:
  * sin primario → esa card es primario;
  * con primario → card libre es respaldo;

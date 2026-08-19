@@ -158,6 +158,7 @@ import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowS
 import { mcpConfigLabelFor, mcpsNeedingAuth } from '@shared/mcpContext'
 import { mcpConnectHint } from '@shared/mcpProbe'
 import { agentCliSpec } from '@shared/agentCliProviders'
+import { applyProviderPairToMeta, type ProviderPair } from '@shared/agentHarnessFallback'
 import { MAX_VISIBLE_QUEUED_TURNS } from '@shared/planeHumanSendFifo'
 import { Button } from '../components/ui'
 import './AgentPane.css'
@@ -3589,6 +3590,17 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
+  const changeProviderPair = (pair: ProviderPair): void => {
+    const providerChanged = pair.provider !== meta.provider
+    const hadSession = Boolean(meta.cliSessionId)
+    void Promise.resolve(onMetaChange(previous => applyProviderPairToMeta(previous, pair)))
+      .then(ok => {
+        if (!ok || !hadSession || !providerChanged) return
+        pendingModeHandoffRef.current = true
+        setMessages(prev => [...prev, systemMessage(t('agentPane.providerSessionReset'))])
+      })
+  }
+
   const changeModel = (model: string): void => {
     const next = model.trim()
     onMetaChange(previous => {
@@ -3866,6 +3878,7 @@ export const AgentPane: React.FC<Props> = ({
         peerAgents={peerAgents}
         projectAgents={projectAgents}
         onChangeProvider={changeProvider}
+        onChangeProviderPair={changeProviderPair}
         onChangeFallbackProvider={changeFallbackProvider}
         onChangeModel={changeModel}
         onChangeFallbackModel={changeFallbackModel}

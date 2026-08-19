@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.3
+
+### Corregido
+- Al cambiar de cuenta en Organizations, el error 403 de la org anterior ya no queda pintado sobre la organización nueva.
+
 ## v0.95.2
 
 ### Corregido

@@ -279,6 +279,15 @@
   font-size: 13px;
 }
 
+.git-panel-not-repo__detail {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.72;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
 .git-branch-badge {
   display: flex;
   flex-wrap: wrap;

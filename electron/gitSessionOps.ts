@@ -13,7 +13,7 @@ import {
   GIT_MAX_COMMIT_MESSAGE_CHARS,
   GIT_MAX_OUTPUT_BYTES,
 } from '../src/shared/gitSessionTypes'
-import { GIT_ERROR_CODES } from '../src/shared/gitErrorCodes'
+import { GIT_ERROR_CODES, type GitErrorCode } from '../src/shared/gitErrorCodes'
 import { repoFullNameFromCloneUrl } from '../src/shared/repoFullName'
 
 export const TIMEOUT_LOCAL_MS = 120_000
@@ -187,6 +187,17 @@ export function runGit(
 
     child.on('error', (e: Error) => {
       clearTimeout(timer)
+      const errno = e as NodeJS.ErrnoException
+      if (errno.code === 'ENOENT') {
+        finish({
+          ok: false,
+          exitCode: null,
+          stdout: out,
+          stderr: e.message || String(e),
+          errorCode: GIT_ERROR_CODES.GIT_UNAVAILABLE,
+        })
+        return
+      }
       finish({ ok: false, exitCode: null, stdout: out, stderr: e.message || String(e) })
     })
 
@@ -247,11 +258,40 @@ export async function repoAndBranch(
   }
 }
 
+export async function getRepoRootDetailed(
+  sessionCwd: string,
+): Promise<{ root: string | null; result: GitCommandResult }> {
+  const result = await runGit(sessionCwd, ['rev-parse', '--show-toplevel'], TIMEOUT_LOCAL_MS)
+  if (result.exitCode !== 0) return { root: null, result }
+  const root = result.stdout.trim().split('\n')[0]?.trim()
+  return { root: root || null, result }
+}
+
 export async function getRepoRoot(sessionCwd: string): Promise<string | null> {
-  const r = await runGit(sessionCwd, ['rev-parse', '--show-toplevel'], TIMEOUT_LOCAL_MS)
-  if (r.exitCode !== 0) return null
-  const root = r.stdout.trim().split('\n')[0]?.trim()
-  return root || null
+  const { root } = await getRepoRootDetailed(sessionCwd)
+  return root
+}
+
+function classifyMissingRepo(
+  sessionCwd: string,
+  result: GitCommandResult,
+): { error: string; errorCode: GitErrorCode } {
+  if (result.errorCode === GIT_ERROR_CODES.GIT_UNAVAILABLE) {
+    return {
+      errorCode: GIT_ERROR_CODES.GIT_UNAVAILABLE,
+      error: result.stderr.trim() || 'git no se pudo ejecutar',
+    }
+  }
+  if (hasGitMarker(sessionCwd) === true) {
+    return {
+      errorCode: GIT_ERROR_CODES.REPO_UNREADABLE,
+      error: result.stderr.trim() || 'git no pudo leer el repositorio',
+    }
+  }
+  return {
+    errorCode: GIT_ERROR_CODES.NOT_A_REPO,
+    error: result.stderr.trim() || 'no es un repositorio git',
+  }
 }
 
 /** Parsea la primera línea de `git status -sb` (## …). */
@@ -318,16 +358,17 @@ export async function gitGetRepoStatus(sessionCwdRaw: string): Promise<GitRepoSt
     }
   }
 
-  const repoRoot = await getRepoRoot(sessionCwd)
+  const { root: repoRoot, result: rootResult } = await getRepoRootDetailed(sessionCwd)
   if (!repoRoot) {
+    const { error, errorCode } = classifyMissingRepo(sessionCwd, rootResult)
     return {
       isRepo: false,
       sessionCwd,
       files: [],
       hasStaged: false,
       hasUnstaged: false,
-      error: 'no es un repositorio git',
-      errorCode: GIT_ERROR_CODES.NOT_A_REPO,
+      error,
+      errorCode,
     }
   }
 
@@ -549,15 +590,16 @@ async function resolveRepoRootOrError(
       },
     }
   }
-  const repoRoot = await getRepoRoot(sessionCwd)
+  const { root: repoRoot, result: rootResult } = await getRepoRootDetailed(sessionCwd)
   if (!repoRoot) {
+    const { error, errorCode } = classifyMissingRepo(sessionCwd, rootResult)
     return {
       error: {
         ok: false,
         exitCode: null,
         stdout: '',
-        stderr: 'no es un repositorio git',
-        errorCode: GIT_ERROR_CODES.NOT_A_REPO,
+        stderr: error,
+        errorCode,
       },
     }
   }

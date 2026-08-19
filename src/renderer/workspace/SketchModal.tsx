@@ -4,9 +4,15 @@ import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
 import { Icon, type IconName } from '../components/ui/Icon'
 import { arrowHeadPoints, boxFromDrag, ellipseFromDrag } from './sketchGeometry'
+import {
+  sketchFontSize,
+  sketchTextFont,
+  sketchTextLineHeight,
+  sketchTextLines,
+} from './sketchText'
 import './SketchModal.css'
 
-export type SketchTool = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'eraser'
+export type SketchTool = 'pen' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text' | 'eraser'
 
 /**
  * Espacio lógico de dibujo; el backing store es 2× para que el trazo quede
@@ -34,6 +40,7 @@ const TOOLS: Array<{ tool: SketchTool; icon: IconName; shortcut: string }> = [
   { tool: 'arrow', icon: 'arrow', shortcut: 'a' },
   { tool: 'rect', icon: 'square', shortcut: 'r' },
   { tool: 'ellipse', icon: 'circle', shortcut: 'o' },
+  { tool: 'text', icon: 'text', shortcut: 't' },
   { tool: 'eraser', icon: 'eraser', shortcut: 'e' },
 ]
 
@@ -58,6 +65,12 @@ export interface SketchModalProps {
   onAttach: (blob: Blob) => void
 }
 
+/** Ajusta la altura del textarea al contenido. */
+function resizeSketchTextInput(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 /**
  * Lienzo para dibujar o anotar un screenshot y adjuntarlo como imagen.
  * El estado de dibujo vive en refs: un trazo no debe re-renderizar React.
@@ -65,6 +78,8 @@ export interface SketchModalProps {
 export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttach }) => {
   const { t } = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const textInputRef = useRef<HTMLTextAreaElement>(null)
+  const suppressTextBlurCommitRef = useRef(false)
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
   const undoRef = useRef<ImageData[]>([])
   const redoRef = useRef<ImageData[]>([])
@@ -80,6 +95,8 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
   const [tool, setTool] = useState<SketchTool>('pen')
   const [color, setColor] = useState(COLORS[0]!)
   const [width, setWidth] = useState(DEFAULT_WIDTH)
+  const [draft, setDraft] = useState<{ x: number; y: number; value: string } | null>(null)
+  const [scale, setScale] = useState(1)
   // Solo para habilitar/deshabilitar undo y redo; el historial vive en refs.
   const [historySize, setHistorySize] = useState({ undo: 0, redo: 0 })
 
@@ -111,7 +128,31 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
     setTool('pen')
     setColor(COLORS[0]!)
     setWidth(DEFAULT_WIDTH)
+    setDraft(null)
+    setScale(1)
   }, [open, paintBackground])
+
+  useEffect(() => {
+    if (!open) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const updateScale = (): void => {
+      const rect = canvas.getBoundingClientRect()
+      setScale(rect.width / CANVAS_WIDTH)
+    }
+    updateScale()
+    const observer = new ResizeObserver(updateScale)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [open])
+
+  useEffect(() => {
+    if (draft == null) return
+    const el = textInputRef.current
+    if (!el) return
+    el.focus()
+    resizeSketchTextInput(el)
+  }, [draft?.x, draft?.y])
 
   /** Snapshot plano del lienzo entero antes de cada mutación. Sin modelo de objetos. */
   const snapshot = useCallback((): ImageData | null => {
@@ -161,6 +202,30 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
     }
   }
 
+  const commitText = useCallback((): void => {
+    if (!draft) return
+    const lines = sketchTextLines(draft.value)
+    if (lines.length === 0) {
+      setDraft(null)
+      return
+    }
+    const context = ctxRef.current
+    if (!context) {
+      setDraft(null)
+      return
+    }
+    snapshot()
+    const fontPx = sketchFontSize(width)
+    context.fillStyle = color
+    context.font = sketchTextFont(fontPx)
+    context.textBaseline = 'top'
+    const lineHeight = sketchTextLineHeight(fontPx)
+    lines.forEach((line, index) => {
+      context.fillText(line, draft.x, draft.y + index * lineHeight)
+    })
+    setDraft(null)
+  }, [draft, color, width, snapshot])
+
   const drawShape = (context: CanvasRenderingContext2D, x: number, y: number): void => {
     const drag = dragRef.current
     if (!drag.base) return
@@ -188,7 +253,20 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
     context.stroke()
   }
 
+  const selectTool = useCallback((next: SketchTool): void => {
+    commitText()
+    setTool(next)
+  }, [commitText])
+
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (tool === 'text') {
+      event.preventDefault()
+      commitText()
+      const point = positionFrom(event)
+      suppressTextBlurCommitRef.current = true
+      setDraft({ x: point.x, y: point.y, value: '' })
+      return
+    }
     const context = ctxRef.current
     if (!context) return
     event.preventDefault()
@@ -236,6 +314,27 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
     dragRef.current.base = null
   }
 
+  const handleTextKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      setDraft(null)
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      commitText()
+    }
+  }
+
+  const handleTextBlur = (): void => {
+    if (suppressTextBlurCommitRef.current) {
+      suppressTextBlurCommitRef.current = false
+      return
+    }
+    commitText()
+  }
+
   // Atajos de herramienta y ⌘Z / ⇧⌘Z. Esc y el trap de foco ya los hace el modal.
   useEffect(() => {
     if (!open) return
@@ -254,12 +353,12 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
       const next = SHORTCUT_TO_TOOL[event.key.toLowerCase()]
       if (next) {
         event.preventDefault()
-        setTool(next)
+        selectTool(next)
       }
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [open, undo, redo])
+  }, [open, undo, redo, selectTool])
 
   // ⌘V pega una imagen centrada sobre el lienzo, para anotarla en el sitio.
   useEffect(() => {
@@ -277,13 +376,13 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
         const context = ctxRef.current
         if (context) {
           snapshot()
-          const scale = Math.min(
+          const imageScale = Math.min(
             CANVAS_WIDTH / image.width,
             CANVAS_HEIGHT / image.height,
             1,
           )
-          const w = image.width * scale
-          const h = image.height * scale
+          const w = image.width * imageScale
+          const h = image.height * imageScale
           context.drawImage(image, (CANVAS_WIDTH - w) / 2, (CANVAS_HEIGHT - h) / 2, w, h)
         }
         URL.revokeObjectURL(url)
@@ -296,6 +395,7 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
   }, [open, snapshot])
 
   const handleClear = (): void => {
+    setDraft(null)
     const context = ctxRef.current
     if (!context) return
     snapshot()
@@ -303,6 +403,7 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
   }
 
   const handleAttach = (): void => {
+    commitText()
     const canvas = canvasRef.current
     if (!canvas) return
     canvas.toBlob(blob => {
@@ -310,6 +411,8 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
       onClose()
     }, 'image/png')
   }
+
+  const draftFontPx = sketchFontSize(width) * scale
 
   return (
     <TerminalModal
@@ -343,7 +446,7 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
               size="xs"
               pressed={tool === item.tool}
               aria-label={label}
-              onClick={() => setTool(item.tool)}
+              onClick={() => selectTool(item.tool)}
             >
               <Icon name={item.icon} size={13} />
             </Button>
@@ -416,6 +519,30 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
           onPointerUp={stopDrawing}
           onPointerCancel={stopDrawing}
         />
+        {draft != null && (
+          <textarea
+            ref={textInputRef}
+            data-escape-layer
+            className="sketch-modal__text-input"
+            value={draft.value}
+            aria-label={t('sketch.textLabel')}
+            style={{
+              left: `${(draft.x / CANVAS_WIDTH) * 100}%`,
+              top: `${(draft.y / CANVAS_HEIGHT) * 100}%`,
+              fontSize: `${draftFontPx}px`,
+              lineHeight: 1.25,
+              color,
+              caretColor: color,
+            }}
+            onChange={event => {
+              const { value } = event.target
+              setDraft(current => (current ? { ...current, value } : null))
+              resizeSketchTextInput(event.target)
+            }}
+            onKeyDown={handleTextKeyDown}
+            onBlur={handleTextBlur}
+          />
+        )}
       </div>
     </TerminalModal>
   )

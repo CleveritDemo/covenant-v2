@@ -302,6 +302,14 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
   // Sin upstream `ahead` no viene: entonces se permite push (`push -u` es el caso normal).
   const canPush = repo && idle && (typeof status?.ahead !== 'number' || ahead > 0)
   const showActionsColumn = Boolean(repo && actionsAvailable)
+  const notRepoHeadline = status && !status.isRepo
+    ? (status.errorCode
+      ? t(`git.errors.${status.errorCode}` as 'git.errors.CWD_INVALID')
+      : (status.error ?? t('git.notGitRepo')))
+    : ''
+  const notRepoDetail = status && !status.isRepo && status.error?.trim() && status.error !== notRepoHeadline
+    ? status.error
+    : ''
 
   return (
     <>
@@ -403,9 +411,10 @@ export const GitPanelModal: React.FC<GitPanelModalProps> = ({
 
                   {!status.isRepo && (
                     <p className="git-panel-not-repo" role="alert">
-                      {status.errorCode
-                        ? t(`git.errors.${status.errorCode}` as 'git.errors.CWD_INVALID')
-                        : (status.error ?? t('git.notGitRepo'))}
+                      {notRepoHeadline}
+                      {notRepoDetail ? (
+                        <span className="git-panel-not-repo__detail">{notRepoDetail}</span>
+                      ) : null}
                     </p>
                   )}
 

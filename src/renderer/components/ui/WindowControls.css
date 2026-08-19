@@ -60,6 +60,11 @@
   gap: 0;
 }
 
+/* DOM sigue close→min→zoom (macOS); en win32 el orden visual es − □ ×. */
+:root[data-platform="win32"] .window-controls__btn--min { order: 1; }
+:root[data-platform="win32"] .window-controls__btn--zoom { order: 2; }
+:root[data-platform="win32"] .window-controls__btn--close { order: 3; }
+
 :root[data-platform="win32"] .window-controls__btn {
   width: 46px;
   height: 32px;

@@ -84,6 +84,7 @@ export type IconName =
   | 'chart'
   | 'link'
   | 'tag'
+  | 'text'
   | 'globe'
   | 'image'
   | 'clipboard'
@@ -517,6 +518,12 @@ const ICONS: Record<IconName, IconRenderer> = {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="m6 18 9-9a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3l-8 8H8Z" />
       <path d="M4 20h16" />
+    </svg>
+  ),
+  text: size => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="5" y1="5" x2="19" y2="5" />
+      <line x1="12" y1="5" x2="12" y2="19" />
     </svg>
   ),
   undo: size => (

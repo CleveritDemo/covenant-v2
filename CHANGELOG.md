@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.97.2
+Las notas que los agentes escriben en la wiki del proyecto van al grano: hechos y rutas, sin relleno ni narración.
+
 ## v0.97.1
 El modal de editar agente ya no muestra la carpeta del proyecto: esa carpeta es de la pestaña y se elige en el plano.
 

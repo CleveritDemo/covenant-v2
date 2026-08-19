@@ -14,6 +14,8 @@ export interface PlaneFabProps {
   disabled?: boolean
   /** Tooltip/aria cuando disabled (p. ej. falta carpeta). */
   disabledTitle?: string
+  /** Ancla del coach mark (`data-onboarding`). */
+  dataOnboarding?: string
   onClick: () => void
 }
 
@@ -41,6 +43,7 @@ export const PlaneFab: React.FC<PlaneFabProps> = ({
   shortcut,
   disabled = false,
   disabledTitle,
+  dataOnboarding,
   onClick,
 }) => {
   const title = disabled ? (disabledTitle || label) : label
@@ -58,6 +61,7 @@ export const PlaneFab: React.FC<PlaneFabProps> = ({
       ].filter(Boolean).join(' ')}
       disabled={disabled}
       aria-label={title}
+      {...(dataOnboarding ? { 'data-onboarding': dataOnboarding } : {})}
       onClick={(event) => {
         // Un click con puntero deja el botón enfocado y el siguiente Enter lo
         // re-dispara: abría una segunda ventana. `detail === 0` es teclado

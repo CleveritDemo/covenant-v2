@@ -24,7 +24,7 @@ export const BrainstormModuleTabs: React.FC<BrainstormModuleTabsProps> = ({
 }) => {
   const { t } = useT()
   return (
-    <span className="brainstorm-overlay__tabs" role="tablist">
+    <span className="brainstorm-overlay__tabs" role="tablist" data-onboarding="brainstorm-module-tabs">
       <button
         type="button"
         role="tab"

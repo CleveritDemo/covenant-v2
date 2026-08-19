@@ -119,6 +119,25 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
     expect(document.querySelector('.brainstorm-start__cost')).not.toBeNull()
   })
 
+  it('onDraftChange emite goalFilled y participantCount al escribir y sentar', () => {
+    const onDraftChange = vi.fn()
+    render(
+      <BrainstormStartModal
+        open
+        cwd="/repo"
+        agents={agents}
+        onClose={() => {}}
+        onStarted={() => {}}
+        onDraftChange={onDraftChange}
+      />,
+    )
+    expect(onDraftChange).toHaveBeenCalledWith({ goalFilled: false, participantCount: 0 })
+    typeGoal('tema')
+    expect(onDraftChange).toHaveBeenLastCalledWith({ goalFilled: true, participantCount: 0 })
+    seat('rodrigo')
+    expect(onDraftChange).toHaveBeenLastCalledWith({ goalFilled: true, participantCount: 1 })
+  })
+
   // Tocar el toggle sin querer no puede costar lo que llevabas armado: el
   // modal nunca se desmonta, era el reset al ABRIR lo que borraba el borrador.
   it('cerrar y volver a abrir conserva el borrador', () => {

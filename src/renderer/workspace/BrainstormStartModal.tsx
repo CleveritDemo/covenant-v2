@@ -61,6 +61,8 @@ export interface BrainstormStartModalProps {
   onCreateAgent?: () => void
   /** Soltar un contexto del riel sobre una tarjeta de invitación. */
   onAssignContext?: (agentId: string, contextId: string) => void
+  /** Borrador de la guía: objetivo y cuántos asientos, también al vaciar. */
+  onDraftChange?: (draft: { goalFilled: boolean; participantCount: number }) => void
 }
 
 /**
@@ -86,6 +88,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   onStarted,
   onCreateAgent,
   onAssignContext,
+  onDraftChange,
 }) => {
   const { t } = useT()
   const { dropAgentId, handlersFor } = useBrainstormContextDrop(onAssignContext)
@@ -117,6 +120,13 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   useEffect(() => {
     resetDraft()
   }, [cwd, resetDraft])
+
+  useEffect(() => {
+    onDraftChange?.({
+      goalFilled: topic.trim().length > 0,
+      participantCount: participantIds.length,
+    })
+  }, [topic, participantIds, onDraftChange])
 
   const invitableAgents = useMemo(
     () => filterBrainstormInvitableAgents(agents),
@@ -267,7 +277,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
       )}
       right={(
         <>
-          <div className="brainstorm-overlay__col-head">
+          <div className="brainstorm-overlay__col-head" data-onboarding="brainstorm-participants">
             <span className="brainstorm-overlay__col-title">
               {t('tabs.brainstormParticipantsLabel')}
             </span>
@@ -328,7 +338,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
           }
         }}
       >
-        <label className="brainstorm-start__field">
+        <label className="brainstorm-start__field" data-onboarding="brainstorm-goal">
           <span className="brainstorm-start__label">{t('tabs.brainstormGoalLabel')}</span>
           {/*
             Mencionar la issue en el objetivo la añade además al material de la
@@ -410,6 +420,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
             variant="primary"
             size="sm"
             disabled={!canStart}
+            data-onboarding="brainstorm-start"
             onClick={handleStart}
           >
             {t('tabs.brainstormStart')}

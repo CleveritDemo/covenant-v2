@@ -93,6 +93,10 @@
   flex-shrink: 0;
 }
 
+.plane-onboarding-path {
+  flex: 0 0 auto;
+}
+
 .plane-top-left-workspace-actions {
   --plane-top-bar-edge: color-mix(in srgb, var(--plane-border) 28%, transparent);
   box-sizing: border-box;

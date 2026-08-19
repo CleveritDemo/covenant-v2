@@ -104,6 +104,8 @@ export interface BrainstormRoomViewProps {
    * de turno: entra en el catálogo del agente y cuenta desde su próximo turno.
    */
   onAssignContext?: (agentId: string, contextId: string) => void
+  /** Guía: el humano ya habló en esta sala (envío aceptado). */
+  onHumanSpoke?: () => void
 }
 
 function statusLabelKey(
@@ -137,6 +139,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   agentsInOtherRooms = {},
   contexts = [],
   onAssignContext,
+  onHumanSpoke,
 }) => {
   const { t } = useT()
   const { dropAgentId, handlersFor } = useBrainstormContextDrop(onAssignContext)
@@ -547,6 +550,8 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   }
 
   const handleHumanSend = useCallback((text: string, targetAgentId?: string): void => {
+    if (!text.trim()) return
+    onHumanSpoke?.()
     forceFollow()
     setLive(previous => reduceBrainstormLiveEvent(previous, {
       type: 'human_message',
@@ -555,7 +560,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       ...(targetAgentId ? { targetAgentId } : {}),
     }))
     window.api.injectBrainstormHumanMessage(room.id, text, targetAgentId)
-  }, [forceFollow, room.id])
+  }, [forceFollow, onHumanSpoke, room.id])
 
   const handleAddWorkingSet = useCallback((working: {
     contextIds: string[]

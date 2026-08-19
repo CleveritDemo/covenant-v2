@@ -1362,6 +1362,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <OnboardingCoachMark
           anchor={onboardingGuideStep.anchor}
           message={t(onboardingGuideStep.messageKey)}
+          blocking={!onboardingGuideStep.dismissible}
           {...(onboardingGuideStep.dismissible && onOnboardingGuideDismiss
             ? {
               onDismiss: () => onOnboardingGuideDismiss(onboardingGuideStep.step),

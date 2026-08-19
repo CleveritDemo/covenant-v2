@@ -15,6 +15,11 @@ export interface OnboardingCoachMarkProps {
   /** Cierra un paso sin acción anclada. Junto con `dismissLabel` pinta el botón. */
   onDismiss?: () => void
   dismissLabel?: string
+  /**
+   * Con `blocking=false` el scrim se pinta pero deja pasar los clics al plano
+   * (pasos informativos). Por defecto `true`.
+   */
+  blocking?: boolean
 }
 
 type Rect = {
@@ -51,6 +56,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   stepLabel,
   onDismiss,
   dismissLabel,
+  blocking = true,
 }) => {
   const [rect, setRect] = useState<Rect | null>(null)
   const reduceMotion = isReduceMotionActive()
@@ -89,6 +95,12 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   const tooltipTop = tooltipAbove ? Math.max(12, top - 12) : bottom + 12
   const tooltipLeft = Math.min(Math.max(left + width / 2, 160), vw - 160)
 
+  const blockClass = [
+    'onboarding-coach-mark__block',
+    blocking ? '' : 'onboarding-coach-mark__block--pass',
+  ].filter(Boolean).join(' ')
+  const blockMode = blocking ? 'solid' : 'pass'
+
   return createPortal(
     <div
       className="onboarding-coach-mark"
@@ -96,19 +108,23 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
       role="presentation"
     >
       <div
-        className="onboarding-coach-mark__block"
+        className={blockClass}
+        data-onboarding-block={blockMode}
         style={{ top: 0, left: 0, width: vw, height: top }}
       />
       <div
-        className="onboarding-coach-mark__block"
+        className={blockClass}
+        data-onboarding-block={blockMode}
         style={{ top: bottom, left: 0, width: vw, height: Math.max(0, vh - bottom) }}
       />
       <div
-        className="onboarding-coach-mark__block"
+        className={blockClass}
+        data-onboarding-block={blockMode}
         style={{ top, left: 0, width: left, height }}
       />
       <div
-        className="onboarding-coach-mark__block"
+        className={blockClass}
+        data-onboarding-block={blockMode}
         style={{ top, left: right, width: Math.max(0, vw - right), height }}
       />
       <div

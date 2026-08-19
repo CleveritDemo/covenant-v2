@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.4
+El anti-duplicado por clave de despacho bloquea siempre cuando ese objetivo ya salió en el pedido, aunque el hilo ya no esté rastreado. El orquestador recibe aviso en lugar de un descarte silencioso. Incluye limpieza del import muerto y tests de PlaneQuickChat.
+
 ## v0.98.3
 Se quitan las cabeceras de grupo por pedido humano en el indicador de delegación y el historial del plano. La lista vuelve a ser plana; el anti-duplicado de despacho no cambia.
 

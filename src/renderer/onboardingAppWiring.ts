@@ -67,3 +67,23 @@ export function shouldCompleteByGuideExhausted(args: {
     cliAllMissing: args.cliAllMissing,
   })
 }
+
+export type ComposerEngineTabSnapshot = {
+  planeOpenChatAgentId?: string | null
+  paneKinds?: Record<string, unknown>
+}
+
+/**
+ * True si el pane con chat abierto es un agente sin motor primario: su turno
+ * aborta en AgentPane (agentPane.missingProvider) y el envío nunca sale.
+ * resolveProvider recibe el paneId y devuelve meta.provider (o undefined).
+ */
+export function composerEngineMissingForTab(
+  tab: ComposerEngineTabSnapshot,
+  resolveProvider: (paneId: string) => string | undefined,
+): boolean {
+  const paneId = tab.planeOpenChatAgentId ?? null
+  if (!paneId) return false
+  if (tab.paneKinds?.[paneId] !== 'agent') return false
+  return !(resolveProvider(paneId) ?? '').trim()
+}

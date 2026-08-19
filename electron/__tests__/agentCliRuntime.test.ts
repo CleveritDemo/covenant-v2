@@ -19,6 +19,7 @@ import {
   normalizeCursorEvent,
   normalizeCopilotEvent,
   closeAgentCliStdin,
+  writeAgentCliPrompt,
   reserveAgentRun,
   resolveProjectCwd,
   runAgentCliSpawn,
@@ -137,6 +138,35 @@ describe('shouldFinishOnProcessClose', () => {
   it('only finishes while the process is still the active run', () => {
     expect(shouldFinishOnProcessClose(true)).toBe(true)
     expect(shouldFinishOnProcessClose(false)).toBe(false)
+  })
+})
+
+describe('writeAgentCliPrompt', () => {
+  it('escribe el prompt y cierra stdin', () => {
+    let written = ''
+    let ended = false
+    writeAgentCliPrompt({
+      write: (data: string) => { written = data },
+      end: () => { ended = true },
+    }, 'hola prompt')
+    expect(written).toBe('hola prompt')
+    expect(ended).toBe(true)
+  })
+
+  it('solo cierra stdin cuando el prompt es null', () => {
+    let written = ''
+    let ended = false
+    writeAgentCliPrompt({
+      write: (data: string) => { written = data },
+      end: () => { ended = true },
+    }, null)
+    expect(written).toBe('')
+    expect(ended).toBe(true)
+  })
+
+  it('tolerates missing stdin', () => {
+    expect(() => writeAgentCliPrompt(null, 'x')).not.toThrow()
+    expect(() => writeAgentCliPrompt(undefined, null)).not.toThrow()
   })
 })
 

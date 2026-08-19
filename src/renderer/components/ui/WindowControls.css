@@ -66,8 +66,8 @@
 :root[data-platform="win32"] .window-controls__btn--close { order: 3; }
 
 :root[data-platform="win32"] .window-controls__btn {
-  width: 46px;
-  height: 32px;
+  width: 36px;
+  height: 26px;
   border-radius: 0;
   box-shadow: none;
   background: transparent;
@@ -76,13 +76,9 @@
   color: var(--text);
 }
 
-:root[data-platform="win32"] .window-controls--sm .window-controls__btn {
-  width: 36px;
-  height: 26px;
-}
-
+/* En win32 un diálogo solo muestra ×: no pintar −/□ deshabilitados. */
 :root[data-platform="win32"] .window-controls__btn:disabled {
-  opacity: 0.45;
+  display: none;
 }
 
 :root[data-platform="win32"] .window-controls__btn:hover:not(:disabled) {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyLoginShellPath,
+  decodeCliStderrChunk,
+  exceedsWindowsCommandLimit,
   mergePathEntries,
   mergeShellEnv,
   parseShellEnv,
@@ -54,5 +56,26 @@ describe('shellPathEnv', () => {
     expect(formatCliSpawnFailure('claude', -4058)).toContain('ENOENT')
     expect(formatCliSpawnFailure('claude', -4058)).toContain('Ajustes')
     expect(formatCliSpawnFailure('agent', 1, 'boom')).toBe('boom')
+  })
+
+  it('exceedsWindowsCommandLimit solo en win32 y con margen de 7500', () => {
+    const short = exceedsWindowsCommandLimit('cmd', ['a'])
+    const long = exceedsWindowsCommandLimit('cmd', ['x'.repeat(8000)])
+    if (process.platform === 'win32') {
+      expect(short).toBe(false)
+      expect(long).toBe(true)
+    } else {
+      expect(short).toBe(false)
+      expect(long).toBe(false)
+    }
+  })
+
+  it('decodeCliStderrChunk preserva UTF-8 válido y traduce cp850 en bytes altos', () => {
+    expect(decodeCliStderrChunk('hola')).toBe('hola')
+    expect(decodeCliStderrChunk(Buffer.from([0xa1]).toString('latin1'))).toBe('í')
+    expect(decodeCliStderrChunk(Buffer.from([0x9a]).toString('latin1'))).toBe('Ü')
+    expect(decodeCliStderrChunk(Buffer.from([0x97]).toString('latin1'))).toBe('ù')
+    expect(decodeCliStderrChunk(Buffer.from([0xa9]).toString('latin1'))).toBe('®')
+    expect(decodeCliStderrChunk(Buffer.from('café', 'utf8').toString('latin1'))).toBe('café')
   })
 })

@@ -22,6 +22,8 @@ export type AgentCliStreamKind = 'claude' | 'cursor' | 'copilot' | 'codex' | 'te
 
 export interface AgentCliArgsInput {
   prompt: string
+  /** El prompt se escribe en stdin; los args NO deben contenerlo. */
+  promptViaStdin?: boolean
   cwd: string
   mode: AgentPermissionMode
   /** Modelo ya recortado, o vacío para el default del CLI. */
@@ -83,6 +85,8 @@ export interface AgentCliProviderSpec {
     nativeSkills?: boolean
     nativeSkillNamespaces?: boolean
     mcpAllowlist?: boolean
+    /** Solo se marca contra el `--help` real del CLI. */
+    promptStdin?: boolean
   }
   /** Ayuda cuando el binario no está en el PATH. Verificado contra el registro de npm el 2026-08-18: no añadas paquetes sin comprobar. */
   install?: { npmPackage?: string; docsUrl?: string }
@@ -119,9 +123,9 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#D97757',
     command: 'claude',
     stream: 'claude',
-    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs, mcpConfigPath }) => [
+    args: ({ prompt, mode, model, sessionId, disableSkills, pluginDirs, mcpConfigPath, promptViaStdin }) => [
       '-p',
-      prompt,
+      ...(promptViaStdin ? [] : [prompt]),
       '--output-format',
       'stream-json',
       '--verbose',
@@ -140,7 +144,7 @@ export const AGENT_CLI_PROVIDERS = {
       ...(mode === 'plan' ? ['--permission-mode', 'plan'] : []),
       ...withModel('--model', model),
     ],
-    capabilities: { nativeSkills: true, nativeSkillNamespaces: true, mcpAllowlist: true },
+    capabilities: { nativeSkills: true, nativeSkillNamespaces: true, mcpAllowlist: true, promptStdin: true },
     install: { npmPackage: '@anthropic-ai/claude-code', docsUrl: 'https://github.com/anthropics/claude-code' },
   },
   cursor: {
@@ -196,9 +200,9 @@ export const AGENT_CLI_PROVIDERS = {
     brand: '#9BA3AE',
     command: 'codex',
     stream: 'codex',
-    // `codex exec [resume <id>] --json`: el prompt va al final.
+    // `codex exec [resume <id>] --json`: el prompt va al final o en stdin (`-`).
     // `--skip-git-repo-check` porque el cwd del pane puede no ser un repo.
-    args: ({ prompt, mode, model, sessionId }) => [
+    args: ({ prompt, mode, model, sessionId, promptViaStdin }) => [
       'exec',
       ...(sessionId ? ['resume', sessionId] : []),
       '--json',
@@ -207,8 +211,9 @@ export const AGENT_CLI_PROVIDERS = {
         ? ['--dangerously-bypass-approvals-and-sandbox']
         : ['--sandbox', 'read-only']),
       ...withModel('-m', model),
-      prompt,
+      ...(promptViaStdin ? ['-'] : [prompt]),
     ],
+    capabilities: { promptStdin: true },
     install: { npmPackage: '@openai/codex', docsUrl: 'https://github.com/openai/codex' },
   },
   gemini: {

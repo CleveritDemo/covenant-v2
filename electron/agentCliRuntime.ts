@@ -90,7 +90,12 @@ import { pauseFileExplorerWatchesForCwd } from './fileExplorerWatcher'
 import { applyWikiIngestFromFinalText } from './wikiIngest'
 import { hasWiki } from './wikiStore'
 import { buildWikiIngestInstruction } from '../src/shared/wikiDoc'
-import { formatCliSpawnFailure, resolveCliExecutable } from './shellPathEnv'
+import {
+  decodeCliStderrChunk,
+  exceedsWindowsCommandLimit,
+  formatCliSpawnFailure,
+  resolveCliExecutable,
+} from './shellPathEnv'
 import { readInstalledPlugins } from './pluginDirs'
 import {
   mcpServerNames,
@@ -371,6 +376,23 @@ export function shouldFinishOnProcessClose(phaseStillActive: boolean): boolean {
 /** Cierra stdin tras spawn: CLIs en -p esperan EOF; nadie escribe aquí. */
 export function closeAgentCliStdin(stdin: { end: () => void } | null | undefined): void {
   try { stdin?.end() } catch { /* ignore */ }
+}
+
+/** Escribe el prompt en stdin y cierra; tolera EPIPE si el CLI cierra antes de leer. */
+export function writeAgentCliPrompt(
+  stdin: {
+    write?: (data: string) => void
+    end: () => void
+    on?: (event: string, listener: () => void) => void
+  } | null | undefined,
+  prompt: string | null,
+): void {
+  if (!stdin) return
+  try {
+    stdin.on?.('error', () => {})
+    if (prompt != null) stdin.write?.(prompt)
+  } catch { /* ignore */ }
+  closeAgentCliStdin(stdin)
 }
 
 function stringAt(value: unknown, key: string): string | undefined {
@@ -912,9 +934,10 @@ export function commandAndArgs(
    * plugins" — debe fallar en compilación.
    */
   home: string,
-): { command: string; args: string[] } {
+): { command: string; args: string[]; promptViaStdin: boolean } {
   const provider = isAgentCliProvider(request.provider) ? request.provider : 'claude'
   const spec = agentCliSpec(provider)
+  const promptViaStdin = spec.capabilities?.promptStdin === true
   const nativeSkills = request.nativeSkills
   const pluginDirs = nativeSkills?.enabled
     ? resolvePluginDirs(nativeSkills.namespaces ?? [], readInstalledPlugins(home))
@@ -923,8 +946,10 @@ export function commandAndArgs(
   const sessionId = typeof cliSessionId === 'string' ? cliSessionId.trim() : ''
   return {
     command: agentCliCommand(config.agentCliCommands, provider),
+    promptViaStdin,
     args: spec.args({
       prompt,
+      promptViaStdin,
       cwd,
       mode: request.permissionMode,
       ...(request.model?.trim() ? { model: request.model.trim() } : {}),
@@ -1102,7 +1127,7 @@ export function runAgentCliSpawn(
   }
 
   const startSpawn = (spawnRequest: AgentCliStartRequest): void => {
-    const { command: rawCommand, args } = commandAndArgs(
+    const { command: rawCommand, args, promptViaStdin } = commandAndArgs(
       spawnRequest,
       config,
       cwd,
@@ -1116,6 +1141,13 @@ export function runAgentCliSpawn(
     }
 
     const command = resolveCliExecutable(rawCommand)
+    if (!promptViaStdin && exceedsWindowsCommandLimit(command, args)) {
+      failBeforeSpawn(
+        'El prompt supera el límite de línea de comandos de Windows para este CLI. '
+        + 'Cambia el motor del agente a Codex o Claude Code, o reduce los contextos adjuntos.',
+      )
+      return
+    }
     let proc: ChildProcessWithoutNullStreams
     try {
       proc = crossSpawn(command, args, {
@@ -1137,7 +1169,7 @@ export function runAgentCliSpawn(
       return
     }
     agentRuns.set(runKey, { proc, windowId: -1, generation })
-    closeAgentCliStdin(proc.stdin)
+    writeAgentCliPrompt(proc.stdin, promptViaStdin ? prompt : null)
 
     let stdoutBuffer = ''
     let stderrBuffer = ''
@@ -1193,9 +1225,10 @@ export function runAgentCliSpawn(
       stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
       lines.forEach(processLine)
     })
-    proc.stderr.setEncoding('utf8')
+    proc.stderr.setEncoding(process.platform === 'win32' ? 'latin1' : 'utf8')
     proc.stderr.on('data', (chunk: string) => {
-      stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
+      const text = process.platform === 'win32' ? decodeCliStderrChunk(chunk) : chunk
+      stderrBuffer = appendCappedTail(stderrBuffer, text, MAX_STDERR_BUFFER_CHARS)
     })
     proc.on('error', error => {
       spawnErrnoMessage = error.message
@@ -1312,7 +1345,7 @@ export function startAgentTurn(
   }
 
   const startPhase = (prompt: string, contextRound: number): void => {
-    const { command: rawCommand, args } = commandAndArgs(
+    const { command: rawCommand, args, promptViaStdin } = commandAndArgs(
       activeRequest,
       config,
       cwd,
@@ -1326,6 +1359,13 @@ export function startAgentTurn(
     }
 
     const command = resolveCliExecutable(rawCommand)
+    if (!promptViaStdin && exceedsWindowsCommandLimit(command, args)) {
+      failBeforeSpawn(
+        'El prompt supera el límite de línea de comandos de Windows para este CLI. '
+        + 'Cambia el motor del agente a Codex o Claude Code, o reduce los contextos adjuntos.',
+      )
+      return
+    }
     let proc: ChildProcessWithoutNullStreams
     try {
       proc = crossSpawn(command, args, {
@@ -1353,7 +1393,7 @@ export function startAgentTurn(
       walkBeforeScheduled = true
       setImmediate(() => { walkBefore = captureWorkspaceSnapshotMetadata(cwd) })
     }
-    closeAgentCliStdin(proc.stdin)
+    writeAgentCliPrompt(proc.stdin, promptViaStdin ? prompt : null)
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let continuationPrompt: string | null = null
@@ -1547,9 +1587,10 @@ export function startAgentTurn(
       stdoutBuffer = capPendingLine(lines.pop() ?? '', MAX_STDOUT_PENDING_LINE_CHARS)
       lines.forEach(processLine)
     })
-    proc.stderr.setEncoding('utf8')
+    proc.stderr.setEncoding(process.platform === 'win32' ? 'latin1' : 'utf8')
     proc.stderr.on('data', (chunk: string) => {
-      stderrBuffer = appendCappedTail(stderrBuffer, chunk, MAX_STDERR_BUFFER_CHARS)
+      const text = process.platform === 'win32' ? decodeCliStderrChunk(chunk) : chunk
+      stderrBuffer = appendCappedTail(stderrBuffer, text, MAX_STDERR_BUFFER_CHARS)
     })
     proc.on('error', error => {
       spawnErrnoMessage = error.message

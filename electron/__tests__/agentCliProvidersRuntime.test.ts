@@ -18,6 +18,7 @@ function request(
 describe('commandAndArgs con el registro de proveedores', () => {
   it('usa el comando por defecto de cada CLI y siempre incluye el prompt', () => {
     for (const provider of AGENT_CLI_PROVIDER_IDS) {
+      if (provider === 'codex' || provider === 'claude') continue
       const { command, args } = commandAndArgs(
         request({ provider, permissionMode: 'auto' }),
         config,
@@ -29,6 +30,43 @@ describe('commandAndArgs con el registro de proveedores', () => {
       expect(command, provider).toBeTruthy()
       expect(args, provider).toContain('prompt-x')
     }
+  })
+
+  it('codex y claude envían el prompt por stdin, no en argv', () => {
+    const codex = commandAndArgs(
+      request({ provider: 'codex', permissionMode: 'auto' }),
+      config,
+      '/tmp',
+      'prompt-x',
+      undefined,
+      testHome,
+    )
+    expect(codex.promptViaStdin).toBe(true)
+    expect(codex.args.at(-1)).toBe('-')
+    expect(codex.args).not.toContain('prompt-x')
+
+    const claude = commandAndArgs(
+      request({ provider: 'claude', permissionMode: 'auto' }),
+      config,
+      '/tmp',
+      'prompt-x',
+      undefined,
+      testHome,
+    )
+    expect(claude.promptViaStdin).toBe(true)
+    expect(claude.args).not.toContain('prompt-x')
+    expect(claude.args[0]).toBe('-p')
+
+    const cursor = commandAndArgs(
+      request({ provider: 'cursor', permissionMode: 'auto' }),
+      config,
+      '/tmp',
+      'prompt-x',
+      undefined,
+      testHome,
+    )
+    expect(cursor.promptViaStdin).toBe(false)
+    expect(cursor.args).toContain('prompt-x')
   })
 
   it('respeta el comando configurado por el usuario', () => {
@@ -65,6 +103,8 @@ describe('commandAndArgs con el registro de proveedores', () => {
       testHome,
     )
     expect(resumed.args.slice(0, 3)).toEqual(['exec', 'resume', 'thread-1'])
+    expect(resumed.args.at(-1)).toBe('-')
+    expect(resumed.args).not.toContain('p')
   })
 
   it('gemini / kimi / hermes mapean auto a su flag de yolo', () => {

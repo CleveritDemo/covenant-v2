@@ -5,6 +5,7 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { BrainstormRoom } from '@shared/brainstormRoom'
+import { scrollTopToCenter } from '@shared/scrollNodeIntoBox'
 import { BrainstormRoomView } from '../BrainstormRoomView'
 
 vi.mock('@i18n/useT', () => ({
@@ -749,6 +750,51 @@ describe('BrainstormRoomView — situarse al final', () => {
       flushRaf()
     })
     expect(el.scrollTop).toBe(900)
+  })
+
+  it('pulsar el riel ROUND mueve scrollTop del acta sin scrollIntoView', () => {
+    const { el } = mountOpen()
+    const node = el.querySelector('[data-brainstorm-turn="0"]') as HTMLElement
+    expect(node).not.toBeNull()
+
+    const boxRect = {
+      top: 200,
+      left: 0,
+      right: 400,
+      bottom: 300,
+      width: 400,
+      height: 100,
+      x: 0,
+      y: 200,
+      toJSON: () => ({}),
+    }
+    const nodeRect = {
+      top: 50,
+      left: 0,
+      right: 400,
+      bottom: 90,
+      width: 400,
+      height: 40,
+      x: 0,
+      y: 50,
+      toJSON: () => ({}),
+    }
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue(boxRect as DOMRect)
+    vi.spyOn(node, 'getBoundingClientRect').mockReturnValue(nodeRect as DOMRect)
+
+    const expected = scrollTopToCenter(
+      { scrollTop: el.scrollTop, clientHeight: el.clientHeight, scrollHeight: el.scrollHeight },
+      nodeRect.top - boxRect.top,
+      nodeRect.height,
+    )
+
+    act(() => {
+      const btn = document.querySelector('.brainstorm-turn-timeline__turn') as HTMLButtonElement
+      fireEvent.click(btn)
+    })
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(el.scrollTop).toBe(expected)
   })
 })
 

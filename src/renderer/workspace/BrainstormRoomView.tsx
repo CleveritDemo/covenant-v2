@@ -19,6 +19,7 @@ import { agentMonogram, paletteColorForSeed } from '@shared/tabContextAppearance
 import { candidateCeremonyRoles } from '@shared/agileCeremonies'
 import { CEREMONY_ROLE_KEY } from './ceremonyLabels'
 import { brainstormSeatTail } from '@shared/brainstormSeatTail'
+import { scrollTopToCenter } from '@shared/scrollNodeIntoBox'
 import { brainstormContextLabel } from '@shared/brainstormContextLabel'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentCliProvider } from '@shared/tabSession'
@@ -235,10 +236,20 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
   }, [room.id, forceFollow])
 
   const handleJumpToTurn = useCallback((messageIndex: number): void => {
-    const node = messagesRef.current?.querySelector(
+    const box = messagesRef.current
+    const node = box?.querySelector<HTMLElement>(
       `[data-brainstorm-turn="${messageIndex}"]`,
     )
-    node?.scrollIntoView({ block: 'center' })
+    if (!box || !node) return
+    // scrollIntoView desplazaría también los ancestros overflow:hidden (shell,
+    // pestañas): el salto mueve SOLO la caja del acta.
+    const nodeRect = node.getBoundingClientRect()
+    const boxRect = box.getBoundingClientRect()
+    box.scrollTop = scrollTopToCenter(
+      { scrollTop: box.scrollTop, clientHeight: box.clientHeight, scrollHeight: box.scrollHeight },
+      nodeRect.top - boxRect.top,
+      nodeRect.height,
+    )
   }, [])
 
   /**

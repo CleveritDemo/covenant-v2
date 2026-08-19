@@ -112,4 +112,24 @@ describe('AgentProviderGrid', () => {
     expect(group?.getAttribute('role')).toBe('group')
     expect(group?.getAttribute('role')).not.toBe('radiogroup')
   })
+
+  it('el Select de modelo solo va en primario y respaldo', () => {
+    render(
+      <AgentProviderGrid
+        value="claude"
+        fallbackValue="cursor"
+        statuses={installedStatuses}
+        onPick={() => {}}
+        primaryModel={{ value: 'opus', options: [{ id: 'opus', label: 'Opus' }] }}
+        fallbackModel={{ value: '', options: [{ id: 'gpt-4', label: 'GPT-4' }] }}
+        onChangeModel={() => {}}
+        onChangeFallbackModel={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'agentPane.modelLabel' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'agentPane.fallbackModelLabel' })).toBeTruthy()
+    expect(card('Claude Code').closest('.agent-provider-card')?.querySelector('.agent-provider-card__model')).toBeTruthy()
+    expect(card('Gemini').closest('.agent-provider-card')?.querySelector('.agent-provider-card__model')).toBeNull()
+  })
 })

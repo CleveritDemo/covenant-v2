@@ -222,7 +222,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   const loadingModels = modelOptionsProp ? modelsLoading : localLoading
   const modelsErrorText = modelOptionsProp ? modelsError : localError
   const selectedModel = meta.model?.trim() ?? ''
-  const modelIsCustom = Boolean(selectedModel && !modelOptions.some(option => option.id === selectedModel))
   const maxRounds = resolveOrchestrationMaxRounds(meta.orchestrationMaxRounds)
   const maxDelegationsPerTurn = sanitizeMaxDelegationsPerTurn(meta.maxDelegationsPerTurn)
   const workStyle = resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
@@ -237,9 +236,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
       )
       : []
     const selectedFallbackModel = (meta as { fallbackModel?: string }).fallbackModel?.trim() ?? ''
-    const fallbackModelIsCustom = Boolean(
-      selectedFallbackModel && !fallbackModels.some(option => option.id === selectedFallbackModel),
-    )
     return (
       <div className="agent-config-settings__stack">
         <div className="agent-config-settings__field">
@@ -250,6 +246,20 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             statuses={cliStatuses}
             disabled={locked}
             fallbackDisabledIds={fallbackDisabledIds}
+            primaryModel={{
+              value: selectedModel,
+              options: modelOptions,
+              loading: loadingModels,
+              disabled: locked,
+            }}
+            fallbackModel={fallbackId ? {
+              value: selectedFallbackModel,
+              options: fallbackModels,
+              loading: fallbackModelsLoading,
+              disabled: locked,
+            } : undefined}
+            onChangeModel={onChangeModel}
+            onChangeFallbackModel={onChangeFallbackModel}
             onPick={id => {
               if (id === meta.provider) return
               if (id === meta.fallbackProvider) {
@@ -277,25 +287,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               })}
             </p>
           ) : null}
-        </div>
-        <label className="agent-config-settings__field">
-          <span className="agent-config-settings__label">{t('agentPane.modelLabel')}</span>
-          <Select
-            value={selectedModel}
-            disabled={locked || loadingModels}
-            title={t('agentPane.modelHint')}
-            onChange={onChangeModel}
-            options={[
-              { value: '', label: t('agentPane.modelDefault') },
-              ...modelOptions.map(option => ({
-                value: option.id,
-                // El id sólo se repite si aporta algo sobre la etiqueta.
-                hint: option.label === option.id ? undefined : option.id,
-                label: option.label,
-              })),
-              ...(modelIsCustom ? [{ value: selectedModel, label: selectedModel }] : []),
-            ]}
-          />
           {loadingModels ? (
             <p className="agent-config-settings__hint">{t('agentPane.modelLoading')}</p>
           ) : null}
@@ -314,28 +305,10 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               ) : null}
             </div>
           ) : null}
-        </label>
-        {fallbackId ? (
-          <label className="agent-config-settings__field">
-            <span className="agent-config-settings__label">{t('agentPane.fallbackModelLabel')}</span>
-            <Select
-              value={selectedFallbackModel}
-              disabled={locked || fallbackModelsLoading}
-              title={t('agentPane.fallbackModelHint')}
-              onChange={onChangeFallbackModel}
-              options={[
-                { value: '', label: t('agentPane.modelDefault') },
-                ...fallbackModels.map(option => ({
-                  value: option.id,
-                  hint: option.label === option.id ? undefined : option.id,
-                  label: option.label,
-                })),
-                ...(fallbackModelIsCustom ? [{ value: selectedFallbackModel, label: selectedFallbackModel }] : []),
-              ]}
-            />
+          {fallbackId ? (
             <p className="agent-config-settings__hint">{t('agentPane.fallbackModelHint')}</p>
-          </label>
-        ) : null}
+          ) : null}
+        </div>
         <div className="agent-config-settings__field">
           <span className="agent-config-settings__label">{t('agentPane.workingDirectory')}</span>
           <AgentConfigFolderChip

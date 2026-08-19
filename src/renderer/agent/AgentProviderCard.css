@@ -1,0 +1,120 @@
+.agent-provider-card {
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 42%, var(--bg-secondary));
+  overflow: hidden;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.agent-provider-card__pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-ui);
+}
+
+.agent-provider-card__pick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.agent-provider-card__pick:focus {
+  outline: none;
+}
+
+.agent-provider-card__pick:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
+.agent-provider-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 10px;
+}
+
+.agent-provider-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.agent-provider-card__name {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-provider-card__state {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-provider-card__state--missing {
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-muted));
+}
+
+.agent-provider-card__badge {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+}
+
+.agent-provider-card__model {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 8px 10px;
+}
+
+.agent-provider-card--primary {
+  border-color: var(--engine-primary-border);
+  background: var(--engine-primary-surface);
+  box-shadow: inset 0 0 0 1px var(--engine-primary-ring);
+}
+
+.agent-provider-card--primary .agent-provider-card__badge {
+  color: var(--engine-primary-text);
+}
+
+.agent-provider-card--primary .agent-provider-card__model {
+  border-top-color: var(--engine-primary-ring);
+}
+
+.agent-provider-card--fallback {
+  border-color: var(--engine-fallback-border);
+  background: var(--engine-fallback-surface);
+  box-shadow: inset 0 0 0 1px var(--engine-fallback-ring);
+}
+
+.agent-provider-card--fallback .agent-provider-card__badge {
+  color: var(--engine-fallback-text);
+}
+
+.agent-provider-card--fallback .agent-provider-card__model {
+  border-top-color: var(--engine-fallback-ring);
+}

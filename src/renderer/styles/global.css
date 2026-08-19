@@ -42,6 +42,15 @@
   --accent-glow-strong: rgba(124, 106, 247, 0.3);
   --accent-border-soft: rgba(124, 106, 247, 0.24);
   --accent-border-strong: rgba(124, 106, 247, 0.52);
+  /* Rol de la tarjeta de motor: primario = acento del tema; respaldo = cian del tema. */
+  --engine-primary-border: var(--accent-border-strong);
+  --engine-primary-ring: var(--accent-border-soft);
+  --engine-primary-surface: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  --engine-primary-text: var(--accent);
+  --engine-fallback-border: color-mix(in srgb, var(--theme-cyan) 58%, var(--border));
+  --engine-fallback-ring: color-mix(in srgb, var(--theme-cyan) 26%, transparent);
+  --engine-fallback-surface: color-mix(in srgb, var(--theme-cyan) 7%, var(--bg-secondary));
+  --engine-fallback-text: color-mix(in srgb, var(--theme-cyan) 78%, var(--text));
   --danger: #f87171;
   /** Opción con consecuencias (permisos Auto), no un error: ámbar, no rojo. */
   --caution: #e5a94a;
@@ -108,6 +117,11 @@
 
 /* Temas claros: elevación sutil (poca opacidad y alcance); oscuro intacto. */
 :root[data-theme-appearance='light'] {
+  --engine-primary-surface: color-mix(in srgb, var(--accent) 6%, var(--bg-secondary));
+  --engine-fallback-border: color-mix(in srgb, var(--theme-cyan) 66%, #123040);
+  --engine-fallback-ring: color-mix(in srgb, var(--theme-cyan) 30%, transparent);
+  --engine-fallback-surface: color-mix(in srgb, var(--theme-cyan) 10%, var(--bg-secondary));
+  --engine-fallback-text: color-mix(in srgb, var(--theme-cyan) 45%, #102530);
   --wiki-edge-color: color-mix(in srgb, var(--text-muted) 50%, #ffffff);
   --wiki-bolt-color: color-mix(in srgb, var(--text-muted) 80%, #000000);
   --wiki-node-concept: var(--accent);

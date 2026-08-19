@@ -123,13 +123,13 @@ describe('AgentConfigSettingsPane engine fallback', () => {
   it('sin respaldo muestra fallbackNone y no el Select de modelo del respaldo', () => {
     renderEngine()
     expect(screen.getByText('agentPane.fallbackNone')).toBeTruthy()
-    expect(screen.queryByText('agentPane.fallbackModelLabel')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'agentPane.fallbackModelLabel' })).toBeNull()
   })
 
   it('con respaldo elegido renderiza el Select de modelo del respaldo', () => {
     renderEngine({ fallbackProvider: 'claude' })
     expect(screen.queryByText('agentPane.fallbackNone')).toBeNull()
-    expect(screen.getByText('agentPane.fallbackModelLabel')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'agentPane.fallbackModelLabel' })).toBeTruthy()
   })
 
   it('pulsar una card libre llama onChangeFallbackProvider con ese proveedor', () => {

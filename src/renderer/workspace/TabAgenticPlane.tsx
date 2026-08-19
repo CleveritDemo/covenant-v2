@@ -219,6 +219,8 @@ export interface TabAgenticPlaneProps {
   onRenameThread: (paneId: string, title: string) => void
   /** Conversaciones del agente con el chat abierto. */
   openChatThreads?: readonly AgentThread[]
+  /** Hilos en curso del job (App) unidos a los del pane para la barra de chips. */
+  openChatRunningThreadIds?: readonly string[]
   openChatActiveThreadId?: string
   /** Ola del orquestador para el chat abierto (fuente App, no throttle del pane). */
   openChatOrchestrationAwaiting?: OrchestrationAwaitingView | null
@@ -457,6 +459,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onOpenAgentFromCard,
   onRenameThread,
   openChatThreads = [],
+  openChatRunningThreadIds = [],
   openChatActiveThreadId = '',
   openChatOrchestrationAwaiting = null,
   openChatAgentId,
@@ -913,15 +916,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     entity => entity.kind !== 'agent' && entity.window.open,
   )
 
-  const openChatRunningThreadIds = useMemo(() => {
+  const openChatRunningThreadIdsMerged = useMemo(() => {
     if (!openChatAgentId) return []
-    const fromStatus = quickChatStatus?.runningThreadIds
-    if (fromStatus && fromStatus.length > 0) return fromStatus
+    const base = [...(quickChatStatus?.runningThreadIds ?? [])]
+    for (const threadId of openChatRunningThreadIds) {
+      if (!base.includes(threadId)) base.push(threadId)
+    }
+    if (base.length > 0) return base
     const entity = entities.find(
       candidate => candidate.paneId === openChatAgentId && candidate.kind === 'agent',
     )
     return entity?.threads?.filter(thread => thread.running).map(thread => thread.id) ?? []
-  }, [entities, openChatAgentId, quickChatStatus?.runningThreadIds])
+  }, [entities, openChatAgentId, openChatRunningThreadIds, quickChatStatus?.runningThreadIds])
 
   // Agentes no expanden ventana; el chat del plano no compite con window.open.
   // Se monta con el agente abierto aunque no tenga conversación: PlaneQuickChat
@@ -1410,7 +1416,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               canClearConversation={Boolean(quickChatStatus?.canClearConversation)}
               threads={openChatThreads}
               activeThreadId={openChatActiveThreadId}
-              runningThreadIds={openChatRunningThreadIds}
+              runningThreadIds={openChatRunningThreadIdsMerged}
               runningThreadActivities={quickChatStatus?.runningThreadActivities}
               awaitingDelegations={Boolean(quickChatStatus?.awaitingDelegations)}
               awaitingDelegationThreadIds={quickChatStatus?.awaitingDelegationThreadIds}

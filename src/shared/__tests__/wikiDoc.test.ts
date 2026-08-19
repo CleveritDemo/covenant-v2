@@ -281,6 +281,13 @@ describe('buildWikiWritingGuidance', () => {
     expect(text).toContain('inventory')
   })
 
+  it('pide bodies cortos y planos, no narración', () => {
+    const text = buildWikiWritingGuidance()
+    expect(text).toContain('Write short and plain')
+    expect(text).toContain('No poetry, no narration')
+    expect(text).toContain('Prefer simple over deep')
+  })
+
   it('incluye la línea de contradicciones', () => {
     const text = buildWikiWritingGuidance()
     expect(text).toContain('If new knowledge contradicts an existing page')

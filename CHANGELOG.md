@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.97.0
+Al pasar el mouse por una respuesta de la IA aparece un icono para referenciarla: queda como tarjeta de referencia en el composer, con el mensaje citado, sin ensuciar el campo de texto, y funciona igual en el plano y en el panel del agente.
+
+Cuando pides varias cosas seguidas, las delegaciones ya no se mezclan en una sola lista: se agrupan por pedido, con el texto de tu petición como título, y con un solo pedido la lista se ve igual que antes.
+
 ## v0.96.0
 ### Organizaciones
 - La vista ya no tapa la barra de la app: la miga «Organizaciones / <organización>» vive debajo y los botones de la ventana quedan libres.

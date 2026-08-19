@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.97.1
+El modal de editar agente ya no muestra la carpeta del proyecto: esa carpeta es de la pestaña y se elige en el plano.
+
+Si Cursor dice que llegaste al límite de sesión, el turno pasa una vez al motor de respaldo. Ese aviso venía como texto del asistente, no como error, y el recambio no arrancaba.
+
+En las tarjetas de motor también puedes quitar el primario. Si no hay ninguno, la siguiente que pulses es el primario; si ya hay uno, la siguiente es el respaldo. Quitar el primario hace que el respaldo ocupe su lugar.
+
 ## v0.97.0
 Al pasar el mouse por una respuesta de la IA aparece un icono para referenciarla: queda como tarjeta de referencia en el composer, con el mensaje citado, sin ensuciar el campo de texto, y funciona igual en el plano y en el panel del agente.
 

@@ -1,31 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { ONBOARDING_VERSION, type OnboardingCliStatus } from '@shared/onboarding'
-import { clisAllMissing, mapCliRows, shouldOpenOnboarding } from '../onboardingGate'
-import type { OnboardingCliRow } from '../components/onboarding/onboardingTypes'
+import { clisAllMissing, mapCliRows, type OnboardingCliRow } from '../onboardingGate'
 
-describe('shouldOpenOnboarding', () => {
-  it('opens when completed version is empty and ready', () => {
-    expect(shouldOpenOnboarding('', true)).toBe(true)
-  })
-
-  it('does not open when completed version matches ONBOARDING_VERSION', () => {
-    expect(shouldOpenOnboarding(ONBOARDING_VERSION, true)).toBe(false)
-    expect(shouldOpenOnboarding('3', true)).toBe(false)
-  })
-
-  it('never opens when not ready', () => {
-    expect(shouldOpenOnboarding('', false)).toBe(false)
-    expect(shouldOpenOnboarding('3', false)).toBe(false)
-  })
-
-  it('trims completed version before comparing', () => {
-    expect(shouldOpenOnboarding(' 3 ', true)).toBe(false)
-    expect(shouldOpenOnboarding('  ', true)).toBe(true)
-  })
-
-  it('opens again when completed version is older than ONBOARDING_VERSION', () => {
-    expect(shouldOpenOnboarding('1', true)).toBe(true)
-    expect(shouldOpenOnboarding('2', true)).toBe(true)
+describe('ONBOARDING_VERSION', () => {
+  it('is 4 after the in-plane port', () => {
+    expect(ONBOARDING_VERSION).toBe('4')
   })
 })
 

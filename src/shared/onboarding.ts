@@ -1,9 +1,9 @@
 import type { AgentCliProvider } from './agentCliProviders'
 
 /** Versión del flujo de onboarding; al completarlo se persiste en AppConfig. */
-export const ONBOARDING_VERSION = '3'
+export const ONBOARDING_VERSION = '4'
 
-/** Los dos perfiles de arranque; deciden qué pasos ve el wizard. */
+/** Los dos perfiles de arranque; deciden la escalera in-plane. */
 export const ORCHESTRATOR_PATHS = ['business', 'engineer'] as const
 export type OrchestratorPath = typeof ORCHESTRATOR_PATHS[number]
 /** '' = el usuario todavía no eligió. Cualquier valor desconocido cae a ''. */
@@ -14,7 +14,7 @@ export function sanitizeOrchestratorPath(value: unknown): OrchestratorPath | '' 
     : ''
 }
 
-/** Estado de un CLI de agente en la máquina, para el wizard de onboarding. */
+/** Estado de un CLI de agente en la máquina, para el detect del onboarding. */
 export interface OnboardingCliStatus {
   provider: AgentCliProvider
   /** Nombre de marca desde `AGENT_CLI_PROVIDERS`. */

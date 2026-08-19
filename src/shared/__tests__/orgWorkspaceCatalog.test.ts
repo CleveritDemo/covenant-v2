@@ -8,9 +8,33 @@ import {
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
   isCatalogFresh,
+  orgWorkspaceTokenMissing,
   patchOrgWorkspaceCatalogName,
   syncTabTitlesFromOrgWorkspaceCatalog,
 } from '../orgWorkspaceCatalog'
+
+describe('orgWorkspaceTokenMissing', () => {
+  it('false si githubToken vacío y hay cuentas en el llavero', () => {
+    expect(orgWorkspaceTokenMissing({
+      githubToken: '',
+      githubAccounts: [{ id: 'acc-1', label: 'Personal' }],
+    })).toBe(false)
+  })
+
+  it('true si githubToken vacío y el llavero vacío', () => {
+    expect(orgWorkspaceTokenMissing({
+      githubToken: '',
+      githubAccounts: [],
+    })).toBe(true)
+  })
+
+  it('false si githubToken tiene valor y el llavero vacío', () => {
+    expect(orgWorkspaceTokenMissing({
+      githubToken: 'ghp_legacy',
+      githubAccounts: [],
+    })).toBe(false)
+  })
+})
 
 describe('catalogHasWorkspaces', () => {
   it('false si vacío o ausente', () => {

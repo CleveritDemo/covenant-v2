@@ -1,3 +1,5 @@
+import type { AppConfig } from './configSchema'
+
 /** Snapshot local de workspaces org (Cmd+T sin red). */
 
 export type OrgWorkspaceCatalogEntry = {
@@ -24,6 +26,17 @@ export type OrgWorkspaceCatalogWorkspaceInput = {
   name: string
   canRename?: boolean
   canAccess?: boolean
+}
+
+/**
+ * Pre-chequeo del renderer al crear un tab de workspace org.
+ * El slot global `githubToken` está vacío tras migrar al llavero:
+ * una cuenta en `githubAccounts` también cuenta.
+ */
+export function orgWorkspaceTokenMissing(
+  cfg: Pick<AppConfig, 'githubToken' | 'githubAccounts'>,
+): boolean {
+  return !cfg.githubToken?.trim() && !cfg.githubAccounts?.length
 }
 
 /** GitHub logins: trim + case-insensitive. */

@@ -1767,7 +1767,11 @@ function registerIpc(): void {
       if (!workspaceDir && !baseDir) {
         return { ok: false, error: 'missing-default-dir', failure: diagnoseCloneError('missing-default-dir') }
       }
-      const token = await resolveGithubToken(config, { cwd: workspaceDir || baseDir })
+      let token: string | null =
+        resolved.accountId !== 'default' ? readAccountToken(resolved.accountId) : null
+      if (!(token ?? '').trim()) {
+        token = await resolveGithubToken(config, { cwd: workspaceDir || baseDir })
+      }
       if (!token) {
         return { ok: false, error: 'missing-token', failure: diagnoseCloneError('missing-token') }
       }

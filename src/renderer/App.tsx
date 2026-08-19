@@ -41,6 +41,7 @@ import {
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
   isCatalogFresh,
+  orgWorkspaceTokenMissing,
   patchOrgWorkspaceCatalogName,
   sameGithubLogin,
   syncTabTitlesFromOrgWorkspaceCatalog,
@@ -2453,7 +2454,7 @@ export const App: React.FC = () => {
     }
     const cfg = await window.api.getConfig()
     const missingFolder = !cfg.defaultWorkspacesDir?.trim()
-    const missingToken = !cfg.githubToken?.trim()
+    const missingToken = orgWorkspaceTokenMissing(cfg)
     if (missingFolder || missingToken) {
       setOrgWorkspaceRequirement({ missingFolder, missingToken })
       return

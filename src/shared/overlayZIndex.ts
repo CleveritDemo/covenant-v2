@@ -1,6 +1,14 @@
 /** z-index for body-portaled overlays (Git panel, file explorer). Above pane windows (≥140). */
 export const APP_OVERLAY_MODAL_Z = 670
 
+/**
+ * Chrome de nivel app (titlebar, theme picker, scope de resync, aviso de actualización).
+ * Por encima de los overlays del plano (APP_OVERLAY_MODAL_Z = 670) y de los modales
+ * internos de la sala y del explorador (680); por debajo de SettingsModal (720) para
+ * que Ajustes siga ganando si se abre encima.
+ */
+export const APP_CHROME_MODAL_Z = 700
+
 /** Chat del plano (dock + composer): encima del backdrop (16), debajo de stage chat-open (202). */
 export const PLANE_CHAT_STACK_Z = 200
 

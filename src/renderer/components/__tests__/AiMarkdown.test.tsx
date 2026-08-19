@@ -36,6 +36,31 @@ describe('splitChatSentences', () => {
       'Usa v1.2.3 en example.com ahora.',
     ])
   })
+
+  it('keeps a bold span with inner punto seguido intact and splits after it', () => {
+    expect(
+      splitChatSentences('**1. Suscripción y provider.** En la suscripción de Cleverit ahora.'),
+    ).toEqual([
+      '**1. Suscripción y provider.**',
+      'En la suscripción de Cleverit ahora.',
+    ])
+  })
+
+  it('does not split inside inline code that contains punto seguido', () => {
+    const parts = splitChatSentences('`npm i. luego build` sigue aquí.')
+    expect(parts.some(p => p.includes('`npm i. luego build`'))).toBe(true)
+  })
+
+  it('does not split inside a link label that contains punto seguido', () => {
+    const parts = splitChatSentences('[Ver docs. ahora](https://example.com/x) sigue aquí.')
+    expect(parts.some(p => p.includes('[Ver docs. ahora](https://example.com/x)'))).toBe(true)
+  })
+
+  it('does not split text that contains a terminal marker', () => {
+    expect(splitChatSentences('<<<AI_TERMINAL_X>>> algo. mas.')).toEqual([
+      '<<<AI_TERMINAL_X>>> algo. mas.',
+    ])
+  })
 })
 
 describe('parseAiMarkdownBlocks', () => {
@@ -250,6 +275,23 @@ describe('AiMarkdown · inline', () => {
     render(<AiMarkdown content={'[x](javascript:alert(1))'} />)
     expect(screen.queryByRole('link')).toBeNull()
     expect(screen.getByText('x')).toBeTruthy()
+  })
+
+  it('renders a bold span with inner punto seguido as one strong without literal asterisks', () => {
+    const { container } = render(<AiMarkdown content="**1. Paso uno.** Sigue el resto." />)
+    const strongs = container.querySelectorAll('strong')
+    expect(strongs).toHaveLength(1)
+    expect(strongs[0].textContent).toBe('1. Paso uno.')
+    expect(container.textContent).not.toContain('*')
+  })
+
+  it('renders a single link when the label contains punto seguido', () => {
+    const { container } = render(
+      <AiMarkdown content={'[Ver docs. ahora](https://example.com/x) sigue aquí.'} />,
+    )
+    const links = container.querySelectorAll('a')
+    expect(links).toHaveLength(1)
+    expect(links[0].textContent).toBe('Ver docs. ahora')
   })
 })
 

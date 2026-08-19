@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { Button, ChoiceCard } from './ui'
@@ -30,6 +31,7 @@ export const OrgSyncScopeModal: React.FC<Props> = ({ open, onClose, onConfirm })
       onClose={onClose}
       title={t('organizations.syncScopeTitle')}
       size="sm"
+      zIndex={APP_CHROME_MODAL_Z}
       bodyLayout="spacious"
       closeOnBackdrop
       closeOnEscape

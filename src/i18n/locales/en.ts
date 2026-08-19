@@ -1274,6 +1274,7 @@ const en = {
     newTabWorkspaceConfirm: 'Create tab',
     newTabWorkspaceLoading: 'Loading workspaces…',
     newTabWorkspaceError: 'Could not load organization workspaces.',
+    newTabWorkspaceSignedOut: 'The GitHub account bound to this workspace is not signed in to Covenant. Sign in from Settings → GitHub, or switch account from the workspace bar.',
     reqTitle: 'Organization workspace',
     reqMissingFolder: 'Set the default workspaces folder in Settings.',
     reqMissingToken: 'Configure a GitHub token in Settings.',

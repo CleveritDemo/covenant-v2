@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { UpdateState } from '@shared/updateState'
 import { changelogSection } from '@shared/changelog'
+import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { AiMarkdown } from './AiMarkdown'
 import { TerminalModal } from './TerminalModal'
@@ -193,6 +194,7 @@ export const UpdateBanner: React.FC = () => {
         open={view !== null}
         onClose={() => setView(null)}
         size="md"
+        zIndex={APP_CHROME_MODAL_Z}
         closeOnEscape
         closeOnBackdrop
         headerContent={

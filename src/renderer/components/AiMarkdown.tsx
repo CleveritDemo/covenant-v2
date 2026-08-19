@@ -53,14 +53,27 @@ function safeMarkdownHref(raw: string): string | null {
   return null
 }
 
+/* Orden: code con N backticks, links, *** / ___, **, __, ~~, *, _ */
+const INLINE_SPAN_RE =
+  /(`+)((?:(?!\1).)+?)\1|\[([^\]]+)\]\(([^)]+)\)|\*\*\*([^*]+)\*\*\*|___([^_]+)___|\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|\*([^*]+)\*|_([^_]+)_/g
+
+/** Rangos [start, end) de cada span inline. Instancia nueva: la regex /g guarda lastIndex. */
+function inlineSpanRanges(text: string): Array<[number, number]> {
+  const re = new RegExp(INLINE_SPAN_RE.source, INLINE_SPAN_RE.flags)
+  const ranges: Array<[number, number]> = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    ranges.push([m.index, m.index + m[0].length])
+  }
+  return ranges
+}
+
 function parseInline(text: string): React.ReactNode[] {
   /* Marcadores <<<AI_TERMINAL_*>>> usan _ internos; el markdown los convertiría en cursiva. */
   if (text.includes('<<<')) return [text]
 
   const nodes: React.ReactNode[] = []
-  /* Orden: code con N backticks, links, *** / ___, **, __, ~~, *, _ */
-  const re =
-    /(`+)((?:(?!\1).)+?)\1|\[([^\]]+)\]\(([^)]+)\)|\*\*\*([^*]+)\*\*\*|___([^_]+)___|\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|\*([^*]+)\*|_([^_]+)_/g
+  const re = new RegExp(INLINE_SPAN_RE.source, INLINE_SPAN_RE.flags)
   let last = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
@@ -218,14 +231,43 @@ function isQuote(line: string): string | null {
 /**
  * Punto seguido / ! / ? → párrafos de chat separados.
  * Solo corta si hay espacio después del signo (no parte 3.14 ni example.com).
+ * No corta dentro de un span inline; si el candidato cae dentro, el corte
+ * se mueve al whitespace posterior al span para no romper el markdown.
  */
 export function splitChatSentences(text: string): string[] {
   const trimmed = text.trim()
   if (!trimmed) return []
-  return trimmed
-    .split(/(?<=[.!?…])\s+(?=\S)/u)
-    .map(part => part.trim())
-    .filter(Boolean)
+  if (trimmed.includes('<<<')) return [trimmed]
+
+  const ranges = inlineSpanRanges(trimmed)
+  const containingRange = (idx: number): [number, number] | undefined =>
+    ranges.find(([start, end]) => start <= idx && idx < end)
+
+  const cutRe = /(?<=[.!?…])\s+(?=\S)/gu
+  const cutSet = new Set<number>()
+  let m: RegExpExecArray | null
+  while ((m = cutRe.exec(trimmed)) !== null) {
+    const span = containingRange(m.index)
+    if (!span) {
+      cutSet.add(m.index)
+      continue
+    }
+    const after = span[1]
+    if (/^\s+\S/u.test(trimmed.slice(after))) cutSet.add(after)
+  }
+
+  const cuts = [...cutSet].sort((a, b) => a - b)
+  const parts: string[] = []
+  let last = 0
+  for (const idx of cuts) {
+    const part = trimmed.slice(last, idx).trim()
+    if (part) parts.push(part)
+    const ws = /^\s+/u.exec(trimmed.slice(idx))
+    last = idx + (ws ? ws[0].length : 0)
+  }
+  const tail = trimmed.slice(last).trim()
+  if (tail) parts.push(tail)
+  return parts
 }
 
 function parseBlocks(raw: string): MdBlock[] {

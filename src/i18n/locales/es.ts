@@ -1276,6 +1276,7 @@ const es = {
     newTabWorkspaceConfirm: 'Crear pestaña',
     newTabWorkspaceLoading: 'Cargando workspaces…',
     newTabWorkspaceError: 'No se pudieron cargar los workspaces de organización.',
+    newTabWorkspaceSignedOut: 'La cuenta de GitHub vinculada a este workspace no tiene sesión en Covenant. Inicia sesión en Ajustes → GitHub, o cambia de cuenta en la barra del workspace.',
     reqTitle: 'Workspace de organización',
     reqMissingFolder: 'Configura la carpeta por defecto de workspaces en Ajustes.',
     reqMissingToken: 'Configura un token de GitHub en Ajustes.',

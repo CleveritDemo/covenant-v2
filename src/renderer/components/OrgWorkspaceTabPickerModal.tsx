@@ -99,6 +99,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   const [options, setOptions] = useState<WorkspaceOption[]>(() => optionsFromCatalog(catalog ?? []))
   const [value, setValue] = useState(PERSONAL_VALUE)
   const [query, setQuery] = useState('')
+  const [accountSignedIn, setAccountSignedIn] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -107,7 +108,14 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     setValue(PERSONAL_VALUE)
     setQuery('')
     setOptions(optionsFromCatalog(catalog ?? []))
+    setAccountSignedIn(null)
   }, [open, catalog])
+
+  useEffect(() => {
+    if (accountSignedIn === false && value !== PERSONAL_VALUE) {
+      setValue(PERSONAL_VALUE)
+    }
+  }, [accountSignedIn, value])
 
   // Refresh en segundo plano: no bloquea el Select.
   useEffect(() => {
@@ -117,9 +125,17 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
       const covenant = getCovenantApi(accountId)
       if (!covenant || !hasCovenantWorkspacesApi(covenant)) return
       const status = await covenant.status()
-      if (!status.ok || !status.data.signedIn || cancelled) return
+      if (cancelled) return
+      if (!status.ok || !status.data.signedIn) {
+        setAccountSignedIn(false)
+        return
+      }
       const login = status.data.login?.trim() ?? ''
-      if (!login) return
+      if (!login) {
+        setAccountSignedIn(false)
+        return
+      }
+      setAccountSignedIn(true)
       const orgsResult = await covenant.orgsList()
       if (!orgsResult.ok || cancelled) return
       const next: WorkspaceOption[] = []
@@ -188,6 +204,12 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     return [...byOrg.entries()].map(([orgName, items]) => ({ orgName, items }))
   }, [options, query])
 
+  function describeConfirmError(raw: string): string {
+    // 'Not signed in' es el literal que lanza electron/covenantApi.ts en el 401; si cambia allá, cambiarlo acá.
+    if (raw === 'Not signed in') return t('organizations.newTabWorkspaceSignedOut')
+    return raw
+  }
+
   async function handleConfirm(target: string = value): Promise<void> {
     if (busy) return
     if (!target) {
@@ -224,11 +246,11 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     ])
     setBusy(false)
     if (!agentsResult.ok) {
-      setError(agentsResult.error)
+      setError(describeConfirmError(agentsResult.error))
       return
     }
     if (!contextsResult.ok) {
-      setError(contextsResult.error)
+      setError(describeConfirmError(contextsResult.error))
       return
     }
     onConfirm({
@@ -303,41 +325,49 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
               </span>
             </button>
           </li>
-          {groups.map(group => (
-            <React.Fragment key={group.orgName}>
-              <li>
-                <p className="orgs-picker__group">{group.orgName}</p>
-              </li>
-              {group.items.map(option => {
-                const selected = option.value === value
-                return (
-                  <li key={option.value}>
-                    <button
-                      type="button"
-                      className={`orgs-nav__item${selected ? ' is-selected' : ''}`}
-                      disabled={busy}
-                      aria-current={selected}
-                      onClick={() => setValue(option.value)}
-                      onDoubleClick={() => {
-                        setValue(option.value)
-                        if (!busy) void handleConfirm(option.value)
-                      }}
-                    >
-                      <span className="orgs-nav__text">
-                        <span className="orgs-nav__title">{option.name}</span>
-                        <span className="orgs-nav__meta">{option.slug}</span>
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </React.Fragment>
-          ))}
-          {groups.length === 0 && query.trim() ? (
+          {accountSignedIn === false ? (
             <li>
-              <p className="orgs-empty">{t('organizations.noWorkspaceMatches')}</p>
+              <p className="orgs-empty">{t('organizations.newTabWorkspaceSignedOut')}</p>
             </li>
-          ) : null}
+          ) : (
+            <>
+              {groups.map(group => (
+                <React.Fragment key={group.orgName}>
+                  <li>
+                    <p className="orgs-picker__group">{group.orgName}</p>
+                  </li>
+                  {group.items.map(option => {
+                    const selected = option.value === value
+                    return (
+                      <li key={option.value}>
+                        <button
+                          type="button"
+                          className={`orgs-nav__item${selected ? ' is-selected' : ''}`}
+                          disabled={busy}
+                          aria-current={selected}
+                          onClick={() => setValue(option.value)}
+                          onDoubleClick={() => {
+                            setValue(option.value)
+                            if (!busy) void handleConfirm(option.value)
+                          }}
+                        >
+                          <span className="orgs-nav__text">
+                            <span className="orgs-nav__title">{option.name}</span>
+                            <span className="orgs-nav__meta">{option.slug}</span>
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </React.Fragment>
+              ))}
+              {groups.length === 0 && query.trim() ? (
+                <li>
+                  <p className="orgs-empty">{t('organizations.noWorkspaceMatches')}</p>
+                </li>
+              ) : null}
+            </>
+          )}
         </ul>
         {error ? <p className="orgs-section-error">{error}</p> : null}
       </div>

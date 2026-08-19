@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { getTheme, getThemesForPicker } from '@themes/presets'
+import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { ThemePreview } from './ThemePreview'
@@ -110,7 +111,7 @@ export const ThemePickerModal: React.FC<Props> = ({
       titleId="theme-picker-title"
       size="lg"
       panelVariant="theme-picker"
-      zIndex={660}
+      zIndex={APP_CHROME_MODAL_Z}
       bodyLayout="flush"
       closeOnBackdrop
       footer={

@@ -417,7 +417,7 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       onClose={handleRequestClose}
       title={t('settings.title')}
       size="lg"
-      zIndex={720}
+      zIndex={720} // por encima de APP_CHROME_MODAL_Z
       bodyLayout="flush"
       closeOnBackdrop
       footer={

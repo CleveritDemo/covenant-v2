@@ -5,6 +5,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { CONFIG_DEFAULTS } from '@shared/configSchema'
+import { APP_CHROME_MODAL_Z, APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
 import { ThemePickerModal } from '../ThemePickerModal'
 
 vi.mock('@i18n/useT', () => ({
@@ -15,8 +16,18 @@ vi.mock('@i18n/useT', () => ({
 }))
 
 vi.mock('../TerminalModal', () => ({
-  TerminalModal: ({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) => (
-    <div>{children}<div>{footer}</div></div>
+  TerminalModal: ({
+    children,
+    footer,
+    zIndex,
+  }: {
+    children: React.ReactNode
+    footer?: React.ReactNode
+    zIndex?: number
+  }) => (
+    <div className="terminal-modal-root" style={{ '--modal-z': zIndex } as React.CSSProperties}>
+      {children}<div>{footer}</div>
+    </div>
   ),
 }))
 
@@ -111,5 +122,19 @@ describe('ThemePickerModal keyboard guards', () => {
     fireEvent.keyDown(search, { key: 'ArrowRight', bubbles: true })
     const after = document.querySelector('.theme-picker-chip--focus')?.getAttribute('aria-label')
     expect(after).toBe(before)
+  })
+})
+
+describe('ThemePickerModal z-index', () => {
+  it('APP_CHROME_MODAL_Z queda entre overlays del plano y Settings', () => {
+    expect(APP_CHROME_MODAL_Z).toBeGreaterThan(APP_OVERLAY_MODAL_Z)
+    expect(APP_CHROME_MODAL_Z).toBeLessThan(720)
+  })
+
+  it('el portal declara --modal-z en APP_CHROME_MODAL_Z', () => {
+    renderPicker()
+    const root = document.querySelector('.terminal-modal-root') as HTMLElement | null
+    expect(root).toBeTruthy()
+    expect(root!.style.getPropertyValue('--modal-z').trim()).toBe(String(APP_CHROME_MODAL_Z))
   })
 })

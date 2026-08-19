@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.6
+Cuando una delegación no llega a arrancar, la fila se queda en marcha durante cinco minutos antes de cerrarse sola (antes un minuto), para dar margen a los especialistas que tardan en publicar su primer estado. Las delegaciones que sí están trabajando no tienen corte por tiempo.
+
 ## v0.95.5
 El modelo del motor ya se elige dentro de la propia tarjeta, tanto en el primario como en el respaldo. Desaparecen los dos desplegables sueltos que había debajo de las tarjetas.
 

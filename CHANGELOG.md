@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.6
+### Windows
+- Los agentes con Codex y Claude Code vuelven a responder: el prompt ya no viaja en la línea de comandos, que cortaba en 8191 caracteres y devolvía «La línea de comandos es demasiado larga» en cuanto el agente tenía contextos o equipo.
+- Con el resto de motores, si el prompt no cabe aparece un aviso que dice qué hacer, en lugar del error críptico de la consola.
+- Los errores del CLI se leen bien: se acabaron los acentos rotos tipo «l\ufffdnea».
+- Los botones de la ventana caben en la barra de título y los deshabilitados ya no ocupan hueco.
+
 ## v0.98.5
 Las delegaciones paralelas al mismo especialista vuelven a salir cuando cambia el archivo o el alcance: el anti-duplicado ya no las confunde por parecerse en el texto. Y si una delegación falla o se aborta, el reintento del mismo objetivo deja de quedar vetado dentro del pedido.
 

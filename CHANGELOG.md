@@ -5,6 +5,16 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.0
+### Sketch
+- Nueva herramienta de texto: haces clic en el lienzo, escribes encima y ⌘Enter (o salir del campo) hornea la anotación en el dibujo; Escape la descarta.
+- Cambiar de herramienta o adjuntar confirma el texto pendiente; «Limpiar» lo descarta.
+### Git
+- El panel de git distingue tres casos que antes decían todos «No es un repositorio git»: git no disponible en el sistema, repositorio ilegible y carpeta sin repo.
+- Debajo del aviso se muestra el mensaje real de git cuando aporta detalle.
+### Windows
+- Los botones de la ventana salen en el orden del sistema (− □ ×). En macOS no cambia nada.
+
 ## v0.97.3
 El onboarding ya no tapa el plano con un wizard: el primer paso es elegir rol Planear o Ejecutar. Rehacer el recorrido vuelve a preguntar el rol y borra path y señales.
 

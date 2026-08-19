@@ -128,3 +128,20 @@ export function shouldWarnComposerMissingCli(args: {
 }): boolean {
   return args.incomplete && args.path === 'engineer' && args.cliAllMissing
 }
+
+export type ComposerSendBlock = 'none' | 'cli' | 'engine'
+
+/** Qué bloquea el envío del composer durante el onboarding del track engineer. */
+export function resolveComposerSendBlock(args: {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+  cliAllMissing: boolean
+  engineMissing: boolean
+}): ComposerSendBlock {
+  if (!args.incomplete) return 'none'
+  if (args.path !== 'engineer') return 'none'
+  // 'cli' gana a 'engine': sin CLI en disco elegir motor no arregla nada.
+  if (args.cliAllMissing) return 'cli'
+  if (args.engineMissing) return 'engine'
+  return 'none'
+}

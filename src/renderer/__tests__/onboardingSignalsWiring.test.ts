@@ -114,6 +114,28 @@ describe('onboarding signals wiring', () => {
     ).toBe(false)
   })
 
+  it('(g) pane drop with a failed meta change does not persist assignedContext', () => {
+    expect(
+      shouldPersistAssignDrop({
+        priorIds: ['ctx-a'],
+        contextId: 'ctx-b',
+        agentId: 'fullstack',
+        metaChangeOk: false,
+      }),
+    ).toBe(false)
+  })
+
+  it('(h) toggle with a failed meta change does not persist assignedContext', () => {
+    expect(
+      shouldPersistToggle({
+        currentIds: [],
+        contextId: 'ctx-b',
+        agentId: 'fullstack',
+        metaChangeOk: false,
+      }),
+    ).toBe(false)
+  })
+
   it('(e) dismiss on a dismissible step appends to guideDone', () => {
     expect(
       resolveGuideDismissWrite({

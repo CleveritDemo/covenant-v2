@@ -140,14 +140,14 @@ describe('PlaneChatComposer: attachReference', () => {
     await act(async () => {
       ref.current?.attachReference('cita de burbuja')
     })
-    expect(screen.getByLabelText('agentPane.pastedTextTitle')).toBeTruthy()
+    expect(screen.getByLabelText('agentPane.referenceTitle')).toBeTruthy()
 
     await act(async () => {
       for (let i = 0; i < MAX_PENDING_PASTED_TEXTS + 2; i += 1) {
         ref.current?.attachReference(`cita ${i}`)
       }
     })
-    expect(screen.getAllByLabelText('agentPane.pastedTextTitle')).toHaveLength(
+    expect(screen.getAllByLabelText('agentPane.referenceTitle')).toHaveLength(
       MAX_PENDING_PASTED_TEXTS,
     )
   })

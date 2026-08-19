@@ -293,7 +293,7 @@ interface Props {
   /** Un turno delegado en este pane terminó. */
   onDelegationTurnComplete?: (result: DelegateResult) => void
   /** Pedido humano nuevo: reinicia el contador de oleadas de orquestación. */
-  onOrchestrationUserTurn?: () => void
+  onOrchestrationUserTurn?: (humanRequest?: string) => void
   /** Oleada actual / tope para el prompt del orquestador. */
   getOrchestrationRound?: () => {
     round: number
@@ -2815,7 +2815,7 @@ export const AgentPane: React.FC<Props> = ({
     setPendingImages([])
     setPendingPastes([])
     if (coordinationCanDelegate(metaRef.current.coordination)) {
-      onOrchestrationUserTurnRef.current?.()
+      onOrchestrationUserTurnRef.current?.(prompt)
     }
     // Las issues mencionadas en ESTE mensaje viajan como contextos del turno,
     // igual que en el chat del plano; no se quedan pegadas al agente.
@@ -3015,7 +3015,7 @@ export const AgentPane: React.FC<Props> = ({
         plan.isHumanTurn
         && coordinationCanDelegate(metaRef.current.coordination)
       ) {
-        onOrchestrationUserTurnRef.current?.()
+        onOrchestrationUserTurnRef.current?.(prompt)
       }
       markConsumed()
       void dispatchMessage(prompt, resolvedImages, turnOptions)
@@ -3207,7 +3207,7 @@ export const AgentPane: React.FC<Props> = ({
       && !next.orchestrationJobId?.trim()
       && coordinationCanDelegate(metaRef.current.coordination)
     ) {
-      onOrchestrationUserTurnRef.current?.()
+      onOrchestrationUserTurnRef.current?.(next.text)
     }
     void dispatchMessage(next.text, next.images, {
       ...(next.delegation ? { delegation: next.delegation } : {}),

@@ -124,6 +124,90 @@ describe('AgentProviderGrid', () => {
     expect(card('Claude Code').getAttribute('aria-pressed')).toBe('false')
   })
 
+  it('CLI faltante del PATH queda disabled si no es primario ni respaldo', () => {
+    const onPick = vi.fn()
+    render(
+      <AgentProviderGrid
+        value="claude"
+        statuses={{
+          codex: { provider: 'codex', command: 'codex', path: null, version: null },
+        }}
+        onPick={onPick}
+      />,
+    )
+
+    expect(card('Codex').disabled).toBe(true)
+    fireEvent.click(card('Codex'))
+    expect(onPick).not.toHaveBeenCalled()
+  })
+
+  it('CLI faltante que es primario sigue pulsable', () => {
+    const onPick = vi.fn()
+    render(
+      <AgentProviderGrid
+        value="codex"
+        statuses={{
+          codex: { provider: 'codex', command: 'codex', path: null, version: null },
+        }}
+        onPick={onPick}
+      />,
+    )
+
+    expect(card('Codex').disabled).toBe(false)
+    fireEvent.click(card('Codex'))
+    expect(onPick).toHaveBeenCalledWith('codex')
+  })
+
+  it('CLI faltante que es respaldo sigue pulsable', () => {
+    const onPick = vi.fn()
+    render(
+      <AgentProviderGrid
+        value="claude"
+        fallbackValue="codex"
+        statuses={{
+          codex: { provider: 'codex', command: 'codex', path: null, version: null },
+        }}
+        onPick={onPick}
+      />,
+    )
+
+    expect(card('Codex').disabled).toBe(false)
+    fireEvent.click(card('Codex'))
+    expect(onPick).toHaveBeenCalledWith('codex')
+  })
+
+  it('sin statuses no deshabilita por PATH', () => {
+    const onPick = vi.fn()
+    render(
+      <AgentProviderGrid
+        value="claude"
+        statuses={{}}
+        onPick={onPick}
+      />,
+    )
+
+    expect(card('Codex').disabled).toBe(false)
+    fireEvent.click(card('Codex'))
+    expect(onPick).toHaveBeenCalledWith('codex')
+  })
+
+  it('CLI con path instalado sigue habilitado', () => {
+    const onPick = vi.fn()
+    render(
+      <AgentProviderGrid
+        value="claude"
+        statuses={{
+          codex: { provider: 'codex', command: 'codex', path: '/usr/bin/codex', version: '1.0.0' },
+        }}
+        onPick={onPick}
+      />,
+    )
+
+    expect(card('Codex').disabled).toBe(false)
+    fireEvent.click(card('Codex'))
+    expect(onPick).toHaveBeenCalledWith('codex')
+  })
+
   it('el Select de modelo solo va en primario y respaldo', () => {
     render(
       <AgentProviderGrid

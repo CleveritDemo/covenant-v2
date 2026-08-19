@@ -94,7 +94,10 @@ export const AgentProviderGrid: React.FC<AgentProviderGridProps> = ({
         const isPrimary = provider === value
         const isFallback = provider === fallbackValue
         const fallbackBlocked = fallbackDisabledIds.includes(provider)
-        const cardDisabled = disabled || fallbackBlocked
+        // Un CLI que no está en el PATH no se puede ADOPTAR, pero si ya es primario o
+        // respaldo debe seguir pulsable: si no, un agente con motor faltante queda
+        // atrapado sin poder quitarlo.
+        const cardDisabled = disabled || fallbackBlocked || (missing && !isPrimary && !isFallback)
         const cardRole = isPrimary ? 'primary' as const : isFallback ? 'fallback' as const : undefined
         const modelControl = isPrimary
           ? renderModelControl(

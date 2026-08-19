@@ -145,3 +145,11 @@ export function resolveComposerSendBlock(args: {
   if (args.engineMissing) return 'engine'
   return 'none'
 }
+
+/** Evita reescribir onboardingCompletedVersion cuando ya coincide con la versión pedida. */
+export function shouldPersistOnboardingCompleted(
+  current: string | undefined | null,
+  next: string,
+): boolean {
+  return (current ?? '').trim() !== next.trim()
+}

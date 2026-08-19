@@ -38,6 +38,7 @@ import {
   onboardingLockedSurface,
   shouldAutoCompleteFromPanes,
   resolveComposerSendBlock,
+  shouldPersistOnboardingCompleted,
 } from '@shared/onboardingFlow'
 import {
   resolveOnboardingGuideStep,
@@ -553,6 +554,7 @@ export const App: React.FC = () => {
   >({})
   const onboardingClisRefreshOnceRef = useRef(false)
   const onboardingClisMissingLockedRef = useRef(false)
+  const onboardingCompletedVersionRef = useRef<string>(config.onboardingCompletedVersion ?? '')
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   const [promoteWorkspaceTab, setPromoteWorkspaceTab] = useState<TabSession | null>(null)
@@ -2496,6 +2498,8 @@ export const App: React.FC = () => {
   }, [patchTabExplorer])
 
   const persistOnboardingCompleted = useCallback((version: string) => {
+    if (!shouldPersistOnboardingCompleted(onboardingCompletedVersionRef.current, version)) return
+    onboardingCompletedVersionRef.current = version
     void window.api.setConfig({ onboardingCompletedVersion: version })
     setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
   }, [])
@@ -3843,6 +3847,10 @@ export const App: React.FC = () => {
     onboardingClisRefreshOnceRef.current = false
     void refreshOnboardingClis()
   }, [refreshOnboardingClis])
+
+  useEffect(() => {
+    onboardingCompletedVersionRef.current = config.onboardingCompletedVersion ?? ''
+  }, [config.onboardingCompletedVersion])
 
   useEffect(() => {
     const ready = configReady && sessionReady.loaded

@@ -1,12 +1,15 @@
-import { ONBOARDING_VERSION, type OnboardingCliStatus } from '@shared/onboarding'
-import type { OnboardingCliRow } from './components/onboarding/onboardingTypes'
+import type { OnboardingCliStatus } from '@shared/onboarding'
 
-/** True solo cuando la sesión/config están listas y el flag no coincide con la versión actual. */
-export function shouldOpenOnboarding(completedVersion: string, ready: boolean): boolean {
-  return ready && completedVersion.trim() !== ONBOARDING_VERSION
+/** Fila local de CLI detectado (no importar de shared/onboarding). */
+export type OnboardingCliRow = {
+  provider: string
+  label: string
+  command: string
+  installed: boolean
+  version: string | null
 }
 
-/** Mapea el contrato IPC a la fila local del wizard (orden y nulls intactos). */
+/** Mapea el contrato IPC a la fila local (orden y nulls intactos). */
 export function mapCliRows(statuses: OnboardingCliStatus[]): OnboardingCliRow[] {
   return statuses.map(status => ({
     provider: status.provider,
@@ -17,7 +20,7 @@ export function mapCliRows(statuses: OnboardingCliStatus[]): OnboardingCliRow[] 
   }))
 }
 
-/** True solo si hay filas y ninguna está instalada (congela forma de pasos en App). */
+/** True solo si hay filas y ninguna está instalada. */
 export function clisAllMissing(rows: OnboardingCliRow[]): boolean {
   return rows.length > 0 && rows.every(row => !row.installed)
 }

@@ -21,9 +21,6 @@ import {
   type PromoteWorkspaceRepoOption,
 } from './PromoteWorkspaceModal'
 import type { ThemePickerAudioPartial } from './ThemePickerAudioControls'
-import type { OrchestratorPath } from '@shared/onboarding'
-import type { OnboardingStepId } from '@shared/onboardingSteps'
-import { OnboardingView, type OnboardingCliRow } from './onboarding'
 
 interface Props {
   config: AppConfig
@@ -64,27 +61,6 @@ interface Props {
   onAgentCreateConfirm: (name: string) => void
   onReplayOnboarding?: () => void
   onAccountDeleted?: (accountId: string) => void
-  onboardingOpen: boolean
-  onboardingStep: number
-  onboardingSteps: OnboardingStepId[]
-  onboardingPath: OrchestratorPath | ''
-  onboardingClis: OnboardingCliRow[]
-  onboardingCliLoading: boolean
-  onboardingCliError: boolean
-  onboardingTeamCreated: boolean
-  onboardingFolderPath: string | null
-  onboardingCanCreateTeam: boolean
-  onboardingCanOpenBrainstorm: boolean
-  onOnboardingNext: () => void
-  onOnboardingBack: () => void
-  onOnboardingSkip: () => void
-  onOnboardingFinish: () => void
-  onOnboardingRecheck: () => void
-  onOnboardingPickFolder: () => void
-  onOnboardingCreateTeam: () => void
-  onOnboardingOpenBrainstorm: () => void
-  onOnboardingLoadOrgWorkspace: () => void
-  onOnboardingSelectPath: (path: OrchestratorPath) => void
 }
 
 export const AppModals: React.FC<Props> = ({
@@ -125,27 +101,6 @@ export const AppModals: React.FC<Props> = ({
   onAgentCreateConfirm,
   onReplayOnboarding,
   onAccountDeleted,
-  onboardingOpen,
-  onboardingStep,
-  onboardingSteps,
-  onboardingPath,
-  onboardingClis,
-  onboardingCliLoading,
-  onboardingCliError,
-  onboardingTeamCreated,
-  onboardingFolderPath,
-  onboardingCanCreateTeam,
-  onboardingCanOpenBrainstorm,
-  onOnboardingNext,
-  onOnboardingBack,
-  onOnboardingSkip,
-  onOnboardingFinish,
-  onOnboardingRecheck,
-  onOnboardingPickFolder,
-  onOnboardingCreateTeam,
-  onOnboardingOpenBrainstorm,
-  onOnboardingLoadOrgWorkspace,
-  onOnboardingSelectPath,
 }) => {
   const handleThemeAudioConfigChange = useCallback((partial: ThemePickerAudioPartial) => {
     onConfigSaved(mergeWithDefaults({
@@ -217,30 +172,6 @@ export const AppModals: React.FC<Props> = ({
         onSelectTheme={onThemeChange}
         onAudioConfigChange={handleThemeAudioConfigChange}
         onClose={onCloseThemePicker}
-      />
-
-      <OnboardingView
-        open={onboardingOpen}
-        stepIndex={onboardingStep}
-        steps={onboardingSteps}
-        path={onboardingPath}
-        onSelectPath={onOnboardingSelectPath}
-        onNext={onOnboardingNext}
-        onBack={onOnboardingBack}
-        onSkip={onOnboardingSkip}
-        onFinish={onOnboardingFinish}
-        cliRows={onboardingClis}
-        loading={onboardingCliLoading}
-        cliError={onboardingCliError}
-        onRecheck={onOnboardingRecheck}
-        folderPath={onboardingFolderPath}
-        onPickFolder={onOnboardingPickFolder}
-        canCreateTeam={onboardingCanCreateTeam}
-        teamCreated={onboardingTeamCreated}
-        onCreateTeam={onOnboardingCreateTeam}
-        canOpenBrainstorm={onboardingCanOpenBrainstorm}
-        onOpenBrainstorm={onOnboardingOpenBrainstorm}
-        onLoadOrgWorkspace={onOnboardingLoadOrgWorkspace}
       />
     </>
   )

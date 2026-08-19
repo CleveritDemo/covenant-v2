@@ -194,6 +194,10 @@ import {
   type DelegationRuntimeRegistry,
 } from '@shared/delegationRuntimeRegistry'
 import {
+  buildDuplicateDelegationFollowUp,
+  findDuplicateDelegation,
+} from '@shared/delegationDuplicateGuard'
+import {
   drainHumanSendFifoForPane,
   enqueueHumanSendForThread,
   MAX_VISIBLE_QUEUED_TURNS,
@@ -4488,6 +4492,27 @@ export const App: React.FC = () => {
         continue
       }
 
+      const routedForGuard = decision.agentId
+      const duplicate = findDuplicateDelegation({
+        toAgentId: routedForGuard,
+        objective: delegation.objective,
+        registry: delegationRuntimeByIdRef.current,
+      })
+      if (duplicate) {
+        enqueueOrchestrationSend(fromPaneId, {
+          text: buildDuplicateDelegationFollowUp({
+            toAgentId: routedForGuard,
+            duplicate,
+            now: Date.now(),
+          }),
+          focusPane: false,
+          orchestrationFollowUp: true,
+          orchestrationJobId: job.jobId,
+          allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+        })
+        continue
+      }
+
       if (decision.kind === 'defer') {
         job.deferred.push({
           tabId,
@@ -4563,6 +4588,7 @@ export const App: React.FC = () => {
         toAgentId: routedAgentId,
         toThreadId: threadId,
         jobId: job.jobId,
+        objective: delegation.objective,
         ...(delegation.parentDelegationId ? { parentDelegationId: delegation.parentDelegationId } : {}),
       })
       upsertOrchestrationWaveItem(job, {
@@ -4772,6 +4798,7 @@ export const App: React.FC = () => {
       toAgentId: next.toAgentId,
       toThreadId: threadId,
       jobId: job.jobId,
+      objective: next.delegation.objective,
       ...(next.parentDelegationId ? { parentDelegationId: next.parentDelegationId } : {}),
     })
     upsertOrchestrationWaveItem(job, {
@@ -6553,11 +6580,16 @@ export const App: React.FC = () => {
             const jobs = orchestrationJobsByPaneRef.current.get(paneId)
             const job = activeId ? jobs?.get(activeId) : undefined
             const workStyle = orchestrationWorkStyleForPane(paneId, tab.id)
+            const inflightDelegations = [...delegationRuntimeByIdRef.current.values()].filter(
+              entry => entry.fromPaneId === paneId
+                && (entry.status === 'pending' || entry.status === 'awaiting_merge'),
+            )
             return {
               round: job?.round ?? 0,
               maxRounds: orchestrationMaxRoundsForPane(paneId, tab.id),
               ...(job ? { jobId: job.jobId } : {}),
               workStyle,
+              ...(inflightDelegations.length ? { inflightDelegations } : {}),
             }
           }}
           preferOpenConfig={openConfigForPaneId === paneId}

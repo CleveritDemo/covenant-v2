@@ -58,6 +58,7 @@ import {
   sanitizeMaxDelegationsPerTurn,
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
+import type { DelegationRuntimeEntry } from '@shared/delegationRuntimeRegistry'
 import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
@@ -298,6 +299,7 @@ interface Props {
     maxRounds: number
     jobId?: string
     workStyle?: 'linear' | 'turbo'
+    inflightDelegations?: DelegationRuntimeEntry[]
   }
   /** Pedido externo: abrir modal de configuración (p. ej. desde el plano). */
   preferOpenConfig?: boolean
@@ -2068,6 +2070,9 @@ export const AgentPane: React.FC<Props> = ({
                 ? { orchestrationMaxRounds: roundInfo.maxRounds }
                 : {}),
             maxDelegationsPerTurn: resolveTurnMaxDelegationsPerTurn(currentMeta),
+            ...(roundInfo?.inflightDelegations?.length
+              ? { inflightDelegations: roundInfo.inflightDelegations }
+              : {}),
           }
         : {}),
       ...(!isLaneDelegation && resumeCliSession && currentMeta.cliSessionId

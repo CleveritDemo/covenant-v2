@@ -1,3 +1,5 @@
+import type { DelegationRuntimeEntry } from './delegationRuntimeRegistry'
+
 /** Coordinación multi-agente (orquestador / product owner → especialistas). */
 
 export type AgentCoordination = 'none' | 'orchestrator' | 'productOwner'
@@ -680,6 +682,31 @@ export function buildBatchedDelegationFollowUp(
     'Other jobs/waves may still be in flight; do not assume the repo or working tree is quiet.',
     'Integrate only this batch; do not cancel or rewrite unrelated parallel jobs.',
   ].join('\n')
+}
+
+const INFLIGHT_OBJECTIVE_MAX = 120
+
+/** Bloque de carriles vivos para el prompt del orquestador. Vacío si no hay pendientes. */
+export function buildInflightDelegationsBlock(
+  entries: readonly DelegationRuntimeEntry[],
+  now: number,
+): string {
+  const live = entries.filter(entry => (
+    entry.status === 'pending' || entry.status === 'awaiting_merge'
+  ))
+  if (!live.length) return ''
+  const lines = ['## Delegaciones en vuelo']
+  for (const entry of live) {
+    const minutes = Math.max(0, Math.round((now - entry.registeredAt) / 60_000))
+    const shortId = entry.delegationId.slice(0, 8)
+    const firstLine = (entry.objective ?? '').split(/\r?\n/, 1)[0] ?? ''
+    const clipped = firstLine.slice(0, INFLIGHT_OBJECTIVE_MAX)
+    lines.push(`- ${entry.toAgentId} · ${shortId} · ${minutes} min · ${clipped}`)
+  }
+  lines.push(
+    'No re-delegues nada de esta lista: sigue viva aunque su trabajo no aparezca en el árbol.',
+  )
+  return lines.join('\n')
 }
 
 /**

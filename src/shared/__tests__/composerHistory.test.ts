@@ -110,10 +110,11 @@ describe('composerHistoryFromEntries', () => {
 })
 
 describe('isHostInjectedFollowUp', () => {
-  it('detecta los tres prefijos de follow-up del host', () => {
+  it('detecta los prefijos de follow-up del host', () => {
     expect(isHostInjectedFollowUp('## Delegation result\nid: x')).toBe(true)
     expect(isHostInjectedFollowUp('## Orchestration limit\nround: 1')).toBe(true)
     expect(isHostInjectedFollowUp('## Delegation fence problem\nagent: qa')).toBe(true)
+    expect(isHostInjectedFollowUp('## Delegación duplicada\nLa delegación a frontend no se despachó')).toBe(true)
   })
 
   it('no confunde menciones a mitad de párrafo', () => {

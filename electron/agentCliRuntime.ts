@@ -64,6 +64,7 @@ import {
 import {
   buildOrchestratorAgentsBlock,
   buildOrchestratorTurboWorkStyleBlock,
+  buildInflightDelegationsBlock,
   coordinationCanDelegate,
   formatDelegateParseIssues,
   formatDelegationResultFollowUp,
@@ -803,6 +804,7 @@ export function composePrompt(
   const allowedAgentIds = (request.orchestrationAgents ?? []).map(agent => agent.agentId)
   const workStyle = request.orchestrationWorkStyle === 'turbo' ? 'turbo' as const : 'linear' as const
   const allowParallelLanes = request.allowParallelLanes !== false
+  const inflightBlock = buildInflightDelegationsBlock(request.inflightDelegations ?? [], Date.now())
   const orchestrationBlock = canDelegate
     ? [
         buildOrchestratorAgentsBlock(request.orchestrationAgents ?? [], { allowParallelLanes }),
@@ -816,6 +818,7 @@ export function composePrompt(
               '',
             ]
           : []),
+        ...(inflightBlock ? [inflightBlock, ''] : []),
         isProductOwner(request.coordination)
           ? buildAiAgentProductOwnerInstruction({
             allowDelegations,

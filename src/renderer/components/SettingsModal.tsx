@@ -50,7 +50,6 @@ const LANGUAGES: { value: Language; label: string }[] = [
 ]
 
 const CATEGORIES = [
-  { id: 'telemetry', icon: 'chart', labelKey: 'settings.telemetrySection' },
   { id: 'cli', icon: 'bot', labelKey: 'settings.agentCliSection' },
   { id: 'github', icon: 'git-branch', labelKey: 'settings.githubSection' },
   { id: 'jira', icon: 'jira', labelKey: 'jira.section' },
@@ -59,6 +58,7 @@ const CATEGORIES = [
   { id: 'advanced', icon: 'folder', labelKey: 'settings.advancedSection' },
   { id: 'updates', icon: 'refresh', labelKey: 'settings.updatesSection' },
   { id: 'about', icon: 'history', labelKey: 'settings.aboutSection' },
+  { id: 'telemetry', icon: 'chart', labelKey: 'settings.telemetrySection' },
   { id: 'developer', icon: 'code', labelKey: 'settings.developerSection' },
 ] as const
 

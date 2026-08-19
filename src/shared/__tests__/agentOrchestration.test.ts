@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildOrchestratorAgentsBlock,
   buildOrchestratorTurboWorkStyleBlock,
+  buildInflightDelegationsBlock,
   buildBatchedDelegationFollowUp,
   buildDelegateWarningFollowUp,
   coordinationCanDelegate,
@@ -553,5 +554,64 @@ describe('buildDelegateWarningFollowUp', () => {
   it('returns empty string for empty or whitespace-only lines', () => {
     expect(buildDelegateWarningFollowUp([])).toBe('')
     expect(buildDelegateWarningFollowUp(['', '   ', '\t'])).toBe('')
+  })
+})
+
+describe('buildInflightDelegationsBlock', () => {
+  const now = 10 * 60_000
+
+  it('devuelve vacío si no hay entradas vivas', () => {
+    expect(buildInflightDelegationsBlock([], now)).toBe('')
+    expect(buildInflightDelegationsBlock([
+      {
+        delegationId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        fromPaneId: 'p-orq',
+        toPaneId: 'p-fe',
+        toAgentId: 'frontend',
+        jobId: 'j1',
+        status: 'completed',
+        registeredAt: 0,
+        objective: 'ya terminó',
+      },
+    ], now)).toBe('')
+  })
+
+  it('lista carriles vivos con agente, id corto, minutos y objetivo recortado', () => {
+    const longObjective = `${'A'.repeat(130)}\nsegunda línea`
+    const text = buildInflightDelegationsBlock([
+      {
+        delegationId: 'abcdef12-3456-7890-abcd-ef1234567890',
+        fromPaneId: 'p-orq',
+        toPaneId: 'p-fe',
+        toAgentId: 'frontend',
+        jobId: 'j1',
+        status: 'pending',
+        registeredAt: 5 * 60_000,
+        objective: longObjective,
+      },
+      {
+        delegationId: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff',
+        fromPaneId: 'p-orq',
+        toPaneId: 'p-qa',
+        toAgentId: 'qa',
+        jobId: 'j1',
+        status: 'awaiting_merge',
+        registeredAt: 0,
+        objective: 'revisa el PR',
+      },
+    ], now)
+    expect(text).toContain('## Delegaciones en vuelo')
+    expect(text).toContain('frontend')
+    expect(text).toContain('abcdef12')
+    expect(text).toContain('5 min')
+    expect(text).toContain('A'.repeat(120))
+    expect(text).not.toContain('A'.repeat(121))
+    expect(text).not.toContain('segunda línea')
+    expect(text).toContain('qa')
+    expect(text).toContain('10 min')
+    expect(text).toContain('revisa el PR')
+    expect(text).toContain(
+      'No re-delegues nada de esta lista: sigue viva aunque su trabajo no aparezca en el árbol.',
+    )
   })
 })

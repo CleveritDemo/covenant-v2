@@ -41,6 +41,7 @@ export function isHostInjectedFollowUp(content: string): boolean {
     looksLikeDelegationResultFollowUp(content)
     || trimmed.startsWith('## Orchestration limit')
     || trimmed.startsWith('## Delegation fence problem')
+    || trimmed.startsWith('## Delegación duplicada')
   )
 }
 

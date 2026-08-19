@@ -28,7 +28,29 @@ describe('delegationRuntimeRegistry', () => {
     })
     expect(entry.status).toBe('pending')
     expect(entry.toThreadId).toBe('thread-1')
+    expect(entry.objective).toBe('')
     expect(getDelegationRuntime(reg, 'd1')).toBe(entry)
+  })
+
+  it('persiste el objective y cae a string vacío si no llega', () => {
+    const reg = makeRegistry()
+    const withObjective = registerDelegationRuntime(reg, {
+      delegationId: 'd-obj',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-s',
+      toAgentId: 'frontend',
+      jobId: 'j1',
+      objective: 'Pinta la píldora del acta',
+    })
+    expect(withObjective.objective).toBe('Pinta la píldora del acta')
+    const without = registerDelegationRuntime(reg, {
+      delegationId: 'd-empty',
+      fromPaneId: 'p-o',
+      toPaneId: 'p-s',
+      toAgentId: 'qa',
+      jobId: 'j1',
+    })
+    expect(without.objective).toBe('')
   })
 
   it('attachDelegationWorktree adjunta info al entry existente', () => {

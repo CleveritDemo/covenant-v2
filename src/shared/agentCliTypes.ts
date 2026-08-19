@@ -7,6 +7,7 @@ import type {
   DelegateResult,
   OrchestrationAgentRef,
 } from './agentOrchestration'
+import type { DelegationRuntimeEntry } from './delegationRuntimeRegistry'
 import type { AgentNativeSkills } from './projectAgentCatalog'
 
 /** Imagen pegada desde el portapapeles; main la escribe a disco antes del turno. */
@@ -103,6 +104,8 @@ export interface AgentCliStartRequest {
   orchestrationWorkStyle?: 'linear' | 'turbo'
   /** Turbo: job/hilo activo de este turno (humano o follow-up). */
   orchestrationJobId?: string
+  /** Carriles vivos del orquestador para el bloque de prompt. */
+  inflightDelegations?: DelegationRuntimeEntry[]
   /** Resultados de delegaciones previas a inyectar en el prompt. */
   pendingDelegationResults?: DelegateResult[]
   cliSessionId?: string

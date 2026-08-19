@@ -631,6 +631,39 @@ describe('composePrompt identity', () => {
     expect(orch).toContain('2/3')
   })
 
+  it('incluye el bloque de delegaciones en vuelo junto al de turbo', () => {
+    const orch = composePrompt(
+      request({
+        provider: 'claude',
+        permissionMode: 'auto',
+        coordination: 'orchestrator',
+        orchestrationWorkStyle: 'turbo',
+        orchestrationJobId: 'job-1',
+        inflightDelegations: [
+          {
+            delegationId: 'abcdef12-3456-7890-abcd-ef1234567890',
+            fromPaneId: 'p-orq',
+            toPaneId: 'p-fe',
+            toAgentId: 'frontend',
+            jobId: 'job-1',
+            status: 'pending',
+            registeredAt: Date.now() - 60_000,
+            objective: 'pinta la píldora',
+          },
+        ],
+        prompt: 'sigue',
+      }),
+      '/tmp',
+      [],
+      '',
+    )
+    expect(orch).toContain('## Work style: turbo')
+    expect(orch).toContain('## Delegaciones en vuelo')
+    expect(orch).toContain('frontend')
+    expect(orch).toContain('pinta la píldora')
+    expect(orch).toContain('No re-delegues nada de esta lista')
+  })
+
   it('reminds the model to deliver plan body when permissionMode is plan', () => {
     const ask = composePrompt(
       request({ provider: 'cursor', permissionMode: 'auto', prompt: 'hola' }),

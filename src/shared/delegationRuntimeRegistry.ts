@@ -37,6 +37,8 @@ export type DelegationRuntimeEntry = {
   worktreeInfo?: DelegationRuntimeWorktreeInfo
   status: DelegationRuntimeStatus
   registeredAt: number
+  /** Objetivo del fence; vacío si el registro legacy no lo trajo. */
+  objective: string
 }
 
 export type DelegationRuntimeRegistry = Map<string, DelegationRuntimeEntry>
@@ -51,6 +53,7 @@ export type RegisterDelegationRuntimeInput = {
   baseAgentId?: string
   parentDelegationId?: string
   worktreeInfo?: DelegationRuntimeWorktreeInfo
+  objective?: string
 }
 
 export function registerDelegationRuntime(
@@ -70,6 +73,7 @@ export function registerDelegationRuntime(
     ...(input.worktreeInfo ? { worktreeInfo: input.worktreeInfo } : {}),
     status: 'pending',
     registeredAt: now,
+    objective: input.objective ?? '',
   }
   registry.set(input.delegationId, entry)
   return entry

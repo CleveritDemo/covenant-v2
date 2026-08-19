@@ -7031,7 +7031,7 @@ export const App: React.FC = () => {
       paneId => resolveTabAgentMeta(tab, paneId, projectAgentsByCwd).provider,
     ),
   })
-  const chrome = onboardingChromeHidden(onboardingActive)
+  const chrome = onboardingChromeHidden({ incomplete: incomplete && ready, path: config.orchestratorPath })
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
     incomplete: onboardingActive,

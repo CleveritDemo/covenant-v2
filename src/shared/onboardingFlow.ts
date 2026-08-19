@@ -70,19 +70,24 @@ export function canCompleteOnboarding(args: {
   return false
 }
 
-export function onboardingChromeHidden(incomplete: boolean): {
+/** Chrome recortado solo en fase pre-rol; tras elegir rol el usuario recupera Pulse, Wiki, Loops, orgs y nuevas pestañas aunque el onboarding siga incompleto. */
+export function onboardingChromeHidden(args: {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+}): {
   hideTabAdd: boolean
   hideOrganizations: boolean
   hidePulse: boolean
   hideWiki: boolean
   hideLoops: boolean
 } {
+  const hidden = args.incomplete && args.path === ''
   return {
-    hideTabAdd: incomplete,
-    hideOrganizations: incomplete,
-    hidePulse: incomplete,
-    hideWiki: incomplete,
-    hideLoops: incomplete,
+    hideTabAdd: hidden,
+    hideOrganizations: hidden,
+    hidePulse: hidden,
+    hideWiki: hidden,
+    hideLoops: hidden,
   }
 }
 

@@ -2,7 +2,6 @@ import React from 'react'
 import { Tooltip } from '../components/ui/Tooltip'
 import { Icon } from '../components/ui/Icon'
 import { Gravity } from './Gravity'
-import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import './AgentDelegatingIndicator.css'
 

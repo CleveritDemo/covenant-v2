@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.0
+
+### Añadido
+- El host ya no despacha dos delegaciones vivas con el mismo objetivo al mismo agente: avisa al orquestador y cada turno lista las que siguen en vuelo.
+
+### Cambiado
+- Telemetría baja al final del menú de Ajustes, junto a Developer.
+
 ## v0.94.0
 
 ### Añadido

@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.5
+Las delegaciones paralelas al mismo especialista vuelven a salir cuando cambia el archivo o el alcance: el anti-duplicado ya no las confunde por parecerse en el texto. Y si una delegación falla o se aborta, el reintento del mismo objetivo deja de quedar vetado dentro del pedido.
+
 ## v0.98.4
 El anti-duplicado por clave de despacho bloquea siempre cuando ese objetivo ya salió en el pedido, aunque el hilo ya no esté rastreado. El orquestador recibe aviso en lugar de un descarte silencioso. Incluye limpieza del import muerto y tests de PlaneQuickChat.
 

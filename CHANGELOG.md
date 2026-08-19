@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.4
+El motor de respaldo se elige en las mismas tarjetas del motor, no en un desplegable aparte: la primera tarjeta que marcas es el **Primario**, la segunda queda como **Respaldo**, y volver a pulsarla lo quita. Cada tarjeta seleccionada dice cuál es cuál.
+
+El respaldo ya puede llevar su propio modelo. Antes, el turno que se reintentaba heredaba el modelo del proveedor principal —un id que el otro CLI no conoce—; ahora eliges el modelo del respaldo, o dejas que use el suyo por defecto.
+
+Sin cambios en cuándo entra el respaldo: sigue siendo un solo recambio por turno y solo ante sobrecarga o rate limit, y el turno siguiente vuelve al principal.
+
 ## v0.95.3
 
 ### Corregido

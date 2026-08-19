@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DISMISSIBLE_GUIDE_STEPS } from '../onboardingGuideFlow'
 
 type SignalWrite = {
   assignedContext?: boolean
@@ -70,14 +71,15 @@ function resolveSignalWrite(input: {
   return {}
 }
 
-const dismissible = [
-  'assign_context',
-  'open_terminal',
-  'choose_path',
-  'pick_folder',
-] as const
-
 describe('onboarding signals matrix', () => {
+  it('DISMISSIBLE_GUIDE_STEPS matches the single source of dismissible steps', () => {
+    expect([...DISMISSIBLE_GUIDE_STEPS]).toEqual([
+      'saved_rooms',
+      'assign_context',
+      'open_terminal',
+    ])
+  })
+
   it('assign_drop writes assignedContext when a new foreign context is added', () => {
     expect(
       resolveSignalWrite({
@@ -173,10 +175,43 @@ describe('onboarding signals matrix', () => {
       resolveSignalWrite({
         event: 'guide_dismiss',
         step: 'assign_context',
-        dismissibleSteps: dismissible,
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
         doneSteps: ['open_terminal'],
       }),
     ).toEqual({ guideDone: ['open_terminal', 'assign_context'] })
+  })
+
+  it('guide_dismiss appends dismissible saved_rooms to guideDone', () => {
+    expect(
+      resolveSignalWrite({
+        event: 'guide_dismiss',
+        step: 'saved_rooms',
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
+        doneSteps: [],
+      }),
+    ).toEqual({ guideDone: ['saved_rooms'] })
+  })
+
+  it('guide_dismiss does not write guideDone for action step choose_path', () => {
+    expect(
+      resolveSignalWrite({
+        event: 'guide_dismiss',
+        step: 'choose_path',
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
+        doneSteps: [],
+      }),
+    ).toEqual({})
+  })
+
+  it('guide_dismiss does not write guideDone for action step pick_folder', () => {
+    expect(
+      resolveSignalWrite({
+        event: 'guide_dismiss',
+        step: 'pick_folder',
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
+        doneSteps: [],
+      }),
+    ).toEqual({})
   })
 
   it('guide_dismiss does not write guideDone for action step send_message', () => {
@@ -184,7 +219,7 @@ describe('onboarding signals matrix', () => {
       resolveSignalWrite({
         event: 'guide_dismiss',
         step: 'send_message',
-        dismissibleSteps: dismissible,
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
         doneSteps: [],
       }),
     ).toEqual({})
@@ -195,7 +230,7 @@ describe('onboarding signals matrix', () => {
       resolveSignalWrite({
         event: 'guide_dismiss',
         step: 'assign_context',
-        dismissibleSteps: dismissible,
+        dismissibleSteps: DISMISSIBLE_GUIDE_STEPS,
         doneSteps: ['assign_context'],
       }),
     ).toEqual({})

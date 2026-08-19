@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.3
+Se quitan las cabeceras de grupo por pedido humano en el indicador de delegación y el historial del plano. La lista vuelve a ser plana; el anti-duplicado de despacho no cambia.
+
 ## v0.98.2
 El onboarding solo aparece en la primera apertura con plano vacío. Si ya tienes agentes o terminal, el composer vuelve y el recorrido se marca completado solo.
 

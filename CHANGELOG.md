@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.9
+Los motores que no tienes instalados dejan de ser elegibles al configurar un agente: la tarjeta queda atenuada en lugar de dejarte asignar un CLI que después falla al arrancar. Si un agente ya tenía asignado un motor que ya no está disponible, esa tarjeta sigue pulsable para poder quitarlo.
+
 ## v0.98.8
 Saltar a una intervención desde el riel de rondas de una sala ya no descuadra la aplicación: antes el clic movía la ventana entera, cortaba la tira de pestañas y dejaba una franja vacía abajo, sin forma de volver. Ahora solo se desplaza el acta de la sala.
 

@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.97.3
+El onboarding ya no tapa el plano con un wizard: el primer paso es elegir rol Planear o Ejecutar. Rehacer el recorrido vuelve a preguntar el rol y borra path y señales.
+
 ## v0.97.2
 Las notas que los agentes escriben en la wiki del proyecto van al grano: hechos y rutas, sin relleno ni narración.
 

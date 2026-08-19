@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
-import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
+import type { TFunction } from 'i18next'
+import type {
+  OrchestrationAwaitingGroupView,
+  OrchestrationAwaitingItemView,
+  OrchestrationAwaitingView,
+} from '@shared/orchestrationAwaiting'
 import {
   paginateThreadHistory,
   splitThreadHistoryCandidates,
@@ -79,6 +84,51 @@ function panelLeftTowardCenter(trigger: DOMRect, panelWidth: number): number {
   const anchoredLeft = trigger.left - panelWidth - gap
   const left = ideal <= anchoredLeft ? ideal : anchoredLeft
   return Math.max(inset, Math.min(left, window.innerWidth - panelWidth - inset))
+}
+
+function awaitingGroupTitle(group: OrchestrationAwaitingGroupView, t: TFunction): string {
+  return group.title ?? t('agentPane.delegationGroup', { n: group.index })
+}
+
+function renderOrchestrationRow(item: OrchestrationAwaitingItemView): React.ReactNode {
+  return (
+    <div
+      key={item.delegationId}
+      className="plane-chat-thread-history__row plane-chat-thread-history__row--static"
+      role="presentation"
+    >
+      <PlaneBusyDot
+        size="sm"
+        variant={
+          item.status === 'done'
+            ? 'done'
+            : item.status === 'deferred'
+              ? 'deferred'
+              : 'delegating'
+        }
+      />
+      <span className="plane-chat-thread-history__label">{item.agentLabel}</span>
+    </div>
+  )
+}
+
+function renderOrchestrationBlocks(
+  awaiting: OrchestrationAwaitingView | null,
+  t: TFunction,
+): React.ReactNode {
+  const items = awaiting?.items ?? []
+  const groups = awaiting?.groups ?? []
+  if (groups.length >= 2) {
+    return groups.map(group => (
+      <React.Fragment key={group.jobId || `group-${group.index}`}>
+        <div className="plane-chat-thread-history__group" role="presentation">
+          {awaitingGroupTitle(group, t)}
+        </div>
+        {group.items.map(renderOrchestrationRow)}
+      </React.Fragment>
+    ))
+  }
+  return items.map(renderOrchestrationRow)
 }
 
 /** Popover paginado con todas las conversaciones del agente. */
@@ -371,25 +421,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
         className="plane-chat-thread-history__list"
         onScroll={handleScroll}
       >
-      {orchestrationItems.map(item => (
-          <div
-            key={item.delegationId}
-            className="plane-chat-thread-history__row plane-chat-thread-history__row--static"
-            role="presentation"
-          >
-            <PlaneBusyDot
-              size="sm"
-              variant={
-                item.status === 'done'
-                  ? 'done'
-                  : item.status === 'deferred'
-                    ? 'deferred'
-                    : 'delegating'
-              }
-            />
-            <span className="plane-chat-thread-history__label">{item.agentLabel}</span>
-          </div>
-        ))}
+      {renderOrchestrationBlocks(orchestrationAwaiting, t)}
         {awaitingDelegations
           && orchestrationItems.length === 0
           && delegations.length === 0 ? (

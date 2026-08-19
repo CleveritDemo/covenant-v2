@@ -69,6 +69,10 @@ export interface OrchestrationJob {
   fromPaneId: string
   /** Hilo del orquestador que abrió este job (linear / turbo). */
   fromThreadId?: string
+  /** epoch ms del alta del job (rótulo de grupo / orden en UI). */
+  createdAt?: number
+  /** Primera línea del mensaje humano que abrió el job, ya recortada. */
+  humanRequestPreview?: string
   /** Oleadas de este job (mensaje humano raíz + redelegaciones). */
   round: number
   pending: Map<string, OrchestrationJobPendingMeta>
@@ -146,12 +150,16 @@ export function createOrchestrationJob(
   fromPaneId: string,
   jobId?: string,
   fromThreadId?: string,
+  options?: { createdAt?: number; humanRequestPreview?: string },
 ): OrchestrationJob {
   const trimmedThreadId = fromThreadId?.trim()
+  const preview = options?.humanRequestPreview?.trim()
   return {
     jobId: jobId?.trim() || newJobId(),
     fromPaneId,
     ...(trimmedThreadId ? { fromThreadId: trimmedThreadId } : {}),
+    createdAt: options?.createdAt ?? Date.now(),
+    ...(preview ? { humanRequestPreview: preview } : {}),
     round: 0,
     pending: new Map(),
     deferred: [],
@@ -160,6 +168,21 @@ export function createOrchestrationJob(
     pendingMerges: [],
     hasDelegated: false,
   }
+}
+
+/** Primera línea no vacía, espacios colapsados, recorte a maxChars con '…'. */
+export function humanTurnPreview(text: string, maxChars = 60): string {
+  let first = ''
+  for (const line of text.split(/\r?\n/)) {
+    const collapsed = line.replace(/\s+/g, ' ').trim()
+    if (collapsed) {
+      first = collapsed
+      break
+    }
+  }
+  if (!first) return ''
+  if (first.length <= maxChars) return first
+  return `${first.slice(0, maxChars)}…`
 }
 
 /**
@@ -365,6 +388,7 @@ export function flattenAwaitingItemsFromJobs(
       const live = job.pending.get(item.delegationId)
       out.push({
         ...item,
+        jobId: job.jobId,
         toAgentId: live?.toAgentId ?? item.toAgentId,
         ...(live?.toPaneId
           ? { toPaneId: live.toPaneId }
@@ -382,6 +406,7 @@ export function flattenAwaitingItemsFromJobs(
       if (out.some(item => item.delegationId === delegationId)) continue
       out.push({
         delegationId,
+        jobId: job.jobId,
         toAgentId: meta.toAgentId,
         toPaneId: meta.toPaneId,
         status: 'running',
@@ -391,6 +416,7 @@ export function flattenAwaitingItemsFromJobs(
       if (out.some(item => item.delegationId === deferred.delegation.id)) continue
       out.push({
         delegationId: deferred.delegation.id,
+        jobId: job.jobId,
         toAgentId: deferred.toAgentId,
         toPaneId: deferred.toPaneId,
         status: 'deferred',

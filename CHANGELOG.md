@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.10
+La barra superior queda limpia: se retiró la marca del centro, así que el espacio es para lo que estás haciendo. En Ajustes, la sección de motores pasa a llamarse Harnesses, el mismo nombre que se usa al hablar de ellos en el resto del producto.
+
 ## v0.98.9
 Los motores que no tienes instalados dejan de ser elegibles al configurar un agente: la tarjeta queda atenuada en lugar de dejarte asignar un CLI que después falla al arrancar. Si un agente ya tenía asignado un motor que ya no está disponible, esa tarjeta sigue pulsable para poder quitarlo.
 

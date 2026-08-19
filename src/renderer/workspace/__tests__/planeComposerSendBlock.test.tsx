@@ -3,7 +3,6 @@
  *
  * Bloqueo de envío del composer por CLI faltante o motor vacío.
  */
-import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneChatComposer } from '../PlaneChatComposer'

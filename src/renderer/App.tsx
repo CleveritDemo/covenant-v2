@@ -92,7 +92,7 @@ import {
   filterBrainstormInvitableAgents,
   type BrainstormRoom,
 } from '../shared/brainstormRoom'
-import { TabFileExplorerWindow, type TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
+import type { TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
 import {
   armMiniExpandSuppress,
   isMiniExpandSuppressed,
@@ -146,7 +146,6 @@ import {
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
   buildDelegationTurnSummary,
-  isBetterDelegationSummary,
   isDelegationSummaryPlaceholder,
 } from '@shared/delegationTurnSummary'
 import {
@@ -280,7 +279,6 @@ import {
 import {
   agentChatRefFor,
   planAgentChatCleanupForRemovedPanes,
-  type AgentChatRef,
   type AgentChatScope,
 } from '../shared/agentChatPersistence'
 import { composerHistoryFromEntries } from '@shared/composerHistory'

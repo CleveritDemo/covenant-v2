@@ -111,6 +111,8 @@ export interface TabAgenticPlaneProps {
   hideWiki?: boolean
   hideLoops?: boolean
   agentCliMissing?: boolean
+  /** Bloqueo explícito del composer (motor vacío, etc.). */
+  composerSendBlock?: 'none' | 'cli' | 'engine'
   /** Superficie locked: App manda, el idle no re-deriva. */
   showPathPicker?: boolean
   showFolderCta?: boolean
@@ -388,6 +390,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   hideWiki = false,
   hideLoops = false,
   agentCliMissing = false,
+  composerSendBlock = 'none',
   showPathPicker,
   showFolderCta,
   showTeamFab,
@@ -1491,6 +1494,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               onContextSaved={onContextSaved}
               onLoadPromptHistory={onLoadPromptHistory}
               agentCliMissing={agentCliMissing}
+              sendBlock={composerSendBlock}
             />
           ) : null}
         />

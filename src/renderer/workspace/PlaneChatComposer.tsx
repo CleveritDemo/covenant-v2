@@ -151,6 +151,8 @@ export interface PlaneChatComposerProps {
   onLoadPromptHistory?: (paneId: string, threadId: string | null) => Promise<string[]>
   /** Sin CLI instalado: el envío muestra aviso y no sale. */
   agentCliMissing?: boolean
+  /** Bloqueo explícito del envío; tiene prioridad sobre agentCliMissing. */
+  sendBlock?: 'none' | 'cli' | 'engine'
 }
 
 export interface PlaneChatComposerHandle {
@@ -184,8 +186,10 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
     onContextSaved,
     onLoadPromptHistory,
     agentCliMissing = false,
+    sendBlock = 'none',
   }, ref) {
   const { t, i18n } = useT()
+  const block = sendBlock !== 'none' ? sendBlock : (agentCliMissing ? 'cli' : 'none')
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
   const [pendingPastes, setPendingPastes] = useState<ComposerPastedText[]>([])
@@ -324,8 +328,8 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
   }, [queueFullNotice, onQueueFullNoticeDismiss])
 
   useEffect(() => {
-    if (!agentCliMissing) setCliMissingNotice(false)
-  }, [agentCliMissing])
+    if (block === 'none') setCliMissingNotice(false)
+  }, [block])
 
   const dismissQueueFullNotice = useCallback((): void => {
     if (queueFullNotice) onQueueFullNoticeDismiss?.()
@@ -475,7 +479,7 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
   }, [contexts, noAgentSelected])
 
   const submit = useCallback((overrideText?: string): void => {
-    if (agentCliMissing) {
+    if (block !== 'none') {
       setCliMissingNotice(true)
       return
     }
@@ -509,7 +513,7 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
     pendingImages,
     pendingPastes,
     selected,
-    agentCliMissing,
+    block,
   ])
 
   const mapDictationError = useCallback((code: string): string => {
@@ -710,7 +714,9 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
         ) : null}
 
         {queueFullNotice ? <PlaneQueueFullNotice /> : null}
-        {cliMissingNotice ? <PlaneCliMissingNotice /> : null}
+        {cliMissingNotice ? (
+          <PlaneCliMissingNotice reason={block === 'engine' ? 'engine' : 'cli'} />
+        ) : null}
 
         <PlaneChatComposerShell
           value={draft}

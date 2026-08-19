@@ -744,6 +744,7 @@ const en = {
     pathExecuteHint: 'The plane: chat with the team, agents, and terminals.',
     inviteTeam: 'Were you invited to a team?',
     composerCliMissing: 'Install and authenticate an agent CLI to send.',
+    composerEngineMissing: 'This agent has no CLI engine. Pick one in its settings to send.',
     planeEmptyHint: 'Choose the project folder to create terminals or agents.',
     bootstrapAgents: 'Create team',
     bootstrapAgentsTitle: 'Create Covenant team',

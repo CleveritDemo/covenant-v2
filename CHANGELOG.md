@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.1
+
+### Corregido
+- Crear un tab desde un workspace organizacional ya no pide configurar un token cuando hay cuentas de GitHub en el llavero.
+- El clone del workspace usa el PAT de la cuenta seleccionada en vez de caer a la credencial global de git.
+
 ## v0.95.0
 
 ### Añadido

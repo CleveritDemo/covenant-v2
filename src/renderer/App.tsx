@@ -493,6 +493,48 @@ export function applyPlaneSelectThreadMeta(
   }
 }
 
+/** Filas de CLI para el guard async de envío del plano durante onboarding. */
+export async function resolveOnboardingSendGuardCliRows(
+  guideLocked: boolean,
+  cachedClis: OnboardingCliRow[],
+  refreshOnboardingClis: () => Promise<OnboardingCliRow[]>,
+): Promise<OnboardingCliRow[]> {
+  if (guideLocked) {
+    return refreshOnboardingClis()
+  }
+  return cachedClis.length > 0 ? cachedClis : refreshOnboardingClis()
+}
+
+/** Decide si persistir onboardingSentFirstMessage tras encolar un envío humano del plano. */
+export async function evaluateOnboardingPlaneSendPersistGuard(args: {
+  guideLocked: boolean
+  cachedClis: OnboardingCliRow[]
+  refreshOnboardingClis: () => Promise<OnboardingCliRow[]>
+  orchestratorPath: OrchestratorPath | ''
+  paneId: string
+  paneKinds?: Record<string, unknown>
+  resolveProvider: (paneId: string) => string | undefined
+}): Promise<boolean> {
+  const rows = await resolveOnboardingSendGuardCliRows(
+    args.guideLocked,
+    args.cachedClis,
+    args.refreshOnboardingClis,
+  )
+  const cliAllMissing = clisAllMissing(rows)
+  return resolveComposerSendBlock({
+    incomplete: args.guideLocked,
+    path: args.orchestratorPath,
+    cliAllMissing,
+    engineMissing: composerEngineMissingForTab(
+      {
+        planeOpenChatAgentId: args.paneId,
+        paneKinds: args.paneKinds,
+      },
+      args.resolveProvider,
+    ),
+  }) === 'none'
+}
+
 export const App: React.FC = () => {
   const { t } = useT()
   const [tabs, setTabs] = useState<TabSession[]>([])
@@ -7620,27 +7662,21 @@ export const App: React.FC = () => {
                         fifo: nextQueue.length,
                       })
                       void (async () => {
-                        const rows = onboardingClis.length > 0
-                          ? onboardingClis
-                          : await refreshOnboardingClis()
-                        const cliAllMissing = clisAllMissing(rows)
                         const snapshot = tabsRef.current.find(t => t.id === tab.id) ?? tab
-                        if (resolveComposerSendBlock({
-                          incomplete: guideLocked,
-                          path: config.orchestratorPath,
-                          cliAllMissing,
-                          engineMissing: composerEngineMissingForTab(
-                            {
-                              planeOpenChatAgentId: paneId,
-                              paneKinds: snapshot.paneKinds,
-                            },
-                            pid => resolveTabAgentMeta(
-                              snapshot,
-                              pid,
-                              projectAgentsByCwdRef.current,
-                            ).provider,
-                          ),
-                        }) !== 'none') {
+                        const shouldPersist = await evaluateOnboardingPlaneSendPersistGuard({
+                          guideLocked,
+                          cachedClis: onboardingClis,
+                          refreshOnboardingClis,
+                          orchestratorPath: config.orchestratorPath,
+                          paneId,
+                          paneKinds: snapshot.paneKinds,
+                          resolveProvider: pid => resolveTabAgentMeta(
+                            snapshot,
+                            pid,
+                            projectAgentsByCwdRef.current,
+                          ).provider,
+                        })
+                        if (!shouldPersist) {
                           return
                         }
                         persistOnboardingSignals({ onboardingSentFirstMessage: true })

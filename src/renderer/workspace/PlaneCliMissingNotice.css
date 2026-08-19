@@ -1,0 +1,9 @@
+.plane-cli-missing-notice {
+  margin: 0 0 8px;
+  padding: 0;
+  color: color-mix(in srgb, var(--caution) 80%, var(--text));
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}

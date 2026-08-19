@@ -48,6 +48,9 @@ export type { TextAreaProps, TextAreaSize, TextAreaVariant } from './TextArea'
 export { ChoiceCard } from './ChoiceCard'
 export type { ChoiceCardProps } from './ChoiceCard'
 
+export { OptionRow } from './OptionRow'
+export type { OptionRowProps } from './OptionRow'
+
 export { SegmentedControl } from './SegmentedControl'
 export type {
   SegmentedControlProps,

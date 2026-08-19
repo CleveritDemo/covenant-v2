@@ -211,6 +211,7 @@ import {
 } from '@shared/delegationRuntimeRegistry'
 import {
   buildDuplicateDelegationFollowUp,
+  buildRepeatedDispatchFollowUp,
   findDuplicateDelegation,
 } from '@shared/delegationDuplicateGuard'
 import {
@@ -4605,17 +4606,21 @@ export const App: React.FC = () => {
         }
         const existingDelegationId = keysByJob.get(dispatchKey)
         if (existingDelegationId) {
-          const existingThreadId = findTrackedDelegationThreadId(job, existingDelegationId)
-          if (existingThreadId) {
-            console.warn('[orchestration] delegación duplicada ignorada', {
-              delegationId: delegation.id,
-              orchestrationJobId: job.jobId,
-              toAgentId: decision.agentId,
-              reason: 'duplicate_delegation_signature',
-              existingThreadId,
-            })
-            continue
-          }
+          console.warn('[orchestration] delegación duplicada ignorada', {
+            delegationId: delegation.id,
+            orchestrationJobId: job.jobId,
+            toAgentId: decision.agentId,
+            reason: 'duplicate_dispatch_signature',
+            existingDelegationId,
+          })
+          enqueueOrchestrationSend(fromPaneId, {
+            text: buildRepeatedDispatchFollowUp({ toAgentId: decision.agentId }),
+            focusPane: false,
+            orchestrationFollowUp: true,
+            orchestrationJobId: job.jobId,
+            allowDelegations: !orchestrationRoundsAtCap(nextRound, maxRounds),
+          })
+          continue
         }
         keysByJob.set(dispatchKey, delegation.id)
       }

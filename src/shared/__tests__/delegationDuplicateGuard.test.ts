@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DUPLICATE_OBJECTIVE_THRESHOLD,
   buildDuplicateDelegationFollowUp,
+  buildRepeatedDispatchFollowUp,
   findDuplicateDelegation,
   normalizeObjective,
   objectiveSimilarity,
@@ -123,6 +124,15 @@ describe('findDuplicateDelegation', () => {
       objective,
       registry,
     })?.delegationId).toBe('d-live')
+  })
+})
+
+describe('buildRepeatedDispatchFollowUp', () => {
+  it('incluye el título y el agentId', () => {
+    const text = buildRepeatedDispatchFollowUp({ toAgentId: 'qa' })
+    expect(text).toContain('## Delegación duplicada')
+    expect(text).toContain('qa')
+    expect(text).toContain('ese mismo objetivo ya se despachó antes en este pedido')
   })
 })
 

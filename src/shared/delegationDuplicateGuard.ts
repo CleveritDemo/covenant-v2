@@ -70,3 +70,10 @@ export function buildDuplicateDelegationFollowUp(input: {
     `La delegación a ${input.toAgentId} no se despachó: ya hay un carril vivo con ese objetivo (${input.duplicate.delegationId}, hace ${minutes} min). Espera su resultado o re-emite con un alcance distinto.`,
   ].join('\n')
 }
+
+export function buildRepeatedDispatchFollowUp(input: { toAgentId: string }): string {
+  return [
+    '## Delegación duplicada',
+    `La delegación a ${input.toAgentId} no se despachó: ese mismo objetivo ya se despachó antes en este pedido. Espera su resultado o re-emite con un alcance distinto.`,
+  ].join('\n')
+}

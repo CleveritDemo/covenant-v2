@@ -104,3 +104,35 @@ describe('delegationDispatchKey', () => {
     expect(delegationDispatchKey({})).toBe('')
   })
 })
+
+describe('dispatch key repeat guard', () => {
+  it('bloquea cuando la clave ya está en el mapa aunque el job no rastree el hilo', () => {
+    const job = createOrchestrationJob('orch')
+    const existingDelegationId = 'del-first'
+    const dispatchKey = delegationDispatchKey({
+      toAgentId: 'qa',
+      objective: 'auditar el fix de delegación',
+    })
+    const keysByJob = new Map<string, string>([[dispatchKey, existingDelegationId]])
+
+    expect(findTrackedDelegationThreadId(job, existingDelegationId)).toBeUndefined()
+    expect(job.pending.size).toBe(0)
+    expect(job.waveItems).toHaveLength(0)
+    expect(job.completedResults).toHaveLength(0)
+    expect(keysByJob.get(dispatchKey)).toBe(existingDelegationId)
+    expect(Boolean(
+      keysByJob.get(dispatchKey) && findTrackedDelegationThreadId(job, existingDelegationId!),
+    )).toBe(false)
+    expect(Boolean(keysByJob.get(dispatchKey))).toBe(true)
+  })
+
+  it('no bloquea cuando la clave aún no está en el mapa del job', () => {
+    const dispatchKey = delegationDispatchKey({
+      toAgentId: 'qa',
+      objective: 'auditar el fix de delegación',
+    })
+    const keysByJob = new Map<string, string>()
+
+    expect(keysByJob.get(dispatchKey)).toBeUndefined()
+  })
+})

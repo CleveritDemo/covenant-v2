@@ -1064,7 +1064,12 @@ function buildHarnessFallbackRequest(
   if (!isRetryableHarnessOutage(failureText)) return null
   const next: AgentCliStartRequest = { ...request, provider: fallback! }
   delete next.cliSessionId
-  delete next.model
+  const fallbackModel = request.fallbackModel?.trim()
+  if (fallbackModel) {
+    next.model = fallbackModel
+  } else {
+    delete next.model
+  }
   return next
 }
 

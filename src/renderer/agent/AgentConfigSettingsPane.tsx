@@ -2,7 +2,7 @@ import { shortenHome } from '@shared/shortenHome'
 import React, { useEffect, useMemo, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
-import { agentCliSpec, providerCapabilities, AGENT_CLI_PROVIDER_IDS, isAgentCliProvider } from '@shared/agentCliProviders'
+import { agentCliSpec, providerCapabilities, AGENT_CLI_PROVIDER_IDS } from '@shared/agentCliProviders'
 import { providerMapsPlanMode } from '@shared/agentHarnessFallback'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
@@ -68,6 +68,7 @@ export interface AgentConfigSettingsPaneProps {
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
+  onChangeFallbackModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
   onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
   onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
@@ -153,6 +154,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onChangeProvider,
   onChangeFallbackProvider,
   onChangeModel,
+  onChangeFallbackModel,
   onChangePermission,
   onChangeNativeSkills,
   onChangeMcpsAllowed,
@@ -163,6 +165,11 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   const [localModels, setLocalModels] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState('')
+  const fallbackProvider = meta.fallbackProvider
+  const [fallbackModels, setFallbackModels] = useState<AgentModelOption[]>(() => (
+    fallbackProvider ? modelsForProvider(fallbackProvider) : []
+  ))
+  const [fallbackModelsLoading, setFallbackModelsLoading] = useState(false)
 
   useEffect(() => {
     if (modelOptionsProp) return
@@ -183,6 +190,23 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     })
     return () => { cancelled = true }
   }, [meta.provider, modelOptionsProp])
+
+  useEffect(() => {
+    if (!fallbackProvider) return
+    let cancelled = false
+    setFallbackModelsLoading(true)
+    setFallbackModels(modelsForProvider(fallbackProvider))
+    void window.api.listAgentCliModels(fallbackProvider).then(result => {
+      if (cancelled) return
+      if (result.models.length > 0) setFallbackModels(result.models)
+      setFallbackModelsLoading(false)
+    }).catch(() => {
+      if (cancelled) return
+      setFallbackModels(modelsForProvider(fallbackProvider))
+      setFallbackModelsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [fallbackProvider])
 
   const PERMISSION_MODES: Array<{
     value: AgentPermissionMode
@@ -207,23 +231,38 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     const providerMissing = cliStatuses[meta.provider]?.path === null
     const fallbackId = meta.fallbackProvider
     const fallbackMissing = fallbackId ? cliStatuses[fallbackId]?.path === null : false
-    const fallbackOptions = [
-      { value: '', label: t('agentPane.fallbackProviderNone') },
-      ...AGENT_CLI_PROVIDER_IDS
-        .filter(id => id !== meta.provider)
-        .filter(id => meta.permissionMode !== 'plan' || providerMapsPlanMode(id))
-        .map(id => ({ value: id, label: agentCliSpec(id).label })),
-    ]
+    const fallbackDisabledIds = meta.permissionMode === 'plan'
+      ? AGENT_CLI_PROVIDER_IDS.filter(
+        id => id !== meta.provider && !providerMapsPlanMode(id),
+      )
+      : []
+    const selectedFallbackModel = (meta as { fallbackModel?: string }).fallbackModel?.trim() ?? ''
+    const fallbackModelIsCustom = Boolean(
+      selectedFallbackModel && !fallbackModels.some(option => option.id === selectedFallbackModel),
+    )
     return (
       <div className="agent-config-settings__stack">
         <div className="agent-config-settings__field">
           <span className="agent-config-settings__label">{t('agentPane.providerLabel')}</span>
           <AgentProviderGrid
             value={meta.provider}
+            fallbackValue={meta.fallbackProvider}
             statuses={cliStatuses}
             disabled={locked}
-            onChange={onChangeProvider}
+            fallbackDisabledIds={fallbackDisabledIds}
+            onPick={id => {
+              if (id === meta.provider) return
+              if (id === meta.fallbackProvider) {
+                onChangeFallbackProvider(undefined)
+                return
+              }
+              onChangeFallbackProvider(id)
+            }}
           />
+          <p className="agent-config-settings__hint">{t('agentPane.fallbackProviderHint')}</p>
+          {!fallbackId ? (
+            <p className="agent-config-settings__hint">{t('agentPane.fallbackNone')}</p>
+          ) : null}
           {providerMissing ? (
             <p className="agent-config-settings__hint agent-config-settings__hint--warn">
               {t('agentPane.providerMissingHint', {
@@ -231,20 +270,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               })}
             </p>
           ) : null}
-        </div>
-        <label className="agent-config-settings__field">
-          <span className="agent-config-settings__label">{t('agentPane.fallbackProviderLabel')}</span>
-          <Select
-            value={meta.fallbackProvider ?? ''}
-            disabled={locked}
-            aria-label={t('agentPane.fallbackProviderLabel')}
-            title={t('agentPane.fallbackProviderHint')}
-            onChange={value => onChangeFallbackProvider(
-              isAgentCliProvider(value) ? value : undefined,
-            )}
-            options={fallbackOptions}
-          />
-          <p className="agent-config-settings__hint">{t('agentPane.fallbackProviderHint')}</p>
           {fallbackMissing ? (
             <p className="agent-config-settings__hint agent-config-settings__hint--warn">
               {t('agentPane.providerMissingHint', {
@@ -252,7 +277,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               })}
             </p>
           ) : null}
-        </label>
+        </div>
         <label className="agent-config-settings__field">
           <span className="agent-config-settings__label">{t('agentPane.modelLabel')}</span>
           <Select
@@ -290,6 +315,27 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             </div>
           ) : null}
         </label>
+        {fallbackId ? (
+          <label className="agent-config-settings__field">
+            <span className="agent-config-settings__label">{t('agentPane.fallbackModelLabel')}</span>
+            <Select
+              value={selectedFallbackModel}
+              disabled={locked || fallbackModelsLoading}
+              title={t('agentPane.fallbackModelHint')}
+              onChange={onChangeFallbackModel}
+              options={[
+                { value: '', label: t('agentPane.modelDefault') },
+                ...fallbackModels.map(option => ({
+                  value: option.id,
+                  hint: option.label === option.id ? undefined : option.id,
+                  label: option.label,
+                })),
+                ...(fallbackModelIsCustom ? [{ value: selectedFallbackModel, label: selectedFallbackModel }] : []),
+              ]}
+            />
+            <p className="agent-config-settings__hint">{t('agentPane.fallbackModelHint')}</p>
+          </label>
+        ) : null}
         <div className="agent-config-settings__field">
           <span className="agent-config-settings__label">{t('agentPane.workingDirectory')}</span>
           <AgentConfigFolderChip

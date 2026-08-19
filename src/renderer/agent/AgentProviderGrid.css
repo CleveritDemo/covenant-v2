@@ -5,6 +5,19 @@
   min-width: 0;
 }
 
+.agent-provider-grid__badge {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+}
+
+.agent-provider-grid__badge--fallback {
+  color: color-mix(in srgb, var(--text-muted) 72%, var(--text-secondary));
+}
+
 .agent-provider-grid__state {
   font-family: var(--font-ui);
   font-size: 10px;

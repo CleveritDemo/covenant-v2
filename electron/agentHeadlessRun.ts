@@ -87,7 +87,10 @@ export function runHeadlessAgentTurn(
       mcpsAllowed: input.agent.mcpsAllowed ?? [],
       contexts: input.contexts ?? [],
       ...(input.agent.fallbackProvider
-        ? { fallbackProvider: input.agent.fallbackProvider }
+        ? {
+            fallbackProvider: input.agent.fallbackProvider,
+            ...(input.agent.fallbackModel ? { fallbackModel: input.agent.fallbackModel } : {}),
+          }
         : {}),
     }
 

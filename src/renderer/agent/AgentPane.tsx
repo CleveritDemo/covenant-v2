@@ -3543,11 +3543,13 @@ export const AgentPane: React.FC<Props> = ({
 
   const changeFallbackProvider = (next?: AgentCliProvider): void => {
     onMetaChange(previous => {
+      const withFallbackModel = previous as typeof previous & { fallbackModel?: string }
       if (!next || next === previous.provider) {
-        const { fallbackProvider: _drop, ...rest } = previous
+        const { fallbackProvider: _drop, fallbackModel: _fm, ...rest } = withFallbackModel
         return rest
       }
-      return { ...previous, fallbackProvider: next }
+      const { fallbackModel: _fm, ...rest } = withFallbackModel
+      return { ...rest, fallbackProvider: next }
     })
   }
 
@@ -3556,6 +3558,15 @@ export const AgentPane: React.FC<Props> = ({
     onMetaChange(previous => {
       const { model: _previous, ...rest } = previous
       return next ? { ...rest, model: next } : rest
+    })
+  }
+
+  const changeFallbackModel = (model: string): void => {
+    const next = model.trim()
+    onMetaChange(previous => {
+      const withFallbackModel = previous as typeof previous & { fallbackModel?: string }
+      const { fallbackModel: _previous, ...rest } = withFallbackModel
+      return next ? { ...rest, fallbackModel: next } : rest
     })
   }
 
@@ -3820,6 +3831,7 @@ export const AgentPane: React.FC<Props> = ({
         onChangeProvider={changeProvider}
         onChangeFallbackProvider={changeFallbackProvider}
         onChangeModel={changeModel}
+        onChangeFallbackModel={changeFallbackModel}
         onChangePermission={changePermission}
         onChangeNativeSkills={nativeSkills => {
           onMetaChange(previous => {

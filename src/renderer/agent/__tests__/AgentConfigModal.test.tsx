@@ -86,6 +86,7 @@ function renderModal(
       onChangeProvider={() => {}}
       onChangeFallbackProvider={() => {}}
       onChangeModel={() => {}}
+      onChangeFallbackModel={() => {}}
       onChangePermission={() => {}}
       onChangeNativeSkills={() => {}}
       onChangeMcpsAllowed={() => {}}
@@ -294,6 +295,7 @@ describe('AgentConfigModal', () => {
         onChangeProvider={() => {}}
         onChangeFallbackProvider={() => {}}
         onChangeModel={() => {}}
+        onChangeFallbackModel={() => {}}
         onChangePermission={() => {}}
         onChangeNativeSkills={() => {}}
         onChangeMcpsAllowed={() => {}}

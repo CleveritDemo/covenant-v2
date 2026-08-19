@@ -1351,6 +1351,57 @@ describe('runAgentCliSpawn harness fallback', () => {
     }
   })
 
+  it('el recambio usa fallbackModel como model cuando está definido', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-model-'))
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stderr: 'HTTP 529 overloaded', code: 1 }))
+      .mockImplementationOnce(() => fakeCliProc({
+        stdout: '{"type":"result","result":"ok"}\n',
+        code: 0,
+      }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        fallbackModel: 'gpt-4o',
+        permissionMode: 'auto',
+        model: 'opus',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(2)
+      expect(spawnMock.mock.calls[0][1]).toContain('opus')
+      expect(spawnMock.mock.calls[1][1]).toContain('gpt-4o')
+      expect(spawnMock.mock.calls[1][1]).not.toContain('opus')
+      expect(events.filter(e => e.type === 'harness_fallback')).toHaveLength(1)
+      expect(code).toBe(0)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('sin fallbackModel el recambio no lleva model del primario', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-nomodel-'))
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stderr: 'HTTP 529 overloaded', code: 1 }))
+      .mockImplementationOnce(() => fakeCliProc({
+        stdout: '{"type":"result","result":"ok"}\n',
+        code: 0,
+      }))
+    try {
+      await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        permissionMode: 'auto',
+        model: 'opus',
+      }), cwd)
+      expect(spawnMock.mock.calls[1][1]).not.toContain('opus')
+      expect(spawnMock.mock.calls[1][1]).not.toContain('--model')
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
   it('no intenta recambio en plan si el fallback no mapea plan', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-plan-'))
     spawnMock.mockImplementationOnce(() => fakeCliProc({ stderr: 'overloaded', code: 1 }))

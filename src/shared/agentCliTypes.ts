@@ -29,6 +29,8 @@ export interface AgentCliStartRequest {
    * Omitido o igual al primario = sin recambio.
    */
   fallbackProvider?: AgentCliProvider
+  /** Se pasa como `--model` solo en el turno relanzado con el respaldo. */
+  fallbackModel?: string
   prompt: string
   /** Cwd del spawn CLI (puede ser worktree). */
   cwd: string

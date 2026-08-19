@@ -780,3 +780,41 @@ describe('fallbackProvider', () => {
     })).not.toHaveProperty('fallbackProvider')
   })
 })
+
+describe('fallbackModel', () => {
+  it('parse round-trip con fallbackProvider', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'cursor',
+      fallbackModel: '  gpt-4o  ',
+    })
+    expect(parsed?.fallbackProvider).toBe('cursor')
+    expect(parsed?.fallbackModel).toBe('gpt-4o')
+    expect(cloneProjectAgentDefinition(parsed!).fallbackModel).toBe('gpt-4o')
+  })
+
+  it('parse descarta sin fallbackProvider o vacío', () => {
+    expect(parseProjectAgentDefinition({
+      id: 'qa', provider: 'claude', permissionMode: 'auto', fallbackModel: 'gpt-4o',
+    })).not.toHaveProperty('fallbackModel')
+    expect(parseProjectAgentDefinition({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'cursor',
+      fallbackModel: '   ',
+    })).not.toHaveProperty('fallbackModel')
+  })
+
+  it('fromMeta propaga fallbackModel vía parse', () => {
+    expect(agentDefinitionFromMeta({
+      id: 'qa',
+      provider: 'claude',
+      permissionMode: 'auto',
+      fallbackProvider: 'cursor',
+      fallbackModel: 'sonnet',
+    }).fallbackModel).toBe('sonnet')
+  })
+})

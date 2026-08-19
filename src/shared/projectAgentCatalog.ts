@@ -64,6 +64,8 @@ export interface ProjectAgentDefinition {
    * Omitido o igual al primario = sin recambio.
    */
   fallbackProvider?: AgentCliProvider
+  /** Modelo del CLI de respaldo; vacío = default del CLI. */
+  fallbackModel?: string
   permissionMode: AgentPermissionMode
   /** Definición efímera de sesión; no se sincroniza con catálogos remotos. */
   localOnly?: boolean
@@ -489,7 +491,12 @@ export function parseProjectAgentDefinition(
     permissionMode: sanitizePermissionMode(data.permissionMode),
   }
   const fallbackProvider = sanitizeFallbackProvider(def.provider, data.fallbackProvider)
-  if (fallbackProvider) def.fallbackProvider = fallbackProvider
+  if (fallbackProvider) {
+    def.fallbackProvider = fallbackProvider
+    const fallbackModel =
+      typeof data.fallbackModel === 'string' ? data.fallbackModel.trim() : ''
+    if (fallbackModel) def.fallbackModel = fallbackModel
+  }
 
   const name = sanitizeAgentTextDraft(
     typeof data.name === 'string' ? data.name : undefined,
@@ -585,7 +592,10 @@ export function cloneProjectAgentDefinition(
     provider: source.provider,
     permissionMode: source.permissionMode,
     ...(source.fallbackProvider && source.fallbackProvider !== source.provider
-      ? { fallbackProvider: source.fallbackProvider }
+      ? {
+          fallbackProvider: source.fallbackProvider,
+          ...(source.fallbackModel ? { fallbackModel: source.fallbackModel } : {}),
+        }
       : {}),
     ...(name ? { name } : {}),
     ...(source.monogram ? { monogram: source.monogram } : {}),
@@ -741,6 +751,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
     provider: meta.provider,
     permissionMode: meta.permissionMode,
     fallbackProvider: meta.fallbackProvider,
+    fallbackModel: meta.fallbackModel,
     name: meta.name,
     monogram: meta.monogram,
     role: meta.role,

@@ -11,8 +11,9 @@ export interface ChoiceCardProps {
   onClick: () => void
   children: React.ReactNode
   icon?: React.ReactNode
-  role?: 'radio' | 'listitem'
+  role?: 'radio' | 'listitem' | 'button'
   'aria-checked'?: boolean
+  'aria-pressed'?: boolean
 }
 
 export const ChoiceCard: React.FC<ChoiceCardProps> = ({
@@ -24,11 +25,13 @@ export const ChoiceCard: React.FC<ChoiceCardProps> = ({
   icon,
   role,
   'aria-checked': ariaChecked,
+  'aria-pressed': ariaPressed,
 }) => (
   <button
     type="button"
     role={role}
     aria-checked={ariaChecked}
+    aria-pressed={ariaPressed}
     disabled={disabled}
     className={[
       'choice-card',

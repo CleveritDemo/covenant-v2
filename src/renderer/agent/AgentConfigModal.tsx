@@ -75,6 +75,7 @@ export interface AgentConfigModalProps {
   onChangeProvider: (provider: AgentCliProvider) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
+  onChangeFallbackModel: (model: string) => void
   onChangePermission: (permissionMode: AgentPermissionMode) => void
   onChangeNativeSkills: (nativeSkills: AgentNativeSkills | undefined) => void
   onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
@@ -110,6 +111,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   onChangeProvider,
   onChangeFallbackProvider,
   onChangeModel,
+  onChangeFallbackModel,
   onChangePermission,
   onChangeNativeSkills,
   onChangeMcpsAllowed,
@@ -242,7 +244,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   // Estado de guardado: flash al persistir cualquier campo del agente.
   const savedSnapshot = JSON.stringify([
     meta.id, meta.name, meta.role, meta.ceremonyRoles, meta.objective, meta.rules,
-    meta.provider, meta.fallbackProvider, meta.model, meta.permissionMode,
+    meta.provider, meta.fallbackProvider, meta.model, meta.fallbackModel, meta.permissionMode,
     meta.coordination, meta.orchestrationMaxRounds, meta.maxDelegationsPerTurn,
     meta.orchestrationWorkStyle, meta.delegateTo,
     meta.acceptDelegations,
@@ -469,6 +471,7 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
                 onChangeProvider={onChangeProvider}
                 onChangeFallbackProvider={onChangeFallbackProvider}
                 onChangeModel={onChangeModel}
+                onChangeFallbackModel={onChangeFallbackModel}
                 onChangePermission={onChangePermission}
                 onChangeNativeSkills={onChangeNativeSkills}
                 onChangeMcpsAllowed={onChangeMcpsAllowed}

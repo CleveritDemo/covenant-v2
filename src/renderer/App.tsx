@@ -37,7 +37,7 @@ import {
   onboardingChromeHidden,
   onboardingLockedSurface,
   shouldAutoCompleteFromPanes,
-  shouldWarnComposerMissingCli,
+  resolveComposerSendBlock,
 } from '@shared/onboardingFlow'
 import {
   resolveOnboardingGuideStep,
@@ -45,6 +45,7 @@ import {
 } from '@shared/onboardingGuideFlow'
 import {
   buildGuideResolveArgs,
+  composerEngineMissingForTab,
   shouldCompleteByGuideExhausted,
 } from './onboardingAppWiring'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
@@ -6925,6 +6926,18 @@ export const App: React.FC = () => {
   const onboardingActive = isOnboardingActive({ incomplete, tabs })
   const chromeLocked = onboardingActive && ready
   const guideLocked = isOnboardingGuideActive({ incomplete }) && ready
+  const composerSendBlockForTab = (tab: TabSession) => resolveComposerSendBlock({
+    incomplete: guideLocked,
+    path: config.orchestratorPath,
+    cliAllMissing: onboardingClisMissing,
+    engineMissing: composerEngineMissingForTab(
+      {
+        planeOpenChatAgentId: tab.planeOpenChatAgentId ?? null,
+        paneKinds: tab.paneKinds,
+      },
+      paneId => resolveTabAgentMeta(tab, paneId, projectAgentsByCwd).provider,
+    ),
+  })
   const chrome = onboardingChromeHidden(onboardingActive)
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
@@ -7176,6 +7189,7 @@ export const App: React.FC = () => {
         <div className="terminals-container">
           {configReady && sessionReady.loaded && tabs.map(tab => {
             const s = surfaceForTab(tab)
+            const sendBlock = composerSendBlockForTab(tab)
             const discoveredContexts = tabContextsByTab[tab.id] ?? []
             const tabContextBadges = discoveredContexts.map(ctx => ({
               id: ctx.id,
@@ -7602,11 +7616,23 @@ export const App: React.FC = () => {
                           ? onboardingClis
                           : await refreshOnboardingClis()
                         const cliAllMissing = clisAllMissing(rows)
-                        if (shouldWarnComposerMissingCli({
-                          incomplete: onboardingActive,
+                        const snapshot = tabsRef.current.find(t => t.id === tab.id) ?? tab
+                        if (resolveComposerSendBlock({
+                          incomplete: guideLocked,
                           path: config.orchestratorPath,
                           cliAllMissing,
-                        })) {
+                          engineMissing: composerEngineMissingForTab(
+                            {
+                              planeOpenChatAgentId: paneId,
+                              paneKinds: snapshot.paneKinds,
+                            },
+                            pid => resolveTabAgentMeta(
+                              snapshot,
+                              pid,
+                              projectAgentsByCwdRef.current,
+                            ).provider,
+                          ),
+                        }) !== 'none') {
                           return
                         }
                         persistOnboardingSignals({ onboardingSentFirstMessage: true })
@@ -7903,11 +7929,8 @@ export const App: React.FC = () => {
                   hidePulse={chrome.hidePulse}
                   hideWiki={chrome.hideWiki}
                   hideLoops={chrome.hideLoops}
-                  agentCliMissing={shouldWarnComposerMissingCli({
-                    incomplete: onboardingActive,
-                    path: config.orchestratorPath,
-                    cliAllMissing: onboardingClisMissing,
-                  })}
+                  composerSendBlock={sendBlock}
+                  agentCliMissing={sendBlock === 'cli'}
                   showPathPicker={s.showPathPicker}
                   showFolderCta={s.showFolderCta}
                   showTeamFab={s.showTeamFab}

@@ -428,6 +428,64 @@ function liveLaneThreadIdsForPane(
   return ids
 }
 
+export function findPendingDelegationForThread(
+  jobsByPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+  paneId: string,
+  threadId: string,
+): { delegationId: string } | undefined {
+  for (const jobsMap of jobsByPane.values()) {
+    for (const job of jobsMap.values()) {
+      for (const [delegationId, meta] of job.pending.entries()) {
+        if (meta.toPaneId === paneId && meta.toThreadId === threadId) {
+          return { delegationId }
+        }
+      }
+    }
+  }
+  return undefined
+}
+
+/** Updater de `onSelectThread` del plano: registra hilos de delegación pendientes. */
+export function applyPlaneSelectThreadMeta(
+  previous: AgentPaneMeta,
+  paneId: string,
+  threadId: string,
+  now: number,
+  jobsByPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
+): AgentPaneMeta {
+  const protectedIds = liveLaneThreadIdsForPane(paneId, jobsByPane)
+  const sanitized = sanitizeThreadState(
+    previous.threads,
+    previous.activeThreadId,
+    undefined,
+    protectedIds,
+  )
+  const existsInCatalog = (previous.threads ?? []).some(thread => thread.id === threadId)
+  let state = sanitized
+  if (!existsInCatalog) {
+    const pending = findPendingDelegationForThread(jobsByPane, paneId, threadId)
+    if (pending) {
+      state = {
+        ...sanitized,
+        threads: [
+          ...sanitized.threads,
+          {
+            id: threadId,
+            title: '',
+            updatedAt: now,
+            origin: 'delegation',
+            delegationId: pending.delegationId,
+          },
+        ],
+      }
+    }
+  }
+  return {
+    ...previous,
+    ...threadPatch(selectThreadOpened(state, threadId, now)),
+  }
+}
+
 export const App: React.FC = () => {
   const { t } = useT()
   const [tabs, setTabs] = useState<TabSession[]>([])
@@ -7530,23 +7588,15 @@ export const App: React.FC = () => {
                     setPlaneNewThreadPaneId(paneId)
                   }}
                   onSelectThread={(paneId, threadId) => {
-                    const protectedIds = liveLaneThreadIdsForPane(
-                      paneId,
-                      orchestrationJobsByPaneRef.current,
-                    )
-                    void handleAgentMetaChange(tab.id, paneId, previous => ({
-                      ...previous,
-                      ...threadPatch(selectThreadOpened(
-                        sanitizeThreadState(
-                          previous.threads,
-                          previous.activeThreadId,
-                          undefined,
-                          protectedIds,
-                        ),
+                    void handleAgentMetaChange(tab.id, paneId, previous => (
+                      applyPlaneSelectThreadMeta(
+                        previous,
+                        paneId,
                         threadId,
                         Date.now(),
-                      )),
-                    }))
+                        orchestrationJobsByPaneRef.current,
+                      )
+                    ))
                   }}
                   onOpenAgentFromCard={paneId => {
                     handlePlaneOpenChatAgent(tab.id, paneId)
@@ -7611,6 +7661,11 @@ export const App: React.FC = () => {
                     })
                   }}
                   openChatThreads={openChatThreadState?.threads ?? []}
+                  openChatRunningThreadIds={
+                    tab.planeOpenChatAgentId
+                      ? Array.from(runningThreadIdsByPane.get(tab.planeOpenChatAgentId) ?? [])
+                      : []
+                  }
                   openChatActiveThreadId={openChatThreadState?.activeThreadId ?? ''}
                   openChatOrchestrationAwaiting={
                     tab.planeOpenChatAgentId

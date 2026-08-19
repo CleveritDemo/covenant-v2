@@ -48,6 +48,8 @@ describe('createPastedText', () => {
 })
 
 describe('createQuotedReference', () => {
+  // Líneas vacías quedan como '>' pelado (sin espacio final): contrato deliberado
+  // para no meter trailing whitespace en el prompt. No «arreglarlo» a '> '.
   it('cita cada línea, marca kind y cuenta sobre el texto citado', () => {
     vi.stubGlobal('crypto', {
       randomUUID: () => 'cccccccc-dddd-eeee-ffff-000000000000',

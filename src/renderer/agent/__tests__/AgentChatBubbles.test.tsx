@@ -228,4 +228,62 @@ describe('AgentChatBubbles reference action', () => {
     )
     expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
   })
+
+  it('does not show the reference button on an assistant bubble without content', () => {
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-empty', role: 'assistant', content: '' }]}
+        busy={false}
+        activeAssistantId={null}
+        onReferenceMessage={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
+  })
+
+  it('does not show the reference button on a delegation follow-up row', () => {
+    render(
+      <AgentChatBubbles
+        messages={[
+          {
+            id: 'u-del',
+            role: 'user',
+            content: [
+              '## Delegation result',
+              'id: d1',
+              'status: ok',
+              'summary: Login form validated.',
+              'toAgentId: frontend',
+            ].join('\n'),
+          },
+        ]}
+        busy={false}
+        activeAssistantId={null}
+        onReferenceMessage={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('.delegation-card')).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
+  })
+
+  it('paints the reference button when onReferenceMessage arrives after the first render', () => {
+    const messages = [{ id: 'a-late', role: 'assistant' as const, content: 'Late callback.' }]
+    const { rerender } = render(
+      <AgentChatBubbles
+        messages={messages}
+        busy={false}
+        activeAssistantId={null}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
+    rerender(
+      <AgentChatBubbles
+        messages={messages}
+        busy={false}
+        activeAssistantId={null}
+        onReferenceMessage={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'agentPane.referenceBubble' })).toBeTruthy()
+  })
 })

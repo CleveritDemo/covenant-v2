@@ -304,6 +304,8 @@ const AgentChatBubbleRow = React.memo(AgentChatBubbleRowInner, (prev, next) => {
   if (prev.materializingIds.has(prev.message.id) !== next.materializingIds.has(next.message.id)) {
     return false
   }
+  if (prev.onReferenceMessage !== next.onReferenceMessage) return false
+  if (prev.onInsertCommand !== next.onInsertCommand) return false
   return true
 })
 

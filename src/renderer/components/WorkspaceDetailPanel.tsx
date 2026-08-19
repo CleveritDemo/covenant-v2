@@ -492,6 +492,9 @@ export function WorkspaceDetailPanel({
   canManageProjectAdmins,
   canDelete,
   busy,
+  openBusy,
+  openError,
+  onOpenRequest,
   onDeleteRequest,
   onAssigneeAdd,
   onAssigneeRemove,
@@ -506,6 +509,9 @@ export function WorkspaceDetailPanel({
   canManageProjectAdmins: boolean
   canDelete: boolean
   busy: boolean
+  openBusy: boolean
+  openError: string | null
+  onOpenRequest: () => void
   onDeleteRequest: (workspace: CovenantWorkspace) => void
   onAssigneeAdd: (login: string) => void
   onAssigneeRemove: (login: string) => void
@@ -524,6 +530,9 @@ export function WorkspaceDetailPanel({
             {`${slug} / ${workspace.name} · ${t('organizations.workspacePeopleCount', { count: peopleCount })}`}
           </p>
         </div>
+        <Button variant="primary" size="xs" disabled={openBusy || busy} onClick={onOpenRequest}>
+          {t('organizations.openAsTab')}
+        </Button>
         {canDelete ? (
           <Button variant="ghost" size="xs" disabled={busy} onClick={() => onDeleteRequest(workspace)}>
             <span className="orgs-danger-text">{t('organizations.deleteWorkspace')}</span>
@@ -531,6 +540,7 @@ export function WorkspaceDetailPanel({
         ) : null}
       </header>
       <div className="orgs-panel__body">
+        <SectionStatus loading={false} error={openError} loadingLabel={t('organizations.loading')} />
         <WorkspacePeopleSection
           assignees={workspace.assignees}
           admins={workspace.admins}

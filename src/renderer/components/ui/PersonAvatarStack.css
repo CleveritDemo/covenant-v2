@@ -1,0 +1,45 @@
+.person-avatar-stack {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex: none;
+}
+
+.person-avatar-stack__face {
+  position: relative;
+  flex: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 680;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border: 1.5px solid var(--bg);
+  box-sizing: border-box;
+}
+
+.person-avatar-stack__face:nth-child(1) { z-index: 4; }
+.person-avatar-stack__face:nth-child(2) { z-index: 3; }
+.person-avatar-stack__face:nth-child(3) { z-index: 2; }
+.person-avatar-stack__face:nth-child(4) { z-index: 1; }
+
+.person-avatar-stack__face:not(:first-child) {
+  margin-left: -6px;
+}
+
+.person-avatar-stack__face--more {
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.person-avatar-stack--sm .person-avatar-stack__face {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+
+.person-avatar-stack--md .person-avatar-stack__face {
+  width: 22px;
+  height: 22px;
+  font-size: 10.5px;
+}

@@ -14,15 +14,20 @@ vi.mock('@i18n/useT', () => ({
   }),
 }))
 
-const getCovenantApi = vi.fn<() => CovenantApi | undefined>()
+const getCovenantApi = vi.fn<(accountId?: string) => CovenantApi | undefined>()
 
 vi.mock('../../../covenantApi', async importOriginal => {
   const actual = await importOriginal<typeof import('../../../covenantApi')>()
   return {
     ...actual,
-    getCovenantApi: () => getCovenantApi(),
+    getCovenantApi: (accountId?: string) => getCovenantApi(accountId),
   }
 })
+
+const githubCheckToken = vi.fn()
+const githubAccountsList = vi.fn()
+const githubAccountUpsert = vi.fn()
+const openExternalUrl = vi.fn()
 
 const ok = <T,>(data: T) => Promise.resolve({ ok: true as const, data })
 
@@ -44,6 +49,20 @@ afterEach(() => {
 describe('OnboardingStepAccount', () => {
   beforeEach(() => {
     getCovenantApi.mockReturnValue(undefined)
+    githubCheckToken.mockReset()
+    githubAccountsList.mockReset()
+    githubAccountUpsert.mockReset()
+    openExternalUrl.mockReset()
+    githubCheckToken.mockResolvedValue({ ok: false, error: 'missing' })
+    githubAccountsList.mockResolvedValue({ ok: true, accounts: [], defaultAccountId: '' })
+    githubAccountUpsert.mockResolvedValue({ ok: true, account: { id: 'n1', label: 'Cuenta 1' } })
+    openExternalUrl.mockResolvedValue({ ok: true })
+    ;(window as unknown as { api: Record<string, unknown> }).api = {
+      githubCheckToken,
+      githubAccountsList,
+      githubAccountUpsert,
+      openExternalUrl,
+    }
   })
 
   it('sin sesión muestra el botón de iniciar sesión', async () => {
@@ -110,7 +129,21 @@ describe('OnboardingStepAccount', () => {
     expect(screen.queryByRole('button', { name: 'onboarding.accountContinue' })).toBeNull()
   })
 
-  it('un sign-in fallido muestra el error mapeado, no el genérico', async () => {
+  it('sin token efectivo muestra el campo PAT y no el error de Ajustes', async () => {
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: false })),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+
+    expect(await screen.findByPlaceholderText('onboarding.accountTokenPlaceholder')).toBeTruthy()
+    expect(screen.queryByText('organizations.errorNoGithubToken')).toBeNull()
+    expect(screen.queryByText('onboarding.accountError')).toBeNull()
+  })
+
+  it('no-github-token abre el campo PAT en vez del error rojo', async () => {
+    githubCheckToken.mockResolvedValue({ ok: true, login: 'gigi', scopes: [] })
     const api = mockApi({
       status: vi.fn(() => ok({ signedIn: false })),
       signIn: vi.fn(() => Promise.resolve({ ok: false as const, error: 'no-github-token' })),
@@ -120,8 +153,64 @@ describe('OnboardingStepAccount', () => {
     render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'onboarding.accountSignIn' }))
 
-    expect(await screen.findByText('organizations.errorNoGithubToken')).toBeTruthy()
+    expect(await screen.findByPlaceholderText('onboarding.accountTokenPlaceholder')).toBeTruthy()
+    expect(screen.queryByText('organizations.errorNoGithubToken')).toBeNull()
     expect(screen.queryByText('onboarding.accountError')).toBeNull()
+  })
+
+  it('un sign-in fallido distinto muestra el error mapeado, no el genérico', async () => {
+    githubCheckToken.mockResolvedValue({ ok: true, login: 'gigi', scopes: [] })
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: false })),
+      signIn: vi.fn(() => Promise.resolve({ ok: false as const, error: 'bad-credentials' })),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.accountSignIn' }))
+
+    expect(await screen.findByText('bad-credentials')).toBeTruthy()
+    expect(screen.queryByText('onboarding.accountError')).toBeNull()
+  })
+
+  it('pegar un PAT hace upsert, sign-in con esa cuenta y recarga status', async () => {
+    const unsigned = mockApi({
+      status: vi.fn(() => ok({ signedIn: false })),
+    })
+    const signed = mockApi({
+      status: vi.fn(() => ok({ signedIn: true, login: 'gigi', name: 'Gigi' })),
+      signIn: vi.fn(() => ok({ signedIn: true, login: 'gigi', name: 'Gigi' })),
+      orgsList: vi.fn(() => ok([])),
+    })
+    getCovenantApi.mockImplementation(id => (id === 'n1' ? signed : unsigned))
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+
+    fireEvent.change(await screen.findByPlaceholderText('onboarding.accountTokenPlaceholder'), {
+      target: { value: 'ghp_abc' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.accountTokenSubmit' }))
+
+    await waitFor(() => {
+      expect(githubAccountUpsert).toHaveBeenCalledWith({ label: 'Cuenta 1', token: 'ghp_abc' })
+    })
+    expect(signed.signIn).toHaveBeenCalled()
+    expect(await screen.findByText('onboarding.accountLeadSignedIn')).toBeTruthy()
+    expect(getCovenantApi).toHaveBeenCalledWith('n1')
+  })
+
+  it('Crear un token abre GitHub en el navegador', async () => {
+    const api = mockApi({
+      status: vi.fn(() => ok({ signedIn: false })),
+    })
+    getCovenantApi.mockReturnValue(api)
+
+    render(<OnboardingStepAccount onLoadOrgWorkspace={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.accountTokenCreate' }))
+
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      'https://github.com/settings/tokens/new?scopes=repo,read:org&description=Covenant%20Gravity',
+    )
   })
 
   it('con sesión llama onSignedInChange(true)', async () => {

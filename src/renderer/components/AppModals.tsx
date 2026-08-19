@@ -41,6 +41,7 @@ interface Props {
   onCloseSettings: () => void
   onCloseOrganizations: () => void
   onOrgWorkspacesMutated?: () => void
+  onOpenOrgWorkspace: (selection: OrgWorkspaceSelection) => void
   onCloseOrgWorkspacePicker: () => void
   onConfirmOrgWorkspacePicker: (selection: OrgWorkspaceSelection) => void
   promoteWorkspaceOpen: boolean
@@ -101,6 +102,7 @@ export const AppModals: React.FC<Props> = ({
   onCloseSettings,
   onCloseOrganizations,
   onOrgWorkspacesMutated,
+  onOpenOrgWorkspace,
   onCloseOrgWorkspacePicker,
   onConfirmOrgWorkspacePicker,
   promoteWorkspaceOpen,
@@ -183,6 +185,7 @@ export const AppModals: React.FC<Props> = ({
         <OrganizationsView
           onClose={onCloseOrganizations}
           onOrgWorkspacesMutated={onOrgWorkspacesMutated}
+          onOpenWorkspace={onOpenOrgWorkspace}
         />
       )}
 

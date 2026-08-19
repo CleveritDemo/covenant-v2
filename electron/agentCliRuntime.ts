@@ -13,6 +13,7 @@ import type {
   ContextDeliveryMetrics,
 } from '../src/shared/agentCliTypes'
 import {
+  claudeResultErrorText,
   isRetryableHarnessOutage,
   sanitizeFallbackProvider,
   shouldAttemptHarnessFallback,
@@ -429,8 +430,13 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
     }
   } else if (obj.type === 'result') {
     recordTurnUsage(claudeTurnUsage(obj))
-    const result = stringAt(obj, 'result')
-    if (result) out.push({ type: 'assistant_final', text: result })
+    const outage = claudeResultErrorText(obj)
+    if (outage) {
+      out.push({ type: 'harness_outage', text: outage })
+    } else {
+      const result = stringAt(obj, 'result')
+      if (result) out.push({ type: 'assistant_final', text: result })
+    }
   } else if (obj.type === 'assistant') {
     const text = contentText(obj)
     if (text && !('parent_tool_use_id' in obj)) {
@@ -1136,6 +1142,7 @@ export function runAgentCliSpawn(
     let stdoutBuffer = ''
     let stderrBuffer = ''
     let sawAssistantText = false
+    let providerOutageText: string | undefined
     let spawnErrnoMessage: string | undefined
     const suppressSession = spawnRequest.provider !== request.provider
 
@@ -1145,6 +1152,11 @@ export function runAgentCliSpawn(
 
     const emit = (events: AgentCliUiEvent[]): void => {
       for (const event of events) {
+        if (event.type === 'harness_outage') {
+          providerOutageText = event.text
+          handlers.onEvent(event)
+          continue
+        }
         if (event.type === 'session') {
           latestSessionId = event.cliSessionId
           if (suppressSession) continue
@@ -1193,9 +1205,10 @@ export function runAgentCliSpawn(
       const phaseStillActive = current?.proc === proc && current.generation === generation
       if (phaseStillActive) agentRuns.delete(runKey)
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
-      if (code && !sawAssistantText) {
-        const message = formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage)
-        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)
+      if ((code || providerOutageText) && !sawAssistantText) {
+        const failureText = stderrBuffer || spawnErrnoMessage || providerOutageText || ''
+        const message = formatCliSpawnFailure(command, code, failureText)
+        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, failureText)
         if (next) {
           harnessFallbackAttempted = true
           activeRequest = next
@@ -1209,7 +1222,11 @@ export function runAgentCliSpawn(
           startSpawn(next)
           return
         }
-        handlers.onEvent({ type: 'error', message })
+        if (providerOutageText) {
+          handlers.onEvent({ type: 'assistant_final', text: providerOutageText })
+        } else {
+          handlers.onEvent({ type: 'error', message })
+        }
       }
       handlers.onDone(code ?? 0)
     })
@@ -1336,6 +1353,7 @@ export function startAgentTurn(
     let stderrBuffer = ''
     let continuationPrompt: string | null = null
     let sawAssistantText = false
+    let providerOutageText: string | undefined
     let spawnErrnoMessage: string | undefined
     /** Evita pegar el mismo CreatePlan dos veces (started + completed). */
     let lastCreatePlanText = ''
@@ -1348,6 +1366,10 @@ export function startAgentTurn(
     const emit = (events: AgentCliUiEvent[]): void => {
       {
         for (const event of events) {
+          if (event.type === 'harness_outage') {
+            providerOutageText = event.text
+            continue
+          }
           if (event.type === 'session') {
             latestSessionId = event.cliSessionId
             if (activeRequest.provider === request.provider) send(win, runKey, event)
@@ -1537,9 +1559,9 @@ export function startAgentTurn(
       // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
 
-      if (code && !sawParsedAssistantText) {
-        const message = formatCliSpawnFailure(command, code, stderrBuffer || spawnErrnoMessage)
-        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, message)
+      if ((code || providerOutageText) && !sawParsedAssistantText) {
+        const failureText = stderrBuffer || spawnErrnoMessage || providerOutageText || ''
+        const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, failureText)
         if (next) {
           harnessFallbackAttempted = true
           activeRequest = next
@@ -1556,7 +1578,7 @@ export function startAgentTurn(
       }
       // El CLI habló pero su NDJSON no encajó con el normalizador: mostrar el
       // volcado crudo en vez de un turno mudo (delata el esquema desconocido).
-      if (!sawAssistantText && rawStdout.trim()) {
+      if (!sawAssistantText && !providerOutageText && rawStdout.trim()) {
         emit([{ type: 'assistant_final', text: rawStdout.trimEnd() }])
       }
 
@@ -1578,6 +1600,9 @@ export function startAgentTurn(
         agentRuns.set(runKey, { proc: null, windowId: win.id, generation })
         startPhase(continuationPrompt, contextRound + 1)
         return
+      }
+      if (providerOutageText && !sawParsedAssistantText) {
+        send(win, runKey, { type: 'assistant_final', text: providerOutageText })
       }
       if (code && !sawParsedAssistantText) {
         send(win, runKey, {

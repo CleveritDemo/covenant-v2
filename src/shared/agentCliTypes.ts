@@ -123,6 +123,8 @@ export type AgentCliUiEvent =
   | { type: 'session'; cliSessionId: string }
   | { type: 'error'; message: string }
   | { type: 'harness_fallback'; from: AgentCliProvider; to: AgentCliProvider }
+  /** Interno normalizador→runtime; no se reenvía al renderer. */
+  | { type: 'harness_outage'; text: string }
   | {
     type: 'delegate'
     delegations: Array<{

@@ -8,6 +8,7 @@ import {
 import { mapCovenantAuthError } from '../../covenantAuthErrorLabel'
 import { SectionStatus } from '../OrgSectionStatus'
 import { Button } from '../ui/Button'
+import { Input } from '../ui/Input'
 import './OnboardingStepAccount.css'
 
 export interface OnboardingStepAccountProps {
@@ -18,19 +19,26 @@ export interface OnboardingStepAccountProps {
 }
 
 const ORG_PREVIEW_LIMIT = 5
+const GITHUB_TOKEN_CREATE_URL =
+  'https://github.com/settings/tokens/new?scopes=repo,read:org&description=Covenant%20Gravity'
 
 export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
   onSignedInChange,
   onLoadOrgWorkspace,
 }) => {
   const { t } = useT()
-  const covenant = useMemo(() => getCovenantApi(), [])
+  const [accountId, setAccountId] = useState('')
+  const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
   const [loading, setLoading] = useState(() => covenant != null)
   const [hasError, setHasError] = useState(false)
   const [signInError, setSignInError] = useState('')
   const [auth, setAuth] = useState<CovenantAuthStatus | null>(null)
   const [orgs, setOrgs] = useState<CovenantOrg[]>([])
   const [signingIn, setSigningIn] = useState(false)
+  const [tokenDraft, setTokenDraft] = useState('')
+  const [savingToken, setSavingToken] = useState(false)
+  const [needsToken, setNeedsToken] = useState(false)
+  const [tokenError, setTokenError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -55,6 +63,11 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
 
       if (!statusResult.data.signedIn) {
         setOrgs([])
+        if (typeof window.api?.githubCheckToken === 'function') {
+          const check = await window.api.githubCheckToken('')
+          if (cancelled) return
+          if (!check.ok) setNeedsToken(true)
+        }
         setLoading(false)
         return
       }
@@ -90,6 +103,10 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
     setSigningIn(false)
 
     if (!result.ok) {
+      if (result.error === 'no-github-token') {
+        setNeedsToken(true)
+        return
+      }
       setHasError(true)
       setSignInError(mapCovenantAuthError(result.error, t))
       return
@@ -109,6 +126,48 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
     }
 
     setOrgs(orgsResult.data)
+  }
+
+  async function handleTokenSignIn(): Promise<void> {
+    if (typeof window.api?.githubAccountUpsert !== 'function') return
+
+    setSavingToken(true)
+    setTokenError('')
+    try {
+      const listed =
+        typeof window.api.githubAccountsList === 'function'
+          ? await window.api.githubAccountsList()
+          : { ok: false as const }
+      const label = `Cuenta ${(listed.ok ? listed.accounts.length : 0) + 1}`
+      const result = await window.api.githubAccountUpsert({
+        label,
+        token: tokenDraft.trim(),
+      })
+      if (!result.ok) {
+        setTokenError(result.error)
+        return
+      }
+      const newId = result.account?.id
+      if (!newId) {
+        setTokenError(t('onboarding.accountError'))
+        return
+      }
+      const api = getCovenantApi(newId)
+      if (!api) {
+        setTokenError(t('onboarding.accountUnavailable'))
+        return
+      }
+      const signed = await api.signIn()
+      if (!signed.ok) {
+        setTokenError(mapCovenantAuthError(signed.error, t))
+        return
+      }
+      setTokenDraft('')
+      setNeedsToken(false)
+      setAccountId(newId)
+    } finally {
+      setSavingToken(false)
+    }
   }
 
   const signedIn = auth?.signedIn === true
@@ -152,6 +211,44 @@ export const OnboardingStepAccount: React.FC<OnboardingStepAccountProps> = ({
           <Button variant="primary" size="sm" onClick={() => void handleSignIn()} disabled={signingIn}>
             {t('onboarding.accountSignIn')}
           </Button>
+        </div>
+      ) : null}
+
+      {!loading && !signedIn && needsToken ? (
+        <div className="onboarding-account__token">
+          <p className="onboarding-account__token-hint">{t('onboarding.accountTokenHint')}</p>
+          <Input
+            id="onboarding-account-token"
+            type="password"
+            size="sm"
+            value={tokenDraft}
+            onChange={event => setTokenDraft(event.target.value)}
+            placeholder={t('onboarding.accountTokenPlaceholder')}
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <div className="onboarding-account__token-actions">
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={savingToken || !tokenDraft.trim()}
+              onClick={() => void handleTokenSignIn()}
+            >
+              {t('onboarding.accountTokenSubmit')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void window.api?.openExternalUrl(GITHUB_TOKEN_CREATE_URL)}
+            >
+              {t('onboarding.accountTokenCreate')}
+            </Button>
+          </div>
+          {tokenError ? (
+            <p className="onboarding-account__token-error" role="alert">
+              {tokenError}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

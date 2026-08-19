@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { UpdateState } from '@shared/updateState'
+import { classifyUpdateError } from '@shared/updateErrorKind'
 import { changelogSection } from '@shared/changelog'
 import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
@@ -102,12 +103,18 @@ export const UpdateBanner: React.FC = () => {
   const percent = state.kind === 'downloading'
     ? Math.max(0, Math.min(100, Math.round(state.percent)))
     : 0
+  const errorKind = state.kind === 'error' ? classifyUpdateError(state.message) : null
+  const errorCopy = errorKind === 'offline'
+    ? t('update.errorOffline')
+    : errorKind === 'failed'
+      ? t('update.errorFailed')
+      : null
 
   const chipAria =
     state.kind === 'downloading'
       ? t('update.downloadingAria', { version: state.version, percent })
       : state.kind === 'error'
-        ? t('update.error', { message: state.message })
+        ? (errorCopy ?? undefined)
         : state.kind === 'ready'
           ? t('update.readyAria', { version: state.version })
           : state.kind === 'available'
@@ -122,13 +129,16 @@ export const UpdateBanner: React.FC = () => {
             'update-banner',
             'update-banner--enter',
             state.kind === 'downloading' ? 'update-banner--downloading' : '',
-            state.kind === 'error' ? 'update-banner--error' : '',
+            errorKind === 'offline' ? 'update-banner--offline' : '',
+            errorKind === 'failed' ? 'update-banner--failed' : '',
           ].filter(Boolean).join(' ')}
           role="status"
           aria-label={chipAria}
         >
-          {state.kind === 'error' ? (
-            <span className="update-banner__pulse update-banner__pulse--error" aria-hidden="true" />
+          {errorKind === 'offline' ? (
+            <span className="update-banner__pulse update-banner__pulse--offline" aria-hidden="true" />
+          ) : errorKind === 'failed' ? (
+            <span className="update-banner__pulse update-banner__pulse--failed" aria-hidden="true" />
           ) : (
             <span className="update-banner__pulse" aria-hidden="true" />
           )}
@@ -136,7 +146,7 @@ export const UpdateBanner: React.FC = () => {
           {state.kind === 'error' ? (
             <Tooltip content={state.message}>
               <span className="update-banner__error">
-                {state.message}
+                {errorCopy}
               </span>
             </Tooltip>
           ) : (

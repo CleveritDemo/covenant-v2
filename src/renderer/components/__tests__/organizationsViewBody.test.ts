@@ -16,7 +16,7 @@ describe('OrganizationsView body flush', () => {
 
     expect(bodyBlock).not.toBe('')
     expect(bodyBlock).not.toMatch(/max-width/)
-    expect(bodyBlock).toMatch(/padding:\s*8px\s+0\s+0\s*;/)
+    expect(bodyBlock).toMatch(/padding:\s*0\s*;/)
     expect(bodyBlock).not.toMatch(/padding-(left|right)\s*:/)
 
     expect(childBlock).not.toBe('')

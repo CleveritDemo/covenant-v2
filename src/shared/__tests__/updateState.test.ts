@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { classifyUpdateError } from '../updateErrorKind'
 import { formatReleaseNotes, shouldScheduleSilentUpdateChecks } from '../updateState'
 
 describe('formatReleaseNotes', () => {
@@ -21,6 +22,24 @@ describe('formatReleaseNotes', () => {
       { version: '0.1.0', note: 'viejo' },
     ])
     expect(out).toBe('## 0.2.0\n\nnuevo\n\n## 0.1.0\n\nviejo')
+  })
+})
+
+describe('classifyUpdateError', () => {
+  it('marca desconexión de Chromium como offline', () => {
+    expect(classifyUpdateError('net::ERR_INTERNET_DISCONNECTED')).toBe('offline')
+  })
+
+  it('marca ENOTFOUND como offline', () => {
+    expect(classifyUpdateError('ENOTFOUND api.github.com')).toBe('offline')
+  })
+
+  it('marca un fallo de firma como failed', () => {
+    expect(classifyUpdateError('Could not get code signature')).toBe('failed')
+  })
+
+  it('marca string vacío como failed', () => {
+    expect(classifyUpdateError('')).toBe('failed')
   })
 })
 

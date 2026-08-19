@@ -109,22 +109,23 @@ describe('OrganizationsView — shell de tres columnas', () => {
     expect(document.querySelector('.terminal-modal-root')).toBeNull()
   })
 
-  it('abre la primera org y muestra rail, workspaces y la invitación a elegir uno', async () => {
+  it('abre la primera org, autoselecciona el primer workspace y llena el detalle', async () => {
     render(<OrganizationsView onClose={() => {}} />)
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /rodrigoanti/ })).toBeTruthy()
     })
-    // La columna 2 lista los workspaces sin necesidad de expandir un acordeón.
-    expect(await screen.findByText('covenant')).toBeTruthy()
-    expect(screen.getByText('organizations.workspacePeopleCount:2')).toBeTruthy()
-    expect(screen.getByText('organizations.selectWorkspace')).toBeTruthy()
+    expect(await screen.findByLabelText('organizations.workspacePeopleCount:2')).toBeTruthy()
+    expect(document.querySelector('.person-avatar-stack')).toBeTruthy()
+    expect(screen.queryByText('organizations.workspacePeopleCount:2')).toBeNull()
+    expect(await screen.findByText('organizations.peopleSection')).toBeTruthy()
+    expect(screen.queryByText('organizations.selectWorkspace')).toBeNull()
   })
 
   it('seleccionar un workspace abre People y Repos en la tercera columna', async () => {
     render(<OrganizationsView onClose={() => {}} />)
 
-    fireEvent.click(await screen.findByText('covenant'))
+    fireEvent.click((await screen.findAllByText('covenant'))[0])
 
     await waitFor(() => {
       expect(screen.getByText('organizations.peopleSection')).toBeTruthy()
@@ -147,8 +148,8 @@ describe('OrganizationsView — shell de tres columnas', () => {
     await waitFor(() => {
       expect(screen.getByText('organizations.membersSection')).toBeTruthy()
     })
-    // El owner no es asignable: se pinta como texto, no como select.
-    expect(screen.getByText('organizations.roleOwner')).toBeTruthy()
+    const members = screen.getByLabelText('organizations.membersSection')
+    expect(within(members).getByText('organizations.roleOwner')).toBeTruthy()
     const roleSelects = screen.getAllByRole('button', { name: /^organizations\.roleFor:/ })
     expect(roleSelects).toHaveLength(2)
     expect(screen.getByText('organizations.dangerZone')).toBeTruthy()
@@ -204,7 +205,7 @@ describe('OrganizationsView — selector de cuenta', () => {
       expect(covenant.status).toHaveBeenCalledWith('a1')
     })
 
-    const panel = screen.getByRole('listbox', { hidden: true })
+    const panel = within(document.querySelector('.orgs-col__foot') as HTMLElement).getByRole('listbox', { hidden: true })
     act(() => {
       panel.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
       panel.showPopover()
@@ -244,9 +245,10 @@ describe('OrganizationsView — selector de cuenta', () => {
     })
     render(<OrganizationsView onClose={() => {}} />)
 
-    expect(await screen.findByText('workspace-a')).toBeTruthy()
+    expect(await screen.findByText('organizations.peopleSection')).toBeTruthy()
+    expect(within(document.querySelector('.orgs-col--mid') as HTMLElement).getByText('workspace-a')).toBeTruthy()
 
-    const panel = screen.getByRole('listbox', { hidden: true })
+    const panel = within(document.querySelector('.orgs-col__foot') as HTMLElement).getByRole('listbox', { hidden: true })
     act(() => {
       panel.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
       panel.showPopover()
@@ -254,13 +256,15 @@ describe('OrganizationsView — selector de cuenta', () => {
     fireEvent.pointerDown(within(panel).getByRole('option', { name: 'Trabajo' }))
     fireEvent.click(within(panel).getByRole('option', { name: 'Trabajo' }))
 
-    expect(await screen.findByText('workspace-b')).toBeTruthy()
+    await waitFor(() => {
+      expect(within(document.querySelector('.orgs-col--mid') as HTMLElement).getByText('workspace-b')).toBeTruthy()
+    })
 
     await act(async () => {
       resolveStaleForbidden({ ok: false, error: 'forbidden' })
     })
 
-    expect(screen.getByText('workspace-b')).toBeTruthy()
+    expect(within(document.querySelector('.orgs-col--mid') as HTMLElement).getByText('workspace-b')).toBeTruthy()
     expect(document.querySelector('.orgs-section-error')).toBeNull()
     expect(screen.queryByText('forbidden')).toBeNull()
   })
@@ -277,5 +281,35 @@ describe('OrganizationsView — selector de cuenta', () => {
       expect(covenant.status).toHaveBeenCalled()
     })
     expect(screen.queryByRole('button', { name: 'organizations.accountSelector' })).toBeNull()
+  })
+})
+
+describe('OrganizationsView — empty state y filtro', () => {
+  it('sin workspaces el detalle invita a crear con el mismo compose de la columna', async () => {
+    covenant.workspacesList.mockImplementation(() => ok([]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    expect(await screen.findByText('organizations.emptyWorkspacesTitle')).toBeTruthy()
+    expect(screen.getByText('organizations.emptyWorkspacesHint')).toBeTruthy()
+    const empty = document.querySelector('.orgs-panel-empty')
+    expect(empty).toBeTruthy()
+    fireEvent.click(within(empty as HTMLElement).getByRole('button', { name: 'organizations.formCreateWorkspace' }))
+    expect(await screen.findByLabelText('organizations.workspaceName')).toBeTruthy()
+  })
+
+  it('con más de 6 orgs monta el filtro y un miss pinta filterNoMatch, no noOrgs', async () => {
+    covenant.orgsList.mockImplementation(() => ok(
+      Array.from({ length: 7 }, (_, i) => ({
+        slug: `org-${i}`,
+        name: `Org ${i}`,
+        role: 'owner',
+      })),
+    ))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    const filter = await screen.findByRole('searchbox', { name: 'organizations.filterOrgs' })
+    fireEvent.change(filter, { target: { value: 'zzz-no-match' } })
+    expect(await screen.findByText('organizations.filterNoMatch')).toBeTruthy()
+    expect(screen.queryByText('organizations.noOrgs')).toBeNull()
   })
 })

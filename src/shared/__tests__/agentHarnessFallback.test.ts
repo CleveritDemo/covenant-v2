@@ -1,11 +1,44 @@
 import { describe, expect, it } from 'vitest'
 import {
+  claudeResultErrorText,
   isRetryableHarnessOutage,
   providerMapsPlanMode,
   sanitizeFallbackProvider,
   shouldAttemptHarnessFallback,
 } from '../agentHarnessFallback'
 import { AGENT_CLI_PROVIDER_IDS } from '../agentCliProviders'
+
+describe('claudeResultErrorText', () => {
+  it('devuelve result si type=result e is_error', () => {
+    expect(claudeResultErrorText({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: 'API Error: 529 Overloaded.',
+      session_id: 'x',
+    })).toBe('API Error: 529 Overloaded.')
+  })
+
+  it('cae a subtype si result no es string no vacío', () => {
+    expect(claudeResultErrorText({
+      type: 'result',
+      is_error: true,
+      subtype: 'error_during_execution',
+      result: '',
+    })).toBe('error_during_execution')
+  })
+
+  it('cae a provider error si no hay result ni subtype útiles', () => {
+    expect(claudeResultErrorText({ type: 'result', is_error: true })).toBe('provider error')
+  })
+
+  it('undefined si no es result de error', () => {
+    expect(claudeResultErrorText({ type: 'result', result: 'ok' })).toBeUndefined()
+    expect(claudeResultErrorText({ type: 'result', is_error: false, result: 'x' })).toBeUndefined()
+    expect(claudeResultErrorText({ type: 'assistant', is_error: true })).toBeUndefined()
+    expect(claudeResultErrorText(null)).toBeUndefined()
+  })
+})
 
 describe('isRetryableHarnessOutage', () => {
   it.each([

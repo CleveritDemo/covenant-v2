@@ -2465,7 +2465,7 @@ export const App: React.FC = () => {
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
-    const pickerAccountId = accountIdForCwd(
+    const pickerAccountId = selection.accountId ?? accountIdForCwd(
       tabsRef.current.find(item => item.id === activeTabIdRef.current)?.projectFolder,
     )
     const covenant = getCovenantApi(pickerAccountId)
@@ -7675,6 +7675,10 @@ export const App: React.FC = () => {
           focusActiveTerminalTextarea()
         }}
         onOrgWorkspacesMutated={handleOrgWorkspacesMutated}
+        onOpenOrgWorkspace={selection => {
+          setOrgModalOpen(false)
+          void handleOrgWorkspaceTabConfirm(selection)
+        }}
         onCloseOrgWorkspacePicker={() => {
           setOrgWorkspacePickerOpen(false)
           focusActiveTerminalTextarea()

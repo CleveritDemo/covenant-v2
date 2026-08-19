@@ -27,9 +27,14 @@
   padding-right: 8px;
 }
 
-.update-banner--error {
-  border-color: color-mix(in srgb, var(--danger, #e5484d) 40%, transparent);
-  background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent);
+.update-banner--offline {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+.update-banner--failed {
+  border-color: color-mix(in srgb, var(--caution) 40%, transparent);
+  background: color-mix(in srgb, var(--caution) 10%, transparent);
 }
 
 .update-banner__pulse {
@@ -41,8 +46,13 @@
   animation: update-banner-pulse 1.8s ease-in-out infinite;
 }
 
-.update-banner__pulse--error {
-  background: var(--danger, #e5484d);
+.update-banner__pulse--offline {
+  background: var(--text-muted);
+  animation: none;
+}
+
+.update-banner__pulse--failed {
+  background: var(--caution);
   animation: none;
 }
 
@@ -110,7 +120,7 @@
 
 .update-banner__error {
   min-width: 0;
-  max-width: 160px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

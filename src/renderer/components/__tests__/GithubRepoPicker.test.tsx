@@ -207,6 +207,9 @@ describe('WorkspaceReposSection — picker de alta', () => {
         canManageProjectAdmins
         canDelete={false}
         busy={false}
+        openBusy={false}
+        openError={null}
+        onOpenRequest={() => {}}
         onDeleteRequest={() => {}}
         onAssigneeAdd={() => {}}
         onAssigneeRemove={() => {}}

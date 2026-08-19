@@ -36,6 +36,8 @@ export interface OrgWorkspaceSelection {
   agents: ProjectAgentDefinition[]
   contexts: TabContext[]
   catalogKey: string
+  /** Cuenta Covenant de la superficie que abre; App cae al cwd del tab si falta. */
+  accountId?: string
 }
 
 interface WorkspaceOption {

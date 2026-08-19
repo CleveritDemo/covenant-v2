@@ -778,6 +778,19 @@ describe('agent CLI event normalization', () => {
     ])
   })
 
+  it('trata un result de error de Claude como harness_outage, no assistant_final', () => {
+    expect(normalizeClaudeEvent({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: 'API Error: 529 Overloaded.',
+      session_id: 'x',
+    })).toEqual([
+      { type: 'session', cliSessionId: 'x' },
+      { type: 'harness_outage', text: 'API Error: 529 Overloaded.' },
+    ])
+  })
+
   it('normalizes Copilot deltas, final message, tools and session', () => {
     expect(normalizeCopilotEvent({
       type: 'assistant.message_delta',
@@ -1415,6 +1428,69 @@ describe('runAgentCliSpawn harness fallback', () => {
       expect(spawnMock).toHaveBeenCalledTimes(1)
       expect(events.some(e => e.type === 'harness_fallback')).toBe(false)
       expect(events.some(e => e.type === 'error')).toBe(true)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('respawnea ante result is_error en stdout con exit 0', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-stdout-'))
+    const outageLine = JSON.stringify({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: 'API Error: 529 Overloaded.',
+      session_id: 'x',
+    })
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stdout: `${outageLine}\n`, code: 0 }))
+      .mockImplementationOnce(() => fakeCliProc({
+        stdout: '{"type":"result","result":"ok"}\n',
+        code: 0,
+      }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        fallbackProvider: 'cursor',
+        permissionMode: 'auto',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(2)
+      expect(events.filter(e => e.type === 'harness_fallback')).toEqual([
+        { type: 'harness_fallback', from: 'claude', to: 'cursor' },
+      ])
+      expect(events.some(e => e.type === 'assistant_final' && e.text === 'ok')).toBe(true)
+      expect(events.some(e =>
+        e.type === 'assistant_final' && e.text.includes('529'),
+      )).toBe(false)
+      expect(code).toBe(0)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it('sin recambio pinta el result de error como assistant_final y termina', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-stdout-nofb-'))
+    const outageLine = JSON.stringify({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      result: 'API Error: 529 Overloaded.',
+      session_id: 'x',
+    })
+    spawnMock.mockImplementationOnce(() => fakeCliProc({ stdout: `${outageLine}\n`, code: 0 }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'claude',
+        permissionMode: 'auto',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+      expect(events.some(e => e.type === 'harness_fallback')).toBe(false)
+      expect(events.filter(e => e.type === 'assistant_final')).toEqual([
+        { type: 'assistant_final', text: 'API Error: 529 Overloaded.' },
+      ])
+      expect(code).toBe(0)
     } finally {
       rmSync(cwd, { recursive: true, force: true })
     }

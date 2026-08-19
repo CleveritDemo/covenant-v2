@@ -52,6 +52,8 @@ export function runHeadlessAgentTurn(
     let finalText = ''
     let lastError: string | undefined
     let settled = false
+    let harnessOutageText: string | undefined
+    let usedHarnessFallback = false
     // Cualquier primer evento sirve: significa que el proceso arrancó y ya está
     // masticando el contexto. Antes de esto no hay nada honesto que contar.
     let announcedAlive = false
@@ -117,11 +119,23 @@ export function runHeadlessAgentTurn(
           lastError = event.message
           return
         }
-        if (event.type === 'harness_fallback') return
+        if (event.type === 'harness_fallback') {
+          usedHarnessFallback = true
+          return
+        }
+        if (event.type === 'harness_outage') {
+          harnessOutageText = event.text
+          lastError = event.text
+          return
+        }
       },
       onDone: code => {
         if (input.isStale()) {
           settle({ ok: false, aborted: true })
+          return
+        }
+        if (harnessOutageText && !usedHarnessFallback) {
+          settle({ ok: false, error: harnessOutageText })
           return
         }
         if (code !== 0 && !finalText.trim()) {

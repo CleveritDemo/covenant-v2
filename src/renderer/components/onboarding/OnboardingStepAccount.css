@@ -82,3 +82,31 @@
   align-items: center;
   gap: 8px;
 }
+
+.onboarding-account__token {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-account__token-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.onboarding-account__token-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-account__token-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}

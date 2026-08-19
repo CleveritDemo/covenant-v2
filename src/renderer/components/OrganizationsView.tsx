@@ -5,6 +5,7 @@ import {
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
   hasCovenantWorkspacesApi,
+  hasCovenantWorkspaceContentApi,
   slugifyOrgName,
   type CovenantAuthStatus,
   type CovenantDefault,
@@ -19,6 +20,7 @@ import { Badge } from './ui/Badge'
 import { Icon } from './ui/Icon'
 import { Select } from './ui/Select'
 import { Tooltip } from './ui/Tooltip'
+import { PersonAvatarStack } from './ui/PersonAvatarStack'
 import { SectionStatus } from './OrgSectionStatus'
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel'
 import { OrgSettingsPanel } from './OrgSettingsPanel'
@@ -27,14 +29,22 @@ import './SettingsModal.css'
 import './OrganizationsModal.css'
 import './OrganizationsView.css'
 import { canAccessOrgWorkspace } from '../../shared/orgWorkspaceCatalog'
+import { filterOrgsByQuery, filterWorkspacesByQuery } from '../../shared/orgListFilter'
 import { workspacePeopleRows } from '../../shared/orgPeople'
+import { covenantWorkspaceCatalogKey } from '../../shared/covenantTypes'
+import {
+  projectAgentsFromWorkspaceAgents,
+  tabContextsFromWorkspaceContexts,
+} from '../../shared/orgWorkspaceContent'
 import { mapCovenantAuthError } from '../covenantAuthErrorLabel'
+import { type OrgWorkspaceSelection } from './OrgWorkspaceTabPickerModal'
 
 interface Props {
   open?: boolean
   onClose: () => void
   /** Refresca el snapshot Cmd+T tras mutaciones de orgs/workspaces. */
   onOrgWorkspacesMutated?: () => void
+  onOpenWorkspace?: (selection: OrgWorkspaceSelection) => void
 }
 
 type GithubAccount = { id: string; label: string }
@@ -142,6 +152,57 @@ function SignInPanel({
   )
 }
 
+function OrgsPanelEmpty({
+  label,
+  title,
+  hint,
+  actionLabel,
+  onAction,
+}: {
+  label: string
+  title: string
+  hint?: string
+  actionLabel?: string
+  onAction?: () => void
+}): React.ReactElement {
+  return (
+    <section className="orgs-panel" aria-label={label}>
+      <div className="orgs-panel-empty">
+        <p className="orgs-panel-empty__title">{title}</p>
+        {hint ? <p className="orgs-panel-empty__hint">{hint}</p> : null}
+        {actionLabel && onAction ? (
+          <Button variant="primary" size="sm" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        ) : null}
+      </div>
+    </section>
+  )
+}
+
+function OrgsColFilter({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}): React.ReactElement {
+  return (
+    <div className="orgs-col__filter">
+      <Input
+        type="search"
+        size="sm"
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+      />
+    </div>
+  )
+}
+
 function OrgsColumn({
   orgs,
   selectedSlug,
@@ -150,8 +211,13 @@ function OrgsColumn({
   busy,
   composing,
   createName,
+  query,
+  onQueryChange,
   status,
   authBusy,
+  accounts,
+  activeAccountId,
+  onAccountChange,
   onCreateNameChange,
   onComposeToggle,
   onSelectOrg,
@@ -165,8 +231,13 @@ function OrgsColumn({
   busy: boolean
   composing: boolean
   createName: string
+  query: string
+  onQueryChange: (value: string) => void
   status: CovenantAuthStatus | null
   authBusy: boolean
+  accounts: GithubAccount[]
+  activeAccountId: string
+  onAccountChange: (id: string) => void
   onCreateNameChange: (value: string) => void
   onComposeToggle: () => void
   onSelectOrg: (slug: string) => void
@@ -177,6 +248,7 @@ function OrgsColumn({
   const slug = slugifyOrgName(createName)
   const canCreate = slug.length > 0 && !busy
   const login = status?.login?.trim() || ''
+  const visibleOrgs = filterOrgsByQuery(orgs, query)
 
   return (
     <aside className="orgs-col orgs-col--rail" aria-label={t('organizations.orgRailHeading')}>
@@ -197,6 +269,13 @@ function OrgsColumn({
         </Tooltip>
       </div>
       <div className="orgs-col__body">
+        {orgs.length > 6 ? (
+          <OrgsColFilter
+            value={query}
+            onChange={onQueryChange}
+            placeholder={t('organizations.filterOrgs')}
+          />
+        ) : null}
         <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
         {composing ? (
           <div className="orgs-compose">
@@ -220,10 +299,22 @@ function OrgsColumn({
         ) : null}
         {orgs.length === 0 && !loading ? (
           <p className="orgs-empty">{t('organizations.noOrgs')}</p>
+        ) : visibleOrgs.length === 0 && !loading ? (
+          <p className="orgs-empty">{t('organizations.filterNoMatch')}</p>
         ) : (
           <ul className="orgs-nav" aria-label={t('organizations.orgRailHeading')}>
-            {orgs.map(org => {
+            {visibleOrgs.map(org => {
               const selected = org.slug === selectedSlug
+              const role = (org.role ?? '').trim().toLowerCase()
+              const roleBadge = org.personal
+                ? null
+                : role === 'owner'
+                  ? <Badge variant="accent">{t('organizations.roleOwner')}</Badge>
+                  : role === 'admin'
+                    ? <Badge variant="muted">{t('organizations.roleAdmin')}</Badge>
+                    : role === 'member'
+                      ? <Badge variant="muted">{t('organizations.roleMember')}</Badge>
+                      : null
               return (
                 <li key={org.slug}>
                   <button
@@ -233,15 +324,19 @@ function OrgsColumn({
                     aria-current={selected}
                     onClick={() => onSelectOrg(org.slug)}
                   >
-                    <span className="orgs-nav__avatar" aria-hidden>
-                      {org.name.slice(0, 1).toUpperCase()}
+                    <span
+                      className={`orgs-nav__avatar${org.personal ? ' orgs-nav__avatar--personal' : ''}`}
+                      aria-hidden
+                    >
+                      {org.personal ? <Icon name="user" size={13} /> : org.name.slice(0, 1).toUpperCase()}
                     </span>
                     <span className="orgs-nav__text">
                       <span className="orgs-nav__title">{org.name}</span>
+                      {org.personal ? (
+                        <span className="orgs-nav__meta">{t('organizations.personalOrgHint')}</span>
+                      ) : null}
                     </span>
-                    {org.role && org.role !== 'member' ? (
-                      <Badge variant="muted">{org.role}</Badge>
-                    ) : null}
+                    {roleBadge}
                   </button>
                 </li>
               )
@@ -250,26 +345,40 @@ function OrgsColumn({
         )}
       </div>
       <div className="orgs-col__foot">
-        <span className="orgs-account">
-          {status?.avatarUrl ? (
-            <img className="orgs-account__avatar" src={status.avatarUrl} alt="" width={26} height={26} />
-          ) : (
-            <span className="orgs-account__avatar orgs-account__avatar--letter" aria-hidden>
-              {(login || '?').slice(0, 1).toUpperCase()}
-            </span>
-          )}
-          <span className="orgs-account__login">{login || t('organizations.signedIn')}</span>
-        </span>
-        <Button variant="ghost" size="xs" disabled={authBusy} onClick={onSignOut}>
-          {t('organizations.signOut')}
-        </Button>
+        <div className="orgs-account-row">
+          <span className="orgs-account">
+            {status?.avatarUrl ? (
+              <img className="orgs-account__avatar" src={status.avatarUrl} alt="" width={26} height={26} />
+            ) : (
+              <span className="orgs-account__avatar orgs-account__avatar--letter" aria-hidden>
+                {(login || '?').slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="orgs-account__login">{login || t('organizations.signedIn')}</span>
+          </span>
+          <Button variant="ghost" size="xs" disabled={authBusy} onClick={onSignOut}>
+            {t('organizations.signOut')}
+          </Button>
+        </div>
+        {accounts.length > 1 ? (
+          <div className="orgs-col__foot-account">
+            <Select
+              size="sm"
+              variant="ghost"
+              value={activeAccountId}
+              options={accounts.map(account => ({ value: account.id, label: account.label }))}
+              onChange={onAccountChange}
+              aria-label={t('organizations.accountSelector')}
+            />
+          </div>
+        ) : null}
       </div>
     </aside>
   )
 }
 
 function WorkspacesColumn({
-  org,
+  org: _org,
   workspaces,
   selectedWorkspaceId,
   settingsOpen,
@@ -279,6 +388,8 @@ function WorkspacesColumn({
   canCreate,
   composing,
   nameDraft,
+  query,
+  onQueryChange,
   onNameDraftChange,
   onComposeToggle,
   onCreate,
@@ -295,6 +406,8 @@ function WorkspacesColumn({
   canCreate: boolean
   composing: boolean
   nameDraft: string
+  query: string
+  onQueryChange: (value: string) => void
   onNameDraftChange: (value: string) => void
   onComposeToggle: () => void
   onCreate: () => void
@@ -303,11 +416,12 @@ function WorkspacesColumn({
 }): React.ReactElement {
   const { t } = useT()
   const canSubmit = !busy && nameDraft.trim().length > 0
+  const visibleWorkspaces = filterWorkspacesByQuery(workspaces, query)
 
   return (
     <div className="orgs-col orgs-col--mid" aria-label={t('organizations.workspacesSection')}>
       <div className="orgs-col__head">
-        <h2 className="orgs-col__label orgs-col__label--strong">{org.name}</h2>
+        <h2 className="orgs-col__label">{t('organizations.workspacesSection')}</h2>
         <span className="orgs-col__spacer" />
         <Tooltip content={t('organizations.orgSettings')}>
           <Button
@@ -336,6 +450,13 @@ function WorkspacesColumn({
         ) : null}
       </div>
       <div className="orgs-col__body">
+        {workspaces.length > 6 ? (
+          <OrgsColFilter
+            value={query}
+            onChange={onQueryChange}
+            placeholder={t('organizations.filterWorkspaces')}
+          />
+        ) : null}
         <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
         {composing ? (
           <div className="orgs-compose">
@@ -358,11 +479,13 @@ function WorkspacesColumn({
         ) : null}
         {workspaces.length === 0 && !loading ? (
           <p className="orgs-empty">{t('organizations.noWorkspaces')}</p>
+        ) : visibleWorkspaces.length === 0 && !loading ? (
+          <p className="orgs-empty">{t('organizations.filterNoMatch')}</p>
         ) : (
           <ul className="orgs-nav" aria-label={t('organizations.workspacesSection')}>
-            {workspaces.map(workspace => {
+            {visibleWorkspaces.map(workspace => {
               const selected = !settingsOpen && workspace.id === selectedWorkspaceId
-              const people = workspacePeopleRows(workspace.assignees, workspace.admins).length
+              const people = workspacePeopleRows(workspace.assignees, workspace.admins)
               return (
                 <li key={workspace.id}>
                   <button
@@ -373,9 +496,15 @@ function WorkspacesColumn({
                   >
                     <span className="orgs-nav__text">
                       <span className="orgs-nav__title">{workspace.name}</span>
-                      <span className="orgs-nav__meta">
-                        {t('organizations.workspacePeopleCount', { count: people })}
-                      </span>
+                      {people.length === 0 ? (
+                        <span className="orgs-nav__meta">{t('organizations.workspaceNoPeople')}</span>
+                      ) : (
+                        <PersonAvatarStack
+                          logins={people.map(p => p.login)}
+                          size="sm"
+                          label={t('organizations.workspacePeopleCount', { count: people.length })}
+                        />
+                      )}
                     </span>
                   </button>
                 </li>
@@ -392,6 +521,7 @@ export const OrganizationsView: React.FC<Props> = ({
   open = true,
   onClose,
   onOrgWorkspacesMutated,
+  onOpenWorkspace,
 }) => {
   const { t } = useT()
   const [accounts, setAccounts] = useState<GithubAccount[]>([])
@@ -442,6 +572,8 @@ export const OrganizationsView: React.FC<Props> = ({
   const [workspaceName, setWorkspaceName] = useState('')
   const [deleteWorkspace, setDeleteWorkspace] = useState<CovenantWorkspace | null>(null)
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('')
+  const [orgQuery, setOrgQuery] = useState('')
+  const [workspaceQuery, setWorkspaceQuery] = useState('')
 
   const [orgAdmins, setOrgAdmins] = useState<string[]>([])
   const [orgAdminsLoading, setOrgAdminsLoading] = useState(false)
@@ -454,6 +586,8 @@ export const OrganizationsView: React.FC<Props> = ({
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [detailView, setDetailView] = useState<OrgDetailView>('workspace')
   const [composing, setComposing] = useState<ComposeTarget>(null)
+  const [openBusy, setOpenBusy] = useState(false)
+  const [openError, setOpenError] = useState<string | null>(null)
   const authRunRef = useRef(0)
   const detailsRunRef = useRef(0)
 
@@ -472,6 +606,7 @@ export const OrganizationsView: React.FC<Props> = ({
   const workspacesAvailable = hasCovenantWorkspacesApi(covenant)
   const orgAdminsAvailable = hasCovenantOrgAdminsApi(covenant)
   const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
+  const settingsOpen = detailView === 'settings'
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
     const runId = ++authRunRef.current
@@ -689,8 +824,10 @@ export const OrganizationsView: React.FC<Props> = ({
     setDetailSlug(null); setActiveSlug(''); setOrgs([])
     setWorkspaces([]); setMembers([]); setDefaults([]); setOrgAdmins([]); setMemberLogins([])
     setSelectedWorkspaceId(''); setDetailView('workspace'); setComposing(null); setDeleteWorkspace(null)
+    setOrgQuery(''); setWorkspaceQuery('')
     setOrgsError(null); setAuthError(null); setMembersError(null); setMembersForbidden(false)
     setDefaultsError(null); setWorkspacesError(null); setOrgAdminsError(null); setLeaveError(null)
+    setOpenError(null); setOpenBusy(false)
   }, [activeAccountId])
 
   useEffect(() => {
@@ -712,6 +849,8 @@ export const OrganizationsView: React.FC<Props> = ({
       setWorkspacesError(null)
       setOrgAdminsError(null)
       setDeleteWorkspace(null)
+      setOpenError(null)
+      setOpenBusy(false)
       return
     }
     void loadOrgDetails(detailSlug)
@@ -722,7 +861,25 @@ export const OrganizationsView: React.FC<Props> = ({
     if (!selectedWorkspaceId) return
     if (workspaces.some(workspace => workspace.id === selectedWorkspaceId)) return
     setSelectedWorkspaceId('')
+    setOpenError(null)
   }, [selectedWorkspaceId, workspaces])
+
+  useEffect(() => {
+    if (!detailSlug) return
+    if (detailView !== 'workspace') return
+    if (settingsOpen) return
+    if (workspacesLoading) return
+    if (selectedWorkspaceId !== '') return
+    if (workspaces.length === 0) return
+    setSelectedWorkspaceId(workspaces[0].id)
+  }, [
+    detailSlug,
+    detailView,
+    settingsOpen,
+    workspacesLoading,
+    selectedWorkspaceId,
+    workspaces,
+  ])
 
   function openOrg(slug: string): void {
     setActiveSlug(slug)
@@ -730,7 +887,10 @@ export const OrganizationsView: React.FC<Props> = ({
     setLeaveError(null)
     setDetailView('workspace')
     setSelectedWorkspaceId('')
+    setWorkspaceQuery('')
     setComposing(null)
+    setOpenError(null)
+    setOpenBusy(false)
   }
 
   function toggleCompose(target: Exclude<ComposeTarget, null>): void {
@@ -1014,7 +1174,6 @@ export const OrganizationsView: React.FC<Props> = ({
   }
 
   const leaveName = detailOrg?.name ?? t('organizations.orgDetailTitle')
-  const settingsOpen = detailView === 'settings'
   const canManageSelected = selectedWorkspace
     ? isOrgAdmin
       || (!!currentLogin && selectedWorkspace.createdBy === currentLogin)
@@ -1024,12 +1183,55 @@ export const OrganizationsView: React.FC<Props> = ({
     ? isOrgAdmin || (!!currentLogin && selectedWorkspace.createdBy === currentLogin)
     : false
 
+  async function handleOpenWorkspace(workspace: CovenantWorkspace): Promise<void> {
+    if (!covenant || !detailOrg || !onOpenWorkspace) return
+    const catalogKey = covenantWorkspaceCatalogKey(detailOrg.slug, workspace.id)
+    if (!hasCovenantWorkspaceContentApi(covenant)) {
+      onOpenWorkspace({
+        orgWorkspace: { slug: detailOrg.slug, workspaceId: workspace.id, name: workspace.name },
+        agents: [],
+        contexts: [],
+        catalogKey,
+        accountId: activeAccountId,
+      })
+      onClose()
+      return
+    }
+    setOpenBusy(true)
+    setOpenError(null)
+    const [agentsResult, contextsResult] = await Promise.all([
+      covenant.workspaceAgentsList(detailOrg.slug, workspace.id),
+      covenant.workspaceContextsList(detailOrg.slug, workspace.id),
+    ])
+    setOpenBusy(false)
+    if (!agentsResult.ok) {
+      setOpenError(agentsResult.error)
+      return
+    }
+    if (!contextsResult.ok) {
+      setOpenError(contextsResult.error)
+      return
+    }
+    onOpenWorkspace({
+      orgWorkspace: { slug: detailOrg.slug, workspaceId: workspace.id, name: workspace.name },
+      agents: projectAgentsFromWorkspaceAgents(agentsResult.data),
+      contexts: tabContextsFromWorkspaceContexts(contextsResult.data, {
+        slug: detailOrg.slug,
+        workspaceId: workspace.id,
+      }),
+      catalogKey,
+      accountId: activeAccountId,
+    })
+    onClose()
+  }
+
   function renderDetail(): React.ReactElement {
     if (!detailOrg) {
       return (
-        <section className="orgs-panel" aria-label={t('organizations.orgDetailTitle')}>
-          <p className="orgs-empty orgs-empty--panel">{t('organizations.detailSelectHint')}</p>
-        </section>
+        <OrgsPanelEmpty
+          label={t('organizations.orgDetailTitle')}
+          title={t('organizations.detailSelectHint')}
+        />
       )
     }
     if (settingsOpen) {
@@ -1087,10 +1289,23 @@ export const OrganizationsView: React.FC<Props> = ({
       )
     }
     if (!selectedWorkspace) {
+      if (!workspacesLoading && workspaces.length === 0) {
+        const canCreateWorkspace = isOrgAdmin && workspacesAvailable
+        return (
+          <OrgsPanelEmpty
+            label={t('organizations.workspacesSection')}
+            title={t('organizations.emptyWorkspacesTitle')}
+            hint={t('organizations.emptyWorkspacesHint')}
+            actionLabel={canCreateWorkspace ? t('organizations.formCreateWorkspace') : undefined}
+            onAction={canCreateWorkspace ? () => toggleCompose('workspace') : undefined}
+          />
+        )
+      }
       return (
-        <section className="orgs-panel" aria-label={t('organizations.workspacesSection')}>
-          <p className="orgs-empty orgs-empty--panel">{t('organizations.selectWorkspace')}</p>
-        </section>
+        <OrgsPanelEmpty
+          label={t('organizations.workspacesSection')}
+          title={t('organizations.selectWorkspace')}
+        />
       )
     }
     return (
@@ -1109,6 +1324,9 @@ export const OrganizationsView: React.FC<Props> = ({
           createdById: selectedWorkspace.createdById,
         })}
         busy={workspacesBusy}
+        openBusy={openBusy}
+        openError={openError}
+        onOpenRequest={() => void handleOpenWorkspace(selectedWorkspace)}
         onDeleteRequest={workspace => setDeleteWorkspace(workspace)}
         onAssigneeAdd={login => void handleWorkspaceAssigneeAdd(selectedWorkspace.id, login)}
         onAssigneeRemove={login => void handleWorkspaceAssigneeRemove(selectedWorkspace.id, login)}
@@ -1128,32 +1346,39 @@ export const OrganizationsView: React.FC<Props> = ({
         style={{ zIndex: APP_OVERLAY_MODAL_Z }}
       >
         <header className="organizations-view__bar">
-          <span className="organizations-view__title">{t('organizations.title')}</span>
-          {accounts.length > 1 ? (
-            <div className="organizations-view__account">
-              <span className="organizations-view__title">{t('organizations.account')}</span>
-              <div className="organizations-view__account-select">
-                <Select
-                  size="sm"
-                  variant="ghost"
-                  value={activeAccountId}
-                  options={accounts.map(account => ({ value: account.id, label: account.label }))}
-                  onChange={setActiveAccountId}
-                  aria-label={t('organizations.accountSelector')}
-                />
-              </div>
-            </div>
-          ) : null}
-          <Tooltip content={t('organizations.closeView')}>
-            <button
-              type="button"
-              className="organizations-view__icon"
-              aria-label={t('organizations.closeView')}
-              onClick={onClose}
-            >
-              <Icon name="close" size={12} />
-            </button>
-          </Tooltip>
+          <nav className="organizations-view__crumbs" aria-label={t('organizations.title')}>
+            <span className="organizations-view__crumb">{t('organizations.title')}</span>
+            {detailOrg ? (
+              <>
+                <span className="organizations-view__crumb-sep" aria-hidden>/</span>
+                <span
+                  className={`organizations-view__crumb${settingsOpen ? '' : ' organizations-view__crumb--current'}`}
+                >
+                  {detailOrg.name}
+                </span>
+              </>
+            ) : null}
+            {detailOrg && settingsOpen ? (
+              <>
+                <span className="organizations-view__crumb-sep" aria-hidden>/</span>
+                <span className="organizations-view__crumb organizations-view__crumb--current">
+                  {t('organizations.orgSettings')}
+                </span>
+              </>
+            ) : null}
+          </nav>
+          <div className="organizations-view__bar-actions">
+            <Tooltip content={t('organizations.closeView')}>
+              <button
+                type="button"
+                className="organizations-view__icon"
+                aria-label={t('organizations.closeView')}
+                onClick={onClose}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </Tooltip>
+          </div>
         </header>
         <div className="organizations-view__body">
           {!available ? (
@@ -1176,8 +1401,13 @@ export const OrganizationsView: React.FC<Props> = ({
                 busy={orgsBusy}
                 composing={composing === 'org'}
                 createName={createName}
+                query={orgQuery}
+                onQueryChange={setOrgQuery}
                 status={auth}
                 authBusy={authBusy}
+                accounts={accounts}
+                activeAccountId={activeAccountId}
+                onAccountChange={setActiveAccountId}
                 onCreateNameChange={setCreateName}
                 onComposeToggle={() => toggleCompose('org')}
                 onSelectOrg={openOrg}
@@ -1196,6 +1426,8 @@ export const OrganizationsView: React.FC<Props> = ({
                   canCreate={isOrgAdmin && workspacesAvailable}
                   composing={composing === 'workspace'}
                   nameDraft={workspaceName}
+                  query={workspaceQuery}
+                  onQueryChange={setWorkspaceQuery}
                   onNameDraftChange={setWorkspaceName}
                   onComposeToggle={() => toggleCompose('workspace')}
                   onCreate={() => void handleCreateWorkspace()}
@@ -1203,6 +1435,7 @@ export const OrganizationsView: React.FC<Props> = ({
                     setSelectedWorkspaceId(id)
                     setDetailView('workspace')
                     setComposing(null)
+                    setOpenError(null)
                   }}
                   onOpenSettings={() => {
                     setLeaveError(null)

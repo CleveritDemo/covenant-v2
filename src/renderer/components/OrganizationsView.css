@@ -1,16 +1,23 @@
 /*
  * Organizations a nivel app (no del plano). Misma barra/cuerpo que Pulse;
  * position:fixed porque monta fuera de `.tab-agentic-plane`.
+ *
+ * Arranca BAJO el titlebar de la app (`--titlebar-height`): la miga vive en
+ * `.organizations-view__bar`, los semáforos y el arrastre siguen en `.titlebar`.
+ * No reutilizar inset:0 — eso tapa el chrome nativo y obliga al padding 72/146.
  */
 .organizations-view {
   position: fixed;
-  inset: 0;
+  top: var(--titlebar-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
   /* Encima del chrome elevado del plano (barra de carpeta/acciones y riel a 675
      con la sala o el mapa abiertos) y por debajo de sus propios confirms (760). */
   z-index: 700;
   overflow: hidden;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: 40px minmax(0, 1fr);
   background: var(--bg);
   font-family: var(--font-ui);
   color: var(--text);
@@ -19,25 +26,45 @@
 .organizations-view__bar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
-  padding: var(--plane-top-bar-inset, 14px) var(--plane-top-bar-inset, 14px) 0 14px;
+  padding: 7px 14px 0 14px;
 }
 
-.organizations-view__title {
-  margin: 0;
-  padding: 0 10px;
+.organizations-view__crumbs {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  min-width: 0;
   height: var(--plane-top-bar-height, 26px);
-  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
-  border-radius: var(--plane-top-bar-radius, 8px);
-  background: var(--plane-glass-strong);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+}
+
+.organizations-view__crumb {
+  font-size: 12.5px;
+  font-weight: 560;
   color: var(--text-muted);
+  border: none;
+  background: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.organizations-view__crumb--current {
+  font-weight: 620;
+  color: var(--text);
+}
+
+.organizations-view__crumb-sep {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.organizations-view__bar-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 auto;
 }
 
 .organizations-view__icon {
@@ -55,17 +82,6 @@
 .organizations-view__icon:hover:not(:disabled) {
   color: var(--text);
   background: var(--surface-hover);
-}
-
-.organizations-view__account {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.organizations-view__account-select {
-  width: 168px;
-  flex: 0 0 auto;
 }
 
 /*
@@ -86,7 +102,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 8px 0 0;
+  padding: 0;
 }
 
 .organizations-view__body > * {

@@ -93,14 +93,30 @@ export function threadBarCandidates(
   activeThreadId?: string,
   runningThreadIds?: readonly string[],
 ): AgentThread[] {
+  const known = new Set(threads.map(thread => thread.id))
   const running = new Set(runningThreadIds ?? [])
   const visible = threads.filter(
     thread => isHumanThread(thread) || running.has(thread.id),
   )
   const sorted = sortThreadsByRecency(visible)
   const active = activeThreadId?.trim()
-  if (!active) return sorted
-  return sorted.filter(thread => thread.id !== active)
+  const sortedSinActivo = !active
+    ? sorted
+    : sorted.filter(thread => thread.id !== active)
+  const syntheticSeen = new Set<string>()
+  const synthetic: AgentThread[] = (runningThreadIds ?? [])
+    .filter((id) => {
+      if (!id || known.has(id) || id === active || syntheticSeen.has(id)) return false
+      syntheticSeen.add(id)
+      return true
+    })
+    .map(id => ({
+      id,
+      title: '',
+      updatedAt: 0,
+      origin: 'delegation' as const,
+    }))
+  return [...synthetic, ...sortedSinActivo]
 }
 
 /** Hasta MAX_RECENT_CHIP_THREADS hilos recientes para chips (sin el activo). */

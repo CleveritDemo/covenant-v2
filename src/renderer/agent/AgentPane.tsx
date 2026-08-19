@@ -115,6 +115,7 @@ import {
   MAX_PENDING_PASTED_TEXTS,
   composeTextWithPastes,
   createPastedText,
+  createQuotedReference,
   shouldCapturePastedText,
   type ComposerPastedText,
 } from '@shared/composerPastedText'
@@ -3283,6 +3284,14 @@ export const AgentPane: React.FC<Props> = ({
     setPendingPastes(previous => previous.filter(paste => paste.id !== id))
   }, [])
 
+  const attachBubbleReference = useCallback((content: string): void => {
+    setPendingPastes(previous =>
+      previous.length >= MAX_PENDING_PASTED_TEXTS
+        ? previous
+        : [...previous, createQuotedReference(content)],
+    )
+  }, [])
+
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
   const queuedTurnsRef = useRef(queuedTurns)
@@ -3713,6 +3722,7 @@ export const AgentPane: React.FC<Props> = ({
             onScrollToBottom={scrollChatToBottom}
             onAbortDelegation={id => onAbortDelegationRef.current?.(id)}
             onInsertCommand={onInsertCommand}
+            onReferenceMessage={attachBubbleReference}
           />
 
           <AgentPaneFooter

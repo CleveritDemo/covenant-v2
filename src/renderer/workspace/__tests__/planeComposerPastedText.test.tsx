@@ -3,10 +3,11 @@
  *
  * Paste largo (≥700 chars) no entra al textarea: tarjeta PASTED + compose al enviar.
  */
-import React from 'react'
+import React, { createRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { PlaneChatComposer } from '../PlaneChatComposer'
+import { MAX_PENDING_PASTED_TEXTS } from '@shared/composerPastedText'
+import { PlaneChatComposer, type PlaneChatComposerHandle } from '../PlaneChatComposer'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key, i18n: { language: 'es' } }),
@@ -116,5 +117,38 @@ describe('PlaneChatComposer: texto pegado largo', () => {
     })
     expect(screen.queryByLabelText('agentPane.pastedTextTitle')).toBeNull()
     expect(container.querySelector('.pasted-text')).toBeNull()
+  })
+})
+
+describe('PlaneChatComposer: attachReference', () => {
+  it('por ref monta una tarjeta de adjunto y respeta el tope', async () => {
+    const ref = createRef<PlaneChatComposerHandle>()
+    render(
+      <PlaneChatComposer
+        ref={ref}
+        agents={agents}
+        contexts={[] as never}
+        selectedAgentId="a"
+        placeholder="msg"
+        emptyAgentsHint="empty"
+        sendLabel="send"
+        onSelectAgent={vi.fn()}
+        onStop={vi.fn()}
+        onSend={vi.fn() as never}
+      />,
+    )
+    await act(async () => {
+      ref.current?.attachReference('cita de burbuja')
+    })
+    expect(screen.getByLabelText('agentPane.pastedTextTitle')).toBeTruthy()
+
+    await act(async () => {
+      for (let i = 0; i < MAX_PENDING_PASTED_TEXTS + 2; i += 1) {
+        ref.current?.attachReference(`cita ${i}`)
+      }
+    })
+    expect(screen.getAllByLabelText('agentPane.pastedTextTitle')).toHaveLength(
+      MAX_PENDING_PASTED_TEXTS,
+    )
   })
 })

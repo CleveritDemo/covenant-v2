@@ -11,7 +11,11 @@ import type { AgentPlaneStatus } from '../agent/AgentPane'
 import { isAgentComposerBadgeActive } from '../agent/paneWorkActive'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
-import { PlaneChatComposer, type PlaneChatAgentOption } from './PlaneChatComposer'
+import {
+  PlaneChatComposer,
+  type PlaneChatAgentOption,
+  type PlaneChatComposerHandle,
+} from './PlaneChatComposer'
 import { PlaneChatContextsBar } from './PlaneChatContextsBar'
 import { PlaneChatDock } from './PlaneChatDock'
 import { PlaneFabStack } from './PlaneFabStack'
@@ -511,6 +515,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 }) => {
   const { t } = useT()
   const planeRef = useRef<HTMLDivElement>(null)
+  const planeComposerRef = useRef<PlaneChatComposerHandle>(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
   // Pulse solo lee del store por IPC: no necesita nada del padre, así que su
   // estado se queda acá en vez de engordar las props de App.tsx.
@@ -1367,10 +1372,12 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               }
               projectAgents={projectAgents}
               onInsertCommand={onInsertCommand}
+              onReferenceMessage={(content: string) => planeComposerRef.current?.attachReference(content)}
             />
           ) : null}
           composer={showPlaneComposer ? (
             <PlaneChatComposer
+              ref={planeComposerRef}
               agents={agents}
               contexts={tabContexts}
               selectedAgentId={openChatAgentId}

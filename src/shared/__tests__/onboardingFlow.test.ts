@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { ONBOARDING_VERSION } from '../onboarding'
 import {
   canCompleteOnboarding,
+  isOnboardingActive,
   isOnboardingIncomplete,
   onboardingChromeHidden,
   onboardingGuideExhausted,
   onboardingLockedSurface,
+  sessionHasOrchestrationPanes,
+  tabHasOrchestrationPanes,
   shouldWarnComposerMissingCli,
 } from '../onboardingFlow'
 
@@ -28,6 +31,47 @@ describe('isOnboardingIncomplete', () => {
     expect(isOnboardingIncomplete('2')).toBe(true)
     expect(isOnboardingIncomplete(ONBOARDING_VERSION)).toBe(false)
     expect(isOnboardingIncomplete(`  ${ONBOARDING_VERSION}  `)).toBe(false)
+  })
+})
+
+describe('tabHasOrchestrationPanes', () => {
+  it('detects agent or terminal panes', () => {
+    expect(tabHasOrchestrationPanes(undefined)).toBe(false)
+    expect(tabHasOrchestrationPanes({})).toBe(false)
+    expect(tabHasOrchestrationPanes({ a: 'agent' })).toBe(true)
+    expect(tabHasOrchestrationPanes({ t: 'terminal' })).toBe(true)
+    expect(tabHasOrchestrationPanes({ a: 'agent', t: 'terminal' })).toBe(true)
+    expect(tabHasOrchestrationPanes({ x: 'other' })).toBe(false)
+  })
+})
+
+describe('sessionHasOrchestrationPanes', () => {
+  it('is true when any tab has agent or terminal panes', () => {
+    expect(sessionHasOrchestrationPanes([])).toBe(false)
+    expect(sessionHasOrchestrationPanes([{ paneKinds: {} }])).toBe(false)
+    expect(sessionHasOrchestrationPanes([
+      { paneKinds: {} },
+      { paneKinds: { t: 'terminal' } },
+    ])).toBe(true)
+  })
+})
+
+describe('isOnboardingActive', () => {
+  it('is false for existing workspaces even if onboarding is incomplete', () => {
+    expect(isOnboardingActive({
+      incomplete: true,
+      tabs: [{ paneKinds: { a: 'agent' } }],
+    })).toBe(false)
+    expect(isOnboardingActive({
+      incomplete: true,
+      tabs: [{ paneKinds: { t: 'terminal' } }],
+    })).toBe(false)
+  })
+
+  it('is true only for incomplete sessions without orchestration panes', () => {
+    expect(isOnboardingActive({ incomplete: false, tabs: [] })).toBe(false)
+    expect(isOnboardingActive({ incomplete: true, tabs: [] })).toBe(true)
+    expect(isOnboardingActive({ incomplete: true, tabs: [{ paneKinds: {} }] })).toBe(true)
   })
 })
 

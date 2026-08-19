@@ -8,6 +8,32 @@ export function isOnboardingIncomplete(completedVersion: string): boolean {
   return completedVersion.trim() !== ONBOARDING_VERSION
 }
 
+export type OnboardingTabSnapshot = {
+  paneKinds?: Record<string, unknown>
+}
+
+export function tabHasOrchestrationPanes(
+  paneKinds: Record<string, unknown> | undefined,
+): boolean {
+  return Object.values(paneKinds ?? {}).some(
+    kind => kind === 'agent' || kind === 'terminal',
+  )
+}
+
+export function sessionHasOrchestrationPanes(
+  tabs: readonly OnboardingTabSnapshot[],
+): boolean {
+  return tabs.some(tab => tabHasOrchestrationPanes(tab.paneKinds))
+}
+
+/** UI de onboarding solo en primera apertura con sesión aún sin agentes ni terminales. */
+export function isOnboardingActive(args: {
+  incomplete: boolean
+  tabs: readonly OnboardingTabSnapshot[]
+}): boolean {
+  return args.incomplete && !sessionHasOrchestrationPanes(args.tabs)
+}
+
 export type OnboardingCompleteTrigger =
   | 'guide_exhausted'
   | 'org_workspace_tab'

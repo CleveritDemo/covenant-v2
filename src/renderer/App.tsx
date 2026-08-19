@@ -31,9 +31,11 @@ import { clisAllMissing, mapCliRows, type OnboardingCliRow } from './onboardingG
 import { ONBOARDING_VERSION, type OrchestratorPath } from '@shared/onboarding'
 import {
   canCompleteOnboarding,
+  isOnboardingActive,
   isOnboardingIncomplete,
   onboardingChromeHidden,
   onboardingLockedSurface,
+  sessionHasOrchestrationPanes,
   shouldWarnComposerMissingCli,
 } from '@shared/onboardingFlow'
 import {
@@ -2469,7 +2471,10 @@ export const App: React.FC = () => {
   ])
 
   const handleAddTab = useCallback(() => {
-    if (isOnboardingIncomplete(config.onboardingCompletedVersion)) return
+    if (isOnboardingActive({
+      incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
+      tabs: tabsRef.current,
+    })) return
     const cat = orgWorkspaceCatalogRef.current
     if (catalogHasWorkspaces(cat)) {
       setOrgWorkspacePickerOpen(true)
@@ -6780,11 +6785,12 @@ export const App: React.FC = () => {
   const settingsCwd = activeTab?.projectFolder?.trim() || activeTab?.orgWorkspace?.localDir?.trim() || ''
   const ready = configReady && sessionReady.loaded
   const incomplete = isOnboardingIncomplete(config.onboardingCompletedVersion)
-  const locked = incomplete && ready
-  const chrome = onboardingChromeHidden(incomplete)
+  const onboardingActive = isOnboardingActive({ incomplete, tabs })
+  const locked = onboardingActive && ready
+  const chrome = onboardingChromeHidden(onboardingActive)
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
-    incomplete,
+    incomplete: onboardingActive,
     path: config.orchestratorPath,
     hasFolder: Boolean(tab.projectFolder?.trim()),
     hasAgents: Object.values(tab.paneKinds ?? {}).some(kind => kind === 'agent'),
@@ -6819,6 +6825,13 @@ export const App: React.FC = () => {
     if (!locked) return null
     return resolveOnboardingGuideStep(guideArgsForTab(tab))
   }
+
+  useEffect(() => {
+    if (!ready) return
+    if (!incomplete) return
+    if (!sessionHasOrchestrationPanes(tabs)) return
+    persistOnboardingCompleted(ONBOARDING_VERSION)
+  }, [ready, incomplete, tabs, persistOnboardingCompleted])
 
   useEffect(() => {
     if (!locked || !activeTab) return
@@ -7296,7 +7309,7 @@ export const App: React.FC = () => {
                         ? Object.values(tabNow.paneKinds ?? {}).some(kind => kind === 'agent')
                         : false
                       if (onboardingLockedSurface({
-                        incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
+                        incomplete: onboardingActive,
                         path: config.orchestratorPath,
                         hasFolder: Boolean(tab.projectFolder?.trim()),
                         hasAgents,
@@ -7448,7 +7461,7 @@ export const App: React.FC = () => {
                           : await refreshOnboardingClis()
                         const cliAllMissing = clisAllMissing(rows)
                         if (shouldWarnComposerMissingCli({
-                          incomplete,
+                          incomplete: onboardingActive,
                           path: config.orchestratorPath,
                           cliAllMissing,
                         })) {
@@ -7752,7 +7765,7 @@ export const App: React.FC = () => {
                   hideWiki={chrome.hideWiki}
                   hideLoops={chrome.hideLoops}
                   agentCliMissing={shouldWarnComposerMissingCli({
-                    incomplete,
+                    incomplete: onboardingActive,
                     path: config.orchestratorPath,
                     cliAllMissing: onboardingClisMissing,
                   })}

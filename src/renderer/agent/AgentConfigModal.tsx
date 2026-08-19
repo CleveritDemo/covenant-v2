@@ -72,7 +72,7 @@ export interface AgentConfigModalProps {
   onMaxDelegationsPerTurnChange: (maxDelegationsPerTurn: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
-  onChangeProvider: (provider: AgentCliProvider) => void
+  onChangeProvider: (provider: AgentCliProvider | undefined) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangeFallbackModel: (model: string) => void
@@ -130,7 +130,9 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
   draftRef.current = draft
   const rulesKey = meta.rules?.join('\0') ?? ''
   const [section, setSection] = useState<AgentConfigSection>('identity')
-  const [modelOptions, setModelOptions] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
+  const [modelOptions, setModelOptions] = useState<AgentModelOption[]>(() => (
+    meta.provider ? modelsForProvider(meta.provider) : []
+  ))
   const [modelsLoading, setModelsLoading] = useState(false)
   const [modelsError, setModelsError] = useState('')
   const [modelsReload, setModelsReload] = useState(0)
@@ -153,18 +155,25 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
 
   useEffect(() => {
     if (!open) return
+    if (!meta.provider) {
+      setModelOptions([])
+      setModelsLoading(false)
+      setModelsError('')
+      return
+    }
+    const provider = meta.provider
     let cancelled = false
     setModelsLoading(true)
     setModelsError('')
-    setModelOptions(modelsForProvider(meta.provider))
-    void window.api.listAgentCliModels(meta.provider).then(result => {
+    setModelOptions(modelsForProvider(provider))
+    void window.api.listAgentCliModels(provider).then(result => {
       if (cancelled) return
       if (result.models.length > 0) setModelOptions(result.models)
       setModelsError(result.error ?? '')
       setModelsLoading(false)
     }).catch(error => {
       if (cancelled) return
-      setModelOptions(modelsForProvider(meta.provider))
+      setModelOptions(modelsForProvider(provider))
       setModelsError(error instanceof Error ? error.message : String(error))
       setModelsLoading(false)
     })
@@ -334,8 +343,10 @@ export const AgentConfigModal: React.FC<AgentConfigModalProps> = ({
     const chips: AgentConfigHeroChip[] = [
       {
         key: 'provider',
-        label: agentCliSpec(meta.provider).label,
-        tone: cliStatuses[meta.provider]?.path === null ? 'warn' : 'default',
+        label: meta.provider
+          ? agentCliSpec(meta.provider).label
+          : t('agentPane.providerLabel'),
+        tone: meta.provider && cliStatuses[meta.provider]?.path === null ? 'warn' : 'default',
         section: 'engine',
       },
       { key: 'model', label: modelLabel, section: 'engine' },

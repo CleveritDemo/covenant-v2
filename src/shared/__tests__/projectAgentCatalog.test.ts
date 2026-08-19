@@ -765,6 +765,17 @@ describe('fallbackProvider', () => {
     expect(cloneProjectAgentDefinition(parsed!).fallbackProvider).toBe('cursor')
   })
 
+  it('omits provider when the JSON field is empty', () => {
+    const parsed = parseProjectAgentDefinition({
+      id: 'qa',
+      provider: '',
+      permissionMode: 'auto',
+    })
+    expect(parsed).not.toHaveProperty('provider')
+    const meta = resolveAgentPaneMeta({ agentId: 'qa' }, parsed!)
+    expect(agentDefinitionFromMeta(meta)).not.toHaveProperty('provider')
+  })
+
   it('fromMeta redondea el recambio vía parse', () => {
     expect(agentDefinitionFromMeta({
       id: 'qa',

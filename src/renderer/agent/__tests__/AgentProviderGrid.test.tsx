@@ -113,6 +113,17 @@ describe('AgentProviderGrid', () => {
     expect(group?.getAttribute('role')).not.toBe('radiogroup')
   })
 
+  it('sin value ninguna card queda primaria', () => {
+    render(
+      <AgentProviderGrid
+        statuses={installedStatuses}
+        onPick={() => {}}
+      />,
+    )
+    expect(screen.queryByText('agentPane.providerPrimaryBadge')).toBeNull()
+    expect(card('Claude Code').getAttribute('aria-pressed')).toBe('false')
+  })
+
   it('el Select de modelo solo va en primario y respaldo', () => {
     render(
       <AgentProviderGrid

@@ -1157,6 +1157,11 @@ export function runAgentCliSpawn(
           handlers.onEvent(event)
           continue
         }
+        if (event.type === 'assistant_final' && isRetryableHarnessOutage(event.text)) {
+          providerOutageText = event.text
+          handlers.onEvent({ type: 'harness_outage', text: event.text })
+          continue
+        }
         if (event.type === 'session') {
           latestSessionId = event.cliSessionId
           if (suppressSession) continue
@@ -1205,8 +1210,8 @@ export function runAgentCliSpawn(
       const phaseStillActive = current?.proc === proc && current.generation === generation
       if (phaseStillActive) agentRuns.delete(runKey)
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
-      if ((code || providerOutageText) && !sawAssistantText) {
-        const failureText = stderrBuffer || spawnErrnoMessage || providerOutageText || ''
+      if (providerOutageText || (code && !sawAssistantText)) {
+        const failureText = providerOutageText || stderrBuffer || spawnErrnoMessage || ''
         const message = formatCliSpawnFailure(command, code, failureText)
         const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, failureText)
         if (next) {
@@ -1367,6 +1372,10 @@ export function startAgentTurn(
       {
         for (const event of events) {
           if (event.type === 'harness_outage') {
+            providerOutageText = event.text
+            continue
+          }
+          if (event.type === 'assistant_final' && isRetryableHarnessOutage(event.text)) {
             providerOutageText = event.text
             continue
           }
@@ -1559,8 +1568,8 @@ export function startAgentTurn(
       // Close obsoleto (turno reemplazado o ya finalizado): no emitir done/EXIT.
       if (!shouldFinishOnProcessClose(phaseStillActive)) return
 
-      if ((code || providerOutageText) && !sawParsedAssistantText) {
-        const failureText = stderrBuffer || spawnErrnoMessage || providerOutageText || ''
+      if (providerOutageText || (code && !sawParsedAssistantText)) {
+        const failureText = providerOutageText || stderrBuffer || spawnErrnoMessage || ''
         const next = buildHarnessFallbackRequest(request, harnessFallbackAttempted, failureText)
         if (next) {
           harnessFallbackAttempted = true

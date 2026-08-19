@@ -1495,4 +1495,37 @@ describe('runAgentCliSpawn harness fallback', () => {
       rmSync(cwd, { recursive: true, force: true })
     }
   })
+
+  it('respawnea cuando Cursor pinta el tope de sesión como assistant_final', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'gravity-fb-session-'))
+    const outageLine = JSON.stringify({
+      type: 'result',
+      result: "You've hit your session limit · resets 4:30pm (America/Santiago)",
+    })
+    spawnMock
+      .mockImplementationOnce(() => fakeCliProc({ stdout: `${outageLine}\n`, code: 0 }))
+      .mockImplementationOnce(() => fakeCliProc({
+        stdout: '{"type":"result","result":"ok"}\n',
+        code: 0,
+      }))
+    try {
+      const { events, code } = await waitSpawn(request({
+        paneId: 'pane-fb',
+        provider: 'cursor',
+        fallbackProvider: 'claude',
+        permissionMode: 'auto',
+      }), cwd)
+      expect(spawnMock).toHaveBeenCalledTimes(2)
+      expect(events.filter(e => e.type === 'harness_fallback')).toEqual([
+        { type: 'harness_fallback', from: 'cursor', to: 'claude' },
+      ])
+      expect(events.some(e => e.type === 'assistant_final' && e.text === 'ok')).toBe(true)
+      expect(events.some(e =>
+        e.type === 'assistant_final' && e.text.includes('session limit'),
+      )).toBe(false)
+      expect(code).toBe(0)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
 })

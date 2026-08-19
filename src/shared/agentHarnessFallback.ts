@@ -13,7 +13,60 @@ const RETRYABLE_OUTAGE = [
   'rate limit',
   'rate-limit',
   'too many requests',
+  'usage limit',
+  'session limit',
+  'hit your limit',
 ]
+
+export interface ProviderPair {
+  provider?: AgentCliProvider
+  fallbackProvider?: AgentCliProvider
+  model?: string
+  fallbackModel?: string
+}
+
+function compactProviderPair(pair: ProviderPair): ProviderPair {
+  return {
+    ...(pair.provider ? { provider: pair.provider } : {}),
+    ...(pair.fallbackProvider ? { fallbackProvider: pair.fallbackProvider } : {}),
+    ...(pair.model?.trim() ? { model: pair.model.trim() } : {}),
+    ...(pair.fallbackModel?.trim() ? { fallbackModel: pair.fallbackModel.trim() } : {}),
+  }
+}
+
+/**
+ * Clic en una card del grid de motores:
+ * sin primario → esa card es primario;
+ * con primario → card libre es respaldo;
+ * clic en primario o respaldo los quita;
+ * al quitar el primario, el respaldo (y su modelo) pasan a serlo.
+ */
+export function pickProviderChoice(
+  current: ProviderPair,
+  picked: AgentCliProvider,
+): ProviderPair {
+  if (picked === current.provider) {
+    if (!current.fallbackProvider) return {}
+    return compactProviderPair({
+      provider: current.fallbackProvider,
+      model: current.fallbackModel,
+    })
+  }
+  if (picked === current.fallbackProvider) {
+    return compactProviderPair({
+      provider: current.provider,
+      model: current.model,
+    })
+  }
+  if (!current.provider) {
+    return { provider: picked }
+  }
+  return compactProviderPair({
+    ...current,
+    fallbackProvider: picked,
+    fallbackModel: undefined,
+  })
+}
 
 /** pi / hermes / grok ignoran `mode === 'plan'` en sus args. */
 const PLAN_UNMAPPED = new Set<AgentCliProvider>(['pi', 'hermes', 'grok'])
@@ -31,10 +84,16 @@ export function claudeResultErrorText(value: unknown): string | undefined {
   return 'provider error'
 }
 
-/** True si el stderr/mensaje es un outage clasificado (529/overloaded/503/429/rate limit). */
+/**
+ * True si el stderr/mensaje es un outage clasificado (529/overloaded/503/429,
+ * rate/usage/session limit). Cursor a veces lo pinta como `assistant_final`.
+ */
 export function isRetryableHarnessOutage(text: string): boolean {
-  const haystack = text.toLowerCase()
-  return RETRYABLE_OUTAGE.some(token => haystack.includes(token))
+  const sample = text.trim()
+  if (!sample) return false
+  const haystack = sample.toLowerCase()
+  if (RETRYABLE_OUTAGE.some(token => haystack.includes(token))) return true
+  return haystack.includes("you've hit your") && haystack.includes('limit')
 }
 
 /** Válido y distinto del primario; si no, undefined. */

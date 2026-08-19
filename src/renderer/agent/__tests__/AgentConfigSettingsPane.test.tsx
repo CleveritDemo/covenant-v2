@@ -59,8 +59,10 @@ function renderSection(
 function renderEngine(
   meta: Partial<AgentPaneMeta> = {},
   handlers: {
+    onChangeProvider?: (provider: AgentCliProvider | undefined) => void
     onChangeFallbackProvider?: (provider: AgentCliProvider | undefined) => void
     onChangeFallbackModel?: (model: string) => void
+    onChangeModel?: (model: string) => void
   } = {},
 ) {
   render(
@@ -80,9 +82,9 @@ function renderEngine(
       onMaxDelegationsPerTurnChange={noop}
       onOrchestrationWorkStyleChange={noop}
       onChangeDelegateTo={noop}
-      onChangeProvider={noop}
+      onChangeProvider={handlers.onChangeProvider ?? noop}
       onChangeFallbackProvider={handlers.onChangeFallbackProvider ?? noop}
-      onChangeModel={noop}
+      onChangeModel={handlers.onChangeModel ?? noop}
       onChangeFallbackModel={handlers.onChangeFallbackModel ?? noop}
       onChangePermission={noop}
       onChangeNativeSkills={noop}
@@ -134,9 +136,11 @@ describe('AgentConfigSettingsPane engine fallback', () => {
 
   it('pulsar una card libre llama onChangeFallbackProvider con ese proveedor', () => {
     const onChangeFallbackProvider = vi.fn()
-    renderEngine({}, { onChangeFallbackProvider })
+    const onChangeProvider = vi.fn()
+    renderEngine({}, { onChangeFallbackProvider, onChangeProvider })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
     expect(onChangeFallbackProvider).toHaveBeenCalledWith('claude')
+    expect(onChangeProvider).not.toHaveBeenCalled()
   })
 
   it('pulsar la card del respaldo llama onChangeFallbackProvider con undefined', () => {
@@ -144,5 +148,35 @@ describe('AgentConfigSettingsPane engine fallback', () => {
     renderEngine({ fallbackProvider: 'claude' }, { onChangeFallbackProvider })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
     expect(onChangeFallbackProvider).toHaveBeenCalledWith(undefined)
+  })
+
+  it('pulsar el primario sin respaldo lo quita', () => {
+    const onChangeProvider = vi.fn()
+    renderEngine({}, { onChangeProvider })
+    fireEvent.click(screen.getByRole('button', { name: /Cursor/i }))
+    expect(onChangeProvider).toHaveBeenCalledWith(undefined)
+  })
+
+  it('pulsar el primario con respaldo promueve el respaldo', () => {
+    const onChangeProvider = vi.fn()
+    const onChangeFallbackProvider = vi.fn()
+    const onChangeModel = vi.fn()
+    renderEngine(
+      { fallbackProvider: 'claude', fallbackModel: 'sonnet', model: 'gpt-4' },
+      { onChangeProvider, onChangeFallbackProvider, onChangeModel },
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Cursor/i }))
+    expect(onChangeProvider).toHaveBeenCalledWith('claude')
+    expect(onChangeFallbackProvider).toHaveBeenCalledWith(undefined)
+    expect(onChangeModel).toHaveBeenCalledWith('sonnet')
+  })
+
+  it('sin primario, la card libre llama onChangeProvider', () => {
+    const onChangeProvider = vi.fn()
+    const onChangeFallbackProvider = vi.fn()
+    renderEngine({ provider: undefined }, { onChangeProvider, onChangeFallbackProvider })
+    fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
+    expect(onChangeProvider).toHaveBeenCalledWith('claude')
+    expect(onChangeFallbackProvider).not.toHaveBeenCalled()
   })
 })

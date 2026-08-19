@@ -1616,13 +1616,14 @@ export const AgentPane: React.FC<Props> = ({
   // Probe MCP: si el allowlist incluye servidores que aún piden OAuth, avisar arriba.
   useEffect(() => {
     const allowed = meta.mcpsAllowed ?? []
-    if (!allowed.length) {
+    if (!meta.provider || !allowed.length) {
       setMcpAuthNeeded([])
       setMcpAuthNotice('')
       return
     }
+    const provider = meta.provider
     let alive = true
-    void window.api.listMcpServers({ provider: meta.provider, cwd })
+    void window.api.listMcpServers({ provider, cwd })
       .then(result => {
         if (!alive) return
         const names = new Set(mcpsNeedingAuth(result.servers, allowed))
@@ -2010,6 +2011,25 @@ export const AgentPane: React.FC<Props> = ({
       adoptsCliSessionRef.current = resumeCliSession
     }
     const turnThreadId = laneThreadId ?? activeThreadId
+    if (!currentMeta.provider) {
+      if (isLaneDelegation) {
+        return failLaneTurn(t('agentPane.missingProvider'))
+      }
+      setMessages(prev => prev.map(message => (
+        message.id === assistant.id
+          ? {
+              ...message,
+              content: `${t('agentPane.errorPrefix')}: ${t('agentPane.missingProvider')}`,
+            }
+          : message
+      )))
+      setTurnCloseReason('aborted')
+      setBusy(false)
+      turnClosedRef.current = true
+      activeAssistantIdRef.current = null
+      setActiveAssistantId(null)
+      return false
+    }
     const request: AgentCliStartRequest = {
       paneId,
       threadId: turnThreadId,
@@ -3533,11 +3553,18 @@ export const AgentPane: React.FC<Props> = ({
     })
   }
 
-  const changeProvider = (provider: AgentCliProvider): void => {
+  const changeProvider = (provider: AgentCliProvider | undefined): void => {
     if (provider === meta.provider) return
     const hadSession = Boolean(meta.cliSessionId)
     void Promise.resolve(onMetaChange(previous => {
       const { cliSessionId: _session, model: _model, ...rest } = previous
+      if (!provider) {
+        const { provider: _dropped, fallbackProvider: _fp, fallbackModel: _fm, ...withoutProvider } = rest as typeof rest & {
+          fallbackProvider?: AgentCliProvider
+          fallbackModel?: string
+        }
+        return withoutProvider
+      }
       if (rest.fallbackProvider === provider) {
         const { fallbackProvider: _drop, ...withoutFallback } = rest
         return { ...withoutFallback, provider }
@@ -3676,7 +3703,7 @@ export const AgentPane: React.FC<Props> = ({
                 size="sm"
                 onClick={() => {
                   const first = mcpAuthNeeded[0]
-                  if (!first) return
+                  if (!first || !meta.provider) return
                   const command = agentCliSpec(meta.provider).command
                   const hint = mcpConnectHint({
                     provider: agentCliSpec(meta.provider).label,

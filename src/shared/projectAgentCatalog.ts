@@ -58,7 +58,8 @@ export interface AgentNativeSkills {
 /** Definición compartible en `.gravity/agents/<id>.json`. */
 export interface ProjectAgentDefinition {
   id: string
-  provider: AgentCliProvider
+  /** Ausente si el humano quitó todas las cards de motor en el modal. */
+  provider?: AgentCliProvider
   /**
    * Recambio opt-in: un solo CLI si el primario cae por sobrecarga/rate limit.
    * Omitido o igual al primario = sin recambio.
@@ -487,10 +488,14 @@ export function parseProjectAgentDefinition(
 
   const def: ProjectAgentDefinition = {
     id,
-    provider: sanitizeProvider(data.provider),
     permissionMode: sanitizePermissionMode(data.permissionMode),
   }
-  const fallbackProvider = sanitizeFallbackProvider(def.provider, data.fallbackProvider)
+  if (data.provider !== '' && data.provider !== null) {
+    def.provider = sanitizeProvider(data.provider)
+  }
+  const fallbackProvider = def.provider
+    ? sanitizeFallbackProvider(def.provider, data.fallbackProvider)
+    : undefined
   if (fallbackProvider) {
     def.fallbackProvider = fallbackProvider
     const fallbackModel =
@@ -589,7 +594,7 @@ export function cloneProjectAgentDefinition(
     ? `${baseName}${nameSuffix}`.slice(0, AGENT_NAME_MAX_LENGTH)
     : undefined
   return {
-    provider: source.provider,
+    ...(source.provider ? { provider: source.provider } : {}),
     permissionMode: source.permissionMode,
     ...(source.fallbackProvider && source.fallbackProvider !== source.provider
       ? {
@@ -748,7 +753,7 @@ export function resolveAgentPaneMeta(
 export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefinition {
   const parsed = parseProjectAgentDefinition({
     id: meta.id,
-    provider: meta.provider,
+    provider: meta.provider ?? '',
     permissionMode: meta.permissionMode,
     fallbackProvider: meta.fallbackProvider,
     fallbackModel: meta.fallbackModel,
@@ -781,7 +786,7 @@ export function agentDefinitionFromMeta(meta: AgentPaneMeta): ProjectAgentDefini
   }
   return {
     id: normalizeAgentSlug(meta.id, 'agent'),
-    provider: sanitizeProvider(meta.provider),
+    ...(meta.provider ? { provider: sanitizeProvider(meta.provider) } : {}),
     permissionMode: meta.permissionMode === 'plan' ? 'plan' : 'auto',
     emitResults: true,
     ...(meta.localOnly === true ? { localOnly: true } : {}),

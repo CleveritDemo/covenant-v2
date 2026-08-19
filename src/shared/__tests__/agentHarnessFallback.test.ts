@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   claudeResultErrorText,
   isRetryableHarnessOutage,
+  pickProviderChoice,
   providerMapsPlanMode,
   sanitizeFallbackProvider,
   shouldAttemptHarnessFallback,
@@ -51,6 +52,9 @@ describe('isRetryableHarnessOutage', () => {
     'rate-limit: slow down',
     'Too Many Requests',
     'OVERLOADED 529',
+    "You've hit your session limit · resets 4:30pm (America/Santiago)",
+    'usage limit reached',
+    'hit your limit',
   ])('true for %s', text => {
     expect(isRetryableHarnessOutage(text)).toBe(true)
   })
@@ -73,6 +77,47 @@ describe('isRetryableHarnessOutage', () => {
 
   it('false for empty text', () => {
     expect(isRetryableHarnessOutage('')).toBe(false)
+  })
+})
+
+describe('pickProviderChoice', () => {
+  const primary = { provider: 'claude' as const }
+
+  it('sin primario, la card libre pasa a serlo', () => {
+    expect(pickProviderChoice({}, 'cursor')).toEqual({ provider: 'cursor' })
+  })
+
+  it('click en primario sin respaldo deja el par vacío', () => {
+    expect(pickProviderChoice(primary, 'claude')).toEqual({})
+    expect(pickProviderChoice(primary, 'claude')).not.toHaveProperty('provider')
+  })
+
+  it('click en primario con respaldo lo promueve y sube su modelo', () => {
+    expect(pickProviderChoice({
+      provider: 'claude',
+      model: 'opus',
+      fallbackProvider: 'cursor',
+      fallbackModel: 'gpt-4',
+    }, 'claude')).toEqual({ provider: 'cursor', model: 'gpt-4' })
+  })
+
+  it('click en respaldo lo quita y conserva el primario', () => {
+    expect(pickProviderChoice({ provider: 'claude', fallbackProvider: 'cursor' }, 'cursor'))
+      .toEqual({ provider: 'claude' })
+    expect(pickProviderChoice({ provider: 'claude', fallbackProvider: 'cursor' }, 'cursor'))
+      .not.toHaveProperty('fallbackProvider')
+  })
+
+  it('click en otro proveedor lo asigna como respaldo', () => {
+    expect(pickProviderChoice(primary, 'cursor'))
+      .toEqual({ provider: 'claude', fallbackProvider: 'cursor' })
+  })
+
+  it('click en otro proveedor reemplaza el respaldo anterior y tira su modelo', () => {
+    expect(pickProviderChoice(
+      { provider: 'claude', fallbackProvider: 'cursor', fallbackModel: 'gpt-4' },
+      'codex',
+    )).toEqual({ provider: 'claude', fallbackProvider: 'codex' })
   })
 })
 

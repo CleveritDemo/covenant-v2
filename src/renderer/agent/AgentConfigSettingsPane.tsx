@@ -1,9 +1,8 @@
-import { shortenHome } from '@shared/shortenHome'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { AgentCliProvider, AgentPaneMeta, AgentPermissionMode } from '@shared/tabSession'
 import type { AgentCliResolution } from '@shared/agentCliProviders'
 import { agentCliSpec, providerCapabilities, AGENT_CLI_PROVIDER_IDS } from '@shared/agentCliProviders'
-import { providerMapsPlanMode } from '@shared/agentHarnessFallback'
+import { pickProviderChoice, providerMapsPlanMode } from '@shared/agentHarnessFallback'
 import type { AgentNativeSkills } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import type { AgentModelOption } from '@shared/agentCliModels'
@@ -24,7 +23,6 @@ import { Button, ChoiceCard, ContextCheckOption, COORDINATION_ICON, Icon, Segmen
 import { AgentConfigContextSummary } from './AgentConfigContextSummary'
 import type { ContextPickerAgent } from '@shared/agentContextPicker'
 import { AgentProviderGrid } from './AgentProviderGrid'
-import { AgentConfigFolderChip } from './AgentConfigFolderChip'
 import { McpToolShelf } from './McpToolShelf'
 import {
   AgentDelegateToPolicyEditor,
@@ -65,7 +63,7 @@ export interface AgentConfigSettingsPaneProps {
   onMaxDelegationsPerTurnChange: (maxDelegations: number) => void
   onOrchestrationWorkStyleChange: (workStyle: OrchestrationWorkStyle) => void
   onChangeDelegateTo: (policy: DelegateToPolicy | undefined) => void
-  onChangeProvider: (provider: AgentCliProvider) => void
+  onChangeProvider: (provider: AgentCliProvider | undefined) => void
   onChangeFallbackProvider: (next?: AgentCliProvider) => void
   onChangeModel: (model: string) => void
   onChangeFallbackModel: (model: string) => void
@@ -74,11 +72,6 @@ export interface AgentConfigSettingsPaneProps {
   onChangeMcpsAllowed: (mcpsAllowed: string[]) => void
   onToggleContext: (contextId: string) => void
   onOpenContextsModal: () => void
-}
-
-function folderLabel(cwd: string): string {
-  const normalized = cwd.replace(/[\\/]+$/, '')
-  return normalized.split(/[\\/]/).pop() || cwd || '—'
 }
 
 /**
@@ -162,7 +155,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   onOpenContextsModal,
 }) => {
   const { t } = useT()
-  const [localModels, setLocalModels] = useState<AgentModelOption[]>(() => modelsForProvider(meta.provider))
+  const [localModels, setLocalModels] = useState<AgentModelOption[]>(() => (
+    meta.provider ? modelsForProvider(meta.provider) : []
+  ))
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState('')
   const fallbackProvider = meta.fallbackProvider
@@ -173,18 +168,25 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
 
   useEffect(() => {
     if (modelOptionsProp) return
+    if (!meta.provider) {
+      setLocalModels([])
+      setLocalLoading(false)
+      setLocalError('')
+      return
+    }
+    const provider = meta.provider
     let cancelled = false
     setLocalLoading(true)
     setLocalError('')
-    setLocalModels(modelsForProvider(meta.provider))
-    void window.api.listAgentCliModels(meta.provider).then(result => {
+    setLocalModels(modelsForProvider(provider))
+    void window.api.listAgentCliModels(provider).then(result => {
       if (cancelled) return
       if (result.models.length > 0) setLocalModels(result.models)
       setLocalError(result.error ?? '')
       setLocalLoading(false)
     }).catch(error => {
       if (cancelled) return
-      setLocalModels(modelsForProvider(meta.provider))
+      setLocalModels(modelsForProvider(provider))
       setLocalError(error instanceof Error ? error.message : String(error))
       setLocalLoading(false)
     })
@@ -227,7 +229,9 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   const workStyle = resolveOrchestrationWorkStyle(meta.coordination, meta.orchestrationWorkStyle)
 
   if (section === 'engine') {
-    const providerMissing = cliStatuses[meta.provider]?.path === null
+    const providerMissing = meta.provider
+      ? cliStatuses[meta.provider]?.path === null
+      : false
     const fallbackId = meta.fallbackProvider
     const fallbackMissing = fallbackId ? cliStatuses[fallbackId]?.path === null : false
     const fallbackDisabledIds = meta.permissionMode === 'plan'
@@ -246,12 +250,12 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             statuses={cliStatuses}
             disabled={locked}
             fallbackDisabledIds={fallbackDisabledIds}
-            primaryModel={{
+            primaryModel={meta.provider ? {
               value: selectedModel,
               options: modelOptions,
               loading: loadingModels,
               disabled: locked,
-            }}
+            } : undefined}
             fallbackModel={fallbackId ? {
               value: selectedFallbackModel,
               options: fallbackModels,
@@ -261,19 +265,29 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             onChangeModel={onChangeModel}
             onChangeFallbackModel={onChangeFallbackModel}
             onPick={id => {
-              if (id === meta.provider) return
-              if (id === meta.fallbackProvider) {
-                onChangeFallbackProvider(undefined)
-                return
+              const next = pickProviderChoice(
+                {
+                  provider: meta.provider,
+                  fallbackProvider: fallbackId,
+                  model: meta.model,
+                  fallbackModel: meta.fallbackModel,
+                },
+                id,
+              )
+              if (next.provider !== meta.provider) {
+                onChangeProvider(next.provider)
+                onChangeModel(next.model ?? '')
               }
-              onChangeFallbackProvider(id)
+              if (next.fallbackProvider !== fallbackId) {
+                onChangeFallbackProvider(next.fallbackProvider)
+              }
             }}
           />
           <p className="agent-config-settings__hint">{t('agentPane.fallbackProviderHint')}</p>
           {!fallbackId ? (
             <p className="agent-config-settings__hint">{t('agentPane.fallbackNone')}</p>
           ) : null}
-          {providerMissing ? (
+          {providerMissing && meta.provider ? (
             <p className="agent-config-settings__hint agent-config-settings__hint--warn">
               {t('agentPane.providerMissingHint', {
                 command: cliStatuses[meta.provider]?.command ?? '',
@@ -287,13 +301,13 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
               })}
             </p>
           ) : null}
-          {loadingModels ? (
+          {meta.provider && loadingModels ? (
             <p className="agent-config-settings__hint">{t('agentPane.modelLoading')}</p>
           ) : null}
-          {!loadingModels && !selectedModel ? (
+          {meta.provider && !loadingModels && !selectedModel ? (
             <p className="agent-config-settings__hint">{t('agentPane.modelDefaultHint')}</p>
           ) : null}
-          {!loadingModels && modelsErrorText ? (
+          {meta.provider && !loadingModels && modelsErrorText ? (
             <div className="agent-config-settings__error">
               <span>
                 {t('agentPane.modelLoadErrorDetail', { detail: modelsErrorText.slice(0, 160) })}
@@ -308,14 +322,6 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
           {fallbackId ? (
             <p className="agent-config-settings__hint">{t('agentPane.fallbackModelHint')}</p>
           ) : null}
-        </div>
-        <div className="agent-config-settings__field">
-          <span className="agent-config-settings__label">{t('agentPane.workingDirectory')}</span>
-          <AgentConfigFolderChip
-            label={cwd.trim() ? folderLabel(cwd) : t('agentPane.projectFolderUnset')}
-            path={shortenHome(cwd)}
-          />
-          <p className="agent-config-settings__hint">{t('agentPane.projectFolderHint')}</p>
         </div>
       </div>
     )
@@ -350,8 +356,12 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
   }
 
   if (section === 'capabilities') {
-    const caps = providerCapabilities(meta.provider)
-    const providerLabel = agentCliSpec(meta.provider).label
+    const caps = meta.provider
+      ? providerCapabilities(meta.provider)
+      : { nativeSkills: false, nativeSkillNamespaces: false, mcpAllowlist: false }
+    const providerLabel = meta.provider
+      ? agentCliSpec(meta.provider).label
+      : t('agentPane.providerLabel')
     const skillsOn = meta.nativeSkills?.enabled === true
     return (
       <div className="agent-config-settings__stack">
@@ -388,14 +398,16 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
             })}
           />
         ) : null}
-        <McpToolShelf
-          provider={meta.provider}
-          cwd={cwd}
-          value={meta.mcpsAllowed ?? []}
-          locked={locked}
-          canScope={caps.mcpAllowlist}
-          onChange={onChangeMcpsAllowed}
-        />
+        {meta.provider ? (
+          <McpToolShelf
+            provider={meta.provider}
+            cwd={cwd}
+            value={meta.mcpsAllowed ?? []}
+            locked={locked}
+            canScope={caps.mcpAllowlist}
+            onChange={onChangeMcpsAllowed}
+          />
+        ) : null}
       </div>
     )
   }

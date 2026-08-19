@@ -19,7 +19,7 @@ export interface AgentProviderModelField {
 }
 
 export interface AgentProviderGridProps {
-  value: AgentCliProvider
+  value?: AgentCliProvider
   fallbackValue?: AgentCliProvider
   /** Vacío mientras se resuelve; entonces no se afirma nada sobre el PATH. */
   statuses: Partial<Record<AgentCliProvider, AgentCliResolution>>

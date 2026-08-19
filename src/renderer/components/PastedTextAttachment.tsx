@@ -24,6 +24,9 @@ export const PastedTextAttachment: React.FC<PastedTextAttachmentProps> = ({
 }) => {
   const { t } = useT()
   const [preview, setPreview] = useState(false)
+  const isReference = paste.kind === 'reference'
+  const titleKey = isReference ? 'agentPane.referenceTitle' : 'agentPane.pastedTextTitle'
+  const badgeKey = isReference ? 'agentPane.referenceBadge' : 'agentPane.pastedTextBadge'
 
   return (
     <>
@@ -31,10 +34,10 @@ export const PastedTextAttachment: React.FC<PastedTextAttachmentProps> = ({
         <button
           type="button"
           className="pasted-text__open"
-          aria-label={t('agentPane.pastedTextTitle')}
+          aria-label={t(titleKey)}
           onClick={() => setPreview(true)}
         >
-          <span className="pasted-text__badge">{t('agentPane.pastedTextBadge')}</span>
+          <span className="pasted-text__badge">{t(badgeKey)}</span>
           <span className="pasted-text__preview">{pastedTextPreview(paste.text)}</span>
         </button>
         {onRemove ? (
@@ -52,7 +55,7 @@ export const PastedTextAttachment: React.FC<PastedTextAttachmentProps> = ({
       <TerminalModal
         open={preview}
         onClose={() => setPreview(false)}
-        title={t('agentPane.pastedTextTitle')}
+        title={t(titleKey)}
         size="xl"
         zIndex={700}
         closeOnBackdrop

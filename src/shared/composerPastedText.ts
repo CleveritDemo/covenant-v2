@@ -8,6 +8,7 @@ export interface ComposerPastedText {
   charCount: number
   lineCount: number
   byteSize: number
+  kind?: 'paste' | 'reference'
 }
 
 function lineCountOf(text: string): number {
@@ -32,6 +33,15 @@ export function createPastedText(text: string): ComposerPastedText {
     charCount: text.length,
     lineCount: lineCountOf(text),
     byteSize: new TextEncoder().encode(text).length,
+  }
+}
+
+/** Cita un mensaje para adjuntarlo al composer: cada línea va prefijada con `> `. */
+export function createQuotedReference(content: string): ComposerPastedText {
+  const text = content.split(/\r?\n/).map(line => (line === '' ? '>' : `> ${line}`)).join('\n')
+  return {
+    ...createPastedText(text),
+    kind: 'reference',
   }
 }
 

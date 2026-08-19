@@ -88,3 +88,36 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+.agent-pane__bubble-reference {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+
+.agent-pane__row--assistant:hover .agent-pane__bubble-reference {
+  opacity: 1;
+}
+
+.agent-pane__bubble-reference:focus-visible {
+  opacity: 1;
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.agent-pane__bubble-reference:hover {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-pane__bubble-reference {
+    transition: none;
+  }
+}

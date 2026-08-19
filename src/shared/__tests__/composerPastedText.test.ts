@@ -4,6 +4,7 @@ import {
   PASTED_TEXT_MIN_LINES,
   composeTextWithPastes,
   createPastedText,
+  createQuotedReference,
   formatPastedTextSize,
   pastedTextPreview,
   shouldCapturePastedText,
@@ -43,6 +44,24 @@ describe('createPastedText', () => {
     expect(paste.charCount).toBe(text.length)
     expect(paste.lineCount).toBe(2)
     expect(paste.byteSize).toBe(new TextEncoder().encode(text).length)
+  })
+})
+
+describe('createQuotedReference', () => {
+  it('cita cada línea, marca kind y cuenta sobre el texto citado', () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: () => 'cccccccc-dddd-eeee-ffff-000000000000',
+    })
+    const content = 'hola\n\nmundo'
+    const quoted = createQuotedReference(content)
+    expect(quoted.text).toBe('> hola\n>\n> mundo')
+    expect(quoted.kind).toBe('reference')
+    expect(quoted.charCount).toBe(quoted.text.length)
+    expect(quoted.lineCount).toBe(3)
+    expect(quoted.byteSize).toBe(new TextEncoder().encode(quoted.text).length)
+    expect(quoted.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )
   })
 })
 

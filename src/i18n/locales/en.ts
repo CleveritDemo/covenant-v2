@@ -716,9 +716,9 @@ const en = {
     addAriaLabel: 'New workspace',
     planeEmptyTitle: 'Gravity',
     planeOnboardingLead: 'You say what. The team does how.',
-    onboardingChoosePath: 'How do you want to start?',
+    onboardingChoosePath: "What's your role?",
     onboardingGuide: {
-      choosePath: 'Choose whether to plan in rooms or execute from chat.',
+      choosePath: 'Choose your role: plan in rooms or execute from chat.',
       pickFolder: 'Select the project folder.',
       createTeam: 'Create the Covenant team to get started.',
       openBrainstorm: 'Open Brainstorm to start your first room.',

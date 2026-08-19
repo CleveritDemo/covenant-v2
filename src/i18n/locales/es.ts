@@ -12,7 +12,7 @@ const es = {
 
   settings: {
     title: 'ajustes',
-    agentCliSection: 'CLIs de agentes',
+    agentCliSection: 'Harnesses',
     agentCliHint: 'Nombres de ejecutable o rutas absolutas. La autenticación se gestiona desde cada CLI instalado.',
     cliAvailable: '{{found}} de {{total}} disponibles',
     cliChecking: 'comprobando',
@@ -186,7 +186,7 @@ const es = {
     providerInstalled: 'instalado',
     providerMissing: 'no está en el PATH',
     providerChecking: 'comprobando…',
-    providerMissingHint: '«{{command}}» no está en el PATH. Instálalo o indica su ruta en Ajustes → CLIs de agente.',
+    providerMissingHint: '«{{command}}» no está en el PATH. Instálalo o indica su ruta en Ajustes → Harnesses.',
     providerPrimaryBadge: 'Primario',
     providerFallbackBadge: 'Respaldo',
     fallbackProviderLabel: 'Si el proveedor no responde',

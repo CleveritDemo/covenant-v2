@@ -10,7 +10,7 @@ const en = {
 
   settings: {
     title: 'settings',
-    agentCliSection: 'Agent CLIs',
+    agentCliSection: 'Harnesses',
     agentCliHint: 'Executable names or absolute paths. Authentication is managed by each installed CLI.',
     cliAvailable: '{{found}} of {{total}} available',
     cliChecking: 'checking',
@@ -184,7 +184,7 @@ const en = {
     providerInstalled: 'installed',
     providerMissing: 'not on PATH',
     providerChecking: 'checking…',
-    providerMissingHint: '«{{command}}» is not on the PATH. Install it or set its path under Settings → Agent CLIs.',
+    providerMissingHint: '«{{command}}» is not on the PATH. Install it or set its path under Settings → Harnesses.',
     providerPrimaryBadge: 'Primary',
     providerFallbackBadge: 'Fallback',
     fallbackProviderLabel: 'If the provider is down',

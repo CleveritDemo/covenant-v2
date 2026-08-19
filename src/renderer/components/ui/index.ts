@@ -70,3 +70,9 @@ export type {
   PlaneBusyDotSize,
   PlaneBusyDotVariant,
 } from './PlaneBusyDot'
+
+export { JumpToLatestButton } from './JumpToLatestButton'
+export type {
+  JumpToLatestButtonProps,
+  JumpToLatestButtonShape,
+} from './JumpToLatestButton'

@@ -77,6 +77,14 @@
   color: var(--accent);
 }
 
+.brainstorm-room-view__messages-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .brainstorm-room-view__messages {
   display: flex;
   flex-direction: column;
@@ -86,6 +94,14 @@
   overflow-y: auto;
   padding: 14px 2px 18px;
   scroll-behavior: smooth;
+}
+
+.brainstorm-room-view__jump {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 4;
+  transform: translateX(-50%);
 }
 
 .brainstorm-room-view__round-sep {

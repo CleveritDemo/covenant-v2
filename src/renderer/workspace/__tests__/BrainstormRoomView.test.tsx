@@ -31,6 +31,7 @@ vi.mock('@i18n/useT', () => ({
       if (key === 'tabs.brainstormOrphanParticipants') {
         return `Saved participants missing from the catalog (skipped): ${opts?.ids}`
       }
+      if (key === 'tabs.brainstormJumpToLatest') return 'Jump to latest'
       return key
     },
   }),
@@ -733,6 +734,21 @@ describe('BrainstormRoomView — situarse al final', () => {
 
     expect(scrollIntoView).not.toHaveBeenCalled()
     expect(el.scrollTop).toBe(200)
+  })
+
+  it('si el usuario subió, la píldora salta al último mensaje', () => {
+    const { el } = mountOpen()
+    el.scrollTop = 200
+    act(() => {
+      el.dispatchEvent(new Event('scroll'))
+    })
+    const btn = screen.getByRole('button', { name: 'Jump to latest' })
+    expect(document.querySelector('.brainstorm-room-view__jump')).toBeTruthy()
+    act(() => {
+      fireEvent.click(btn)
+      flushRaf()
+    })
+    expect(el.scrollTop).toBe(900)
   })
 })
 

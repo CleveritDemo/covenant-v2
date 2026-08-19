@@ -25,7 +25,7 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { useT } from '@i18n/useT'
 import { NO_CONTEXT_USAGE, resolveAssignedContextChips, resolveTabContextById } from './resolveAssignedContextChips'
 import type { PlaneAgentContextChip } from './PlaneAgentContextNodes'
-import { Button, Icon, Tooltip, type IconName } from '../components/ui'
+import { Button, Icon, JumpToLatestButton, Tooltip, type IconName } from '../components/ui'
 import { useAiMessagesFollowScroll } from '../components/ai/useAiMessagesFollowScroll'
 import { contextIconName } from '../agent/tabContextKindIcons'
 import { BrainstormOverlay } from './BrainstormOverlay'
@@ -220,7 +220,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     return unsubscribe
   }, [room.id])
 
-  const { forceFollow } = useAiMessagesFollowScroll(
+  const { nearBottom, forceFollow } = useAiMessagesFollowScroll(
     live.messages,
     open,
     messagesRef,
@@ -833,12 +833,13 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
           <h2 className="brainstorm-room-view__topic">{room.topic}</h2>
         </header>
 
-        <div
-          ref={messagesRef}
-          className="brainstorm-room-view__messages"
-          role="log"
-          aria-live="polite"
-        >
+        <div className="brainstorm-room-view__messages-wrap">
+          <div
+            ref={messagesRef}
+            className="brainstorm-room-view__messages"
+            role="log"
+            aria-live="polite"
+          >
           {live.messages.map((message, index) => {
             const human = isBrainstormHumanMessage(message)
             const laneAgentId = human
@@ -972,6 +973,16 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 {t('tabs.brainstormRoomWarmup')}
               </p>
             ) : null}
+          </div>
+          {!nearBottom && live.messages.length > 0 ? (
+            <span className="brainstorm-room-view__jump">
+              <JumpToLatestButton
+                shape="pill"
+                label={t('tabs.brainstormJumpToLatest')}
+                onClick={forceFollow}
+              />
+            </span>
+          ) : null}
         </div>
 
         {orphanWarning ? (

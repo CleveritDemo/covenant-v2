@@ -4,7 +4,7 @@ import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { resolveQueuedTurnPreview } from '@shared/queuedTurnPreview'
 import { useT } from '@i18n/useT'
-import { Icon } from '../components/ui/Icon'
+import { JumpToLatestButton } from '../components/ui/JumpToLatestButton'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from './AgentChatBubbles'
 import { AgentDelegatingIndicator } from './AgentDelegatingIndicator'
@@ -214,14 +214,12 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
         )}
       </div>
       {!nearBottom && messages.length > 0 && (
-        <button
-          type="button"
-          className="agent-pane__scroll-bottom"
-          aria-label={t('agentPane.scrollToBottom')}
-          onClick={onScrollToBottom}
-        >
-          <Icon name="chevron-down" size={16} />
-        </button>
+        <span className="agent-pane__scroll-bottom-anchor">
+          <JumpToLatestButton
+            label={t('agentPane.scrollToBottom')}
+            onClick={onScrollToBottom}
+          />
+        </span>
       )}
     </div>
   )

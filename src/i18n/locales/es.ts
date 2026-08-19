@@ -948,6 +948,7 @@ const es = {
     brainstormResume: 'Reanudar',
     brainstormContinueRound: 'Continuar una ronda más',
     brainstormContinueRoundHint: 'Añade una ronda (máx. {{max}}).',
+    brainstormJumpToLatest: 'Ir al último mensaje',
     brainstormsListButton: 'Sala de brainstorm',
     wikiMapButton: 'Mapa neuronal de la wiki',
     wikiMapTitle: 'Mapa neuronal de la wiki',

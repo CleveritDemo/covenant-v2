@@ -69,6 +69,7 @@ html[data-reduce-motion="true"] {
   ),
   .agent-pane__stream:not(:has(.ai-md, .ai-code-block)),
   .agent-pane__scroll-bottom,
+  .agent-pane__scroll-bottom-anchor,
   .agent-pane__activity,
   .agent-pane__activity-text,
   .agent-pane__row,
@@ -330,7 +331,16 @@ html[data-reduce-motion="true"] {
   overflow: auto;
 }
 
-/* Botón flotante: vuelve al final cuando el usuario está leyendo arriba. */
+/* Ancla del kit JumpToLatestButton: solo posición. Lo visual vive en el kit. */
+.agent-pane__scroll-bottom-anchor {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 4;
+  transform: translateX(-50%);
+}
+
+/* PlaneQuickChat aún pinta el círculo inline; no toques ese archivo. */
 .agent-pane__scroll-bottom {
   position: absolute;
   left: 50%;

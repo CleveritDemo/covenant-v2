@@ -946,6 +946,7 @@ const en = {
     brainstormResume: 'Resume',
     brainstormContinueRound: 'Continue one more round',
     brainstormContinueRoundHint: 'Adds one round (max {{max}}).',
+    brainstormJumpToLatest: 'Jump to latest',
     brainstormsListButton: 'Brainstorm room',
     wikiMapButton: 'Wiki neural map',
     wikiMapTitle: 'Wiki neural map',

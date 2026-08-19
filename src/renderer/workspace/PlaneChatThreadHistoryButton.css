@@ -174,23 +174,6 @@
   pointer-events: none;
 }
 
-.plane-chat-thread-history__group {
-  box-sizing: border-box;
-  width: max-content;
-  min-width: 120px;
-  max-width: 260px;
-  padding: 0 10px 0 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.3;
-  text-align: left;
-}
-
 .plane-chat-thread-history__label {
   flex: 1 1 auto;
   min-width: 0;

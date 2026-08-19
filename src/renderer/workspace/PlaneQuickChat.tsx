@@ -1,19 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
-import type { TFunction } from 'i18next'
-import type {
-  OrchestrationAwaitingItemView,
-  OrchestrationAwaitingView,
-} from '@shared/orchestrationAwaiting'
+import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { Icon } from '../components/ui'
 import { AgentChatBubbles, type AgentChatBubblesHandle } from '../agent/AgentChatBubbles'
-import {
-  AgentDelegatingIndicator,
-  type AgentDelegatingListGroup,
-  type AgentDelegatingListItem,
-} from '../agent/AgentDelegatingIndicator'
+import { AgentDelegatingIndicator } from '../agent/AgentDelegatingIndicator'
 import { PlaneActivityLine } from './PlaneActivityLine'
 import '../agent/AgentPane.css'
 import '../agent/AgentChatBubbles.css'
@@ -44,36 +36,6 @@ export interface PlaneQuickChatProps {
 /** Conversación user/assistant del plano (sin system). */
 function planeConversation(messages: AgentChatEntry[]): AgentChatEntry[] {
   return messages.filter(entry => entry.role === 'user' || entry.role === 'assistant')
-}
-
-function awaitingListItem(
-  item: OrchestrationAwaitingItemView,
-  t: TFunction,
-): AgentDelegatingListItem {
-  return {
-    id: item.delegationId,
-    label: item.agentLabel,
-    status: item.status,
-    statusLabel: item.status === 'done'
-      ? t('agentPane.awaitingStatusDone')
-      : item.status === 'deferred'
-        ? t('agentPane.awaitingStatusDeferred')
-        : t('agentPane.awaitingStatusRunning'),
-    ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
-  }
-}
-
-function awaitingListGroups(
-  awaiting: OrchestrationAwaitingView | null | undefined,
-  t: TFunction,
-): AgentDelegatingListGroup[] | undefined {
-  const groups = awaiting?.groups
-  if (!groups) return undefined
-  return groups.map(group => ({
-    id: group.jobId || `group-${group.index}`,
-    title: group.title ?? t('agentPane.delegationGroup', { n: group.index }),
-    items: group.items.map(item => awaitingListItem(item, t)),
-  }))
 }
 
 /**
@@ -197,8 +159,17 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                         ? t('agentPane.awaitingWaveSublabel')
                         : t('agentPane.delegatingSubtitle')
                     }
-                    items={(orchestrationAwaiting?.items ?? []).map(item => awaitingListItem(item, t))}
-                    groups={awaitingListGroups(orchestrationAwaiting, t)}
+                    items={(orchestrationAwaiting?.items ?? []).map(item => ({
+                      id: item.delegationId,
+                      label: item.agentLabel,
+                      status: item.status,
+                      statusLabel: item.status === 'done'
+                        ? t('agentPane.awaitingStatusDone')
+                        : item.status === 'deferred'
+                          ? t('agentPane.awaitingStatusDeferred')
+                        : t('agentPane.awaitingStatusRunning'),
+                      ...(item.worktreeHint ? { worktreeHint: item.worktreeHint } : {}),
+                    }))}
                     stopItemLabel={t('agentPane.awaitingStopSpecialist')}
                     onStopItem={onAbortDelegation}
                   />

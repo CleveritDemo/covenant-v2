@@ -150,7 +150,6 @@ import {
   canReconcileIdlePending,
   createOrchestrationJob,
   decideJobForTurn,
-  humanTurnPreview,
   findJobByDelegation,
   findPendingDelegationByToPane,
   flattenAwaitingItemsFromJobs,
@@ -757,14 +756,7 @@ export const App: React.FC = () => {
       const tab = tabsRef.current.find(item => (item.paneIds ?? []).includes(fromPaneId))
       const catalogKey = tab ? tabAgentCatalogKey(tab) : ''
       const catalog = catalogKey ? (projectAgentsByCwdRef.current[catalogKey] ?? []) : []
-      const view = buildOrchestrationAwaitingView(flat, {
-        catalog,
-        jobsMeta: jobs.map(job => ({
-          jobId: job.jobId,
-          createdAt: job.createdAt,
-          humanRequestPreview: job.humanRequestPreview,
-        })),
-      })
+      const view = buildOrchestrationAwaitingView(flat, { catalog })
       const stillWaiting = jobs.some(isJobAwaiting)
       if (view && stillWaiting) nextViews.set(fromPaneId, view)
       if (!stillWaiting) {
@@ -4410,7 +4402,7 @@ export const App: React.FC = () => {
   // abortOrchestrationRun se asigna abajo; ref evita ciclo begin↔abort.
   const abortOrchestrationRunRef = useRef<((fromPaneId: string) => void) | null>(null)
 
-  const beginOrchestrationUserTurn = useCallback((fromPaneId: string, humanRequest?: string) => {
+  const beginOrchestrationUserTurn = useCallback((fromPaneId: string) => {
     dispatchedOrchestrationFollowUpsByPaneRef.current.delete(fromPaneId)
     const workStyle = orchestrationWorkStyleForPane(fromPaneId)
     if (shouldAbortOnHumanTurn(workStyle)) {
@@ -4428,13 +4420,7 @@ export const App: React.FC = () => {
     }
     const fromThreadId =
       agentPlaneStatusRef.current[fromPaneId]?.activeThreadId?.trim() || DEFAULT_THREAD_ID
-    const preview = humanTurnPreview(humanRequest ?? '')
-    const job = createOrchestrationJob(
-      fromPaneId,
-      undefined,
-      fromThreadId,
-      preview ? { humanRequestPreview: preview } : undefined,
-    )
+    const job = createOrchestrationJob(fromPaneId, undefined, fromThreadId)
     jobs.set(job.jobId, job)
     activeOrchestrationJobByPaneRef.current.set(fromPaneId, job.jobId)
     delegateWarningsSeenByJobRef.current.set(job.jobId, new Set())
@@ -6638,7 +6624,7 @@ export const App: React.FC = () => {
           }}
           onInsertCommand={cmd => handleInsertCommandInTerminal(tab.id, cmd)}
           onDelegationTurnComplete={handleDelegationTurnComplete}
-          onOrchestrationUserTurn={humanRequest => beginOrchestrationUserTurn(paneId, humanRequest)}
+          onOrchestrationUserTurn={() => beginOrchestrationUserTurn(paneId)}
           getOrchestrationRound={() => {
             const activeId = activeOrchestrationJobByPaneRef.current.get(paneId)
             const jobs = orchestrationJobsByPaneRef.current.get(paneId)

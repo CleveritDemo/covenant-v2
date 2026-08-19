@@ -502,7 +502,6 @@ const es = {
     awaitingDelegationsPlaceholder: 'Esperando resultados de las delegaciones…',
     turboAwaitingPlaceholder: 'Puedes seguir enviando mientras llegan las delegaciones…',
     awaitingWaveProgress: 'Esperando {{done}}/{{total}}',
-    delegationGroup: 'Pedido {{n}}',
     awaitingStatusDeferred: 'en cola',
     awaitingStatusRunning: 'en curso',
     obtainingDelegationResults: 'Obteniendo resultados…',

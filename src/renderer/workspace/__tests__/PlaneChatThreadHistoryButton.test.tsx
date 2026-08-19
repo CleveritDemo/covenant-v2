@@ -6,7 +6,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PlaneChatThreadHistoryButton } from '../PlaneChatThreadHistoryButton'
 import type { AgentThread } from '@shared/agentThreads'
-import type { OrchestrationAwaitingView } from '@shared/orchestrationAwaiting'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key }),
@@ -54,46 +53,16 @@ function makeThreads(count: number): AgentThread[] {
   }))
 }
 
-function makeAwaiting(
-  groups: Array<{
-    jobId: string
-    index: number
-    title?: string
-    items: Array<{
-      delegationId: string
-      agentLabel: string
-      status: 'running' | 'deferred' | 'done'
-    }>
-  }>,
-): OrchestrationAwaitingView {
-  const items = groups.flatMap(group => group.items)
-  return {
-    done: items.filter(item => item.status === 'done').length,
-    total: items.length,
-    items,
-    groups: groups.map(group => ({
-      jobId: group.jobId,
-      index: group.index,
-      ...(group.title ? { title: group.title } : {}),
-      done: group.items.filter(item => item.status === 'done').length,
-      total: group.items.length,
-      items: group.items,
-    })),
-  }
-}
-
 function HistoryHarness({
   threads,
   activeThreadId,
   runningThreadIds,
   onSelectThread,
-  orchestrationAwaiting,
 }: {
   threads: AgentThread[]
   activeThreadId: string
   runningThreadIds: readonly string[]
   onSelectThread: (threadId: string) => void
-  orchestrationAwaiting?: OrchestrationAwaitingView | null
 }): React.ReactElement {
   const panelId = useId().replace(/:/g, '')
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -105,7 +74,6 @@ function HistoryHarness({
       activeThreadId={activeThreadId}
       runningThreadIds={runningThreadIds}
       onSelectThread={onSelectThread}
-      orchestrationAwaiting={orchestrationAwaiting}
       anchor={hoverProps => (
         <button ref={triggerRef} type="button" {...hoverProps}>
           Open
@@ -240,59 +208,5 @@ describe('PlaneChatThreadHistoryButton', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
 
     expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
-  })
-
-  it('two jobs paint two group headers', () => {
-    render(
-      <HistoryHarness
-        threads={[]}
-        activeThreadId=""
-        runningThreadIds={[]}
-        onSelectThread={() => undefined}
-        orchestrationAwaiting={makeAwaiting([
-          {
-            jobId: 'job-1',
-            index: 1,
-            title: 'Add login',
-            items: [{ delegationId: 'd1', agentLabel: 'frontend', status: 'running' }],
-          },
-          {
-            jobId: 'job-2',
-            index: 2,
-            title: 'Fix tests',
-            items: [{ delegationId: 'd2', agentLabel: 'backend', status: 'deferred' }],
-          },
-        ])}
-      />,
-    )
-    const panel = openHistoryPanel()
-    const headers = panel.querySelectorAll('.plane-chat-thread-history__group')
-    expect(headers).toHaveLength(2)
-    expect(headers[0]?.textContent).toBe('Add login')
-    expect(headers[1]?.textContent).toBe('Fix tests')
-    expect(panel.querySelectorAll('.plane-chat-thread-history__row')).toHaveLength(2)
-  })
-
-  it('one job paints no group header', () => {
-    render(
-      <HistoryHarness
-        threads={[]}
-        activeThreadId=""
-        runningThreadIds={[]}
-        onSelectThread={() => undefined}
-        orchestrationAwaiting={makeAwaiting([
-          {
-            jobId: 'job-1',
-            index: 1,
-            title: 'Add login',
-            items: [{ delegationId: 'd1', agentLabel: 'frontend', status: 'running' }],
-          },
-        ])}
-      />,
-    )
-    const panel = openHistoryPanel()
-    expect(panel.querySelectorAll('.plane-chat-thread-history__group')).toHaveLength(0)
-    expect(panel.querySelectorAll('.plane-chat-thread-history__row')).toHaveLength(1)
-    expect(panel.textContent).toContain('frontend')
   })
 })

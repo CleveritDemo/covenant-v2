@@ -16,7 +16,6 @@ import {
   findPendingDelegationByToPane,
   IDLE_PENDING_GRACE_MS,
   flattenAwaitingItemsFromJobs,
-  humanTurnPreview,
   jobRoundsAtCap,
   markPendingSawBusyForPane,
   occupiedPaneIdsAcrossJobs,
@@ -110,19 +109,6 @@ describe('createOrchestrationJob / findJobByDelegation', () => {
     expect(createOrchestrationJob('orch-1', 'job-fixed', '  ').fromThreadId).toBeUndefined()
   })
 
-  it('sets createdAt and trimmed humanRequestPreview from the fourth options arg', () => {
-    const job = createOrchestrationJob('orch-1', 'job-fixed', undefined, {
-      createdAt: 1_700_000_000_000,
-      humanRequestPreview: '  Fix the login  ',
-    })
-    expect(job.createdAt).toBe(1_700_000_000_000)
-    expect(job.humanRequestPreview).toBe('Fix the login')
-    expect(createOrchestrationJob('orch-1', 'job-x').createdAt).toEqual(expect.any(Number))
-    expect(createOrchestrationJob('orch-1', 'job-y', undefined, {
-      humanRequestPreview: '   ',
-    }).humanRequestPreview).toBeUndefined()
-  })
-
   it('finds job by pending, deferred, or wave item', () => {
     const a = jobWithPending('orch', 'd1', 'pane-a')
     const b = createOrchestrationJob('orch')
@@ -180,11 +166,10 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
     expect(items.map(item => item.delegationId)).toEqual(['d1', 'd2'])
     expect(items.every(item => item.status === 'running')).toBe(true)
     expect(items.map(item => item.toPaneId)).toEqual(['pane-a', 'pane-b'])
-    expect(items.map(item => item.jobId)).toEqual([j1.jobId, j2.jobId])
   })
 
   it('flattens deferred items with pane and thread for Waiting Stop', () => {
-    const job = createOrchestrationJob('orch', 'job-deferred')
+    const job = createOrchestrationJob('orch')
     job.deferred.push({
       tabId: 'tab',
       delegation: { id: 'd-lane', toAgentId: 'frontend', objective: 'x' },
@@ -201,7 +186,6 @@ describe('flattenAwaitingItemsFromJobs / pane id sets', () => {
     expect(flattenAwaitingItemsFromJobs([job])).toEqual([
       {
         delegationId: 'd-lane',
-        jobId: 'job-deferred',
         toAgentId: 'frontend',
         toPaneId: 'pane-front',
         toThreadId: 'thread-lane-1',
@@ -880,17 +864,5 @@ describe('legacy fallback pane sets', () => {
     const legacy = specialistPendingHasLegacyByPane(byPane)
     expect(legacy.has('spec-legacy')).toBe(true)
     expect(legacy.has('spec-threaded')).toBe(false)
-  })
-})
-
-describe('humanTurnPreview', () => {
-  it('collapses spaces, takes the first non-empty line, and truncates with an ellipsis', () => {
-    expect(humanTurnPreview('')).toBe('')
-    expect(humanTurnPreview('  \n\t  ')).toBe('')
-    expect(humanTurnPreview('  hello   world  ')).toBe('hello world')
-    expect(humanTurnPreview('\n\n  first   line  \nsecond')).toBe('first line')
-    expect(humanTurnPreview('x'.repeat(60))).toBe('x'.repeat(60))
-    expect(humanTurnPreview('x'.repeat(61))).toBe(`${'x'.repeat(60)}…`)
-    expect(humanTurnPreview('abcdef', 3)).toBe('abc…')
   })
 })

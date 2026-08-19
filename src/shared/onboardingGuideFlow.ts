@@ -63,6 +63,8 @@ export type OnboardingGuideResolveArgs = {
   humanSpokeInRoom?: boolean
   sentFirstMessage?: boolean
   assignedAnyContext?: boolean
+  /** true si la sesión ya tiene un pane terminal abierto */
+  terminalOpen?: boolean
   doneSteps?: readonly string[]
 }
 
@@ -139,7 +141,7 @@ export function resolveOnboardingGuideStep(
     if (!args.assignedAnyContext && !doneSteps.includes('assign_context')) {
       return guideStep('assign_context', 'context-pool', 'assignContext')
     }
-    if (!doneSteps.includes('open_terminal')) {
+    if (!args.terminalOpen && !doneSteps.includes('open_terminal')) {
       return guideStep('open_terminal', 'plane-terminal-fab', 'openTerminal')
     }
     return null

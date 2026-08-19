@@ -50,6 +50,7 @@ export function buildGuideResolveArgs(
     humanSpokeInRoom: rooms.some(room => Boolean(tab.humanSpokeByRoom?.[room.id])),
     sentFirstMessage: tab.sentFirstMessage,
     assignedAnyContext: tab.assignedAnyContext,
+    terminalOpen: Object.values(tab.paneKinds ?? {}).some(kind => kind === 'terminal'),
     doneSteps: tab.doneSteps,
   }
 }

@@ -49,6 +49,7 @@ describe('buildGuideResolveArgs', () => {
       sentFirstMessage: true,
       assignedAnyContext: true,
       doneSteps: ['saved_rooms'],
+      terminalOpen: true,
     })
   })
 
@@ -70,6 +71,7 @@ describe('buildGuideResolveArgs', () => {
     expect(args.brainstormOverlayOpen).toBe(false)
     expect(args.brainstormRoomLive).toBe(false)
     expect(args.humanSpokeInRoom).toBe(false)
+    expect(args.terminalOpen).toBe(true)
   })
 })
 

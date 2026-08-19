@@ -13,7 +13,7 @@ const teamTabBase: Pick<
 > = {
   incomplete: true,
   projectFolder: '/tmp/project',
-  paneKinds: { p1: 'agent', p2: 'terminal' },
+  paneKinds: { p1: 'agent' },
 }
 
 function resolveStep(tab: OnboardingGuideTabSnapshot): string | null {
@@ -89,6 +89,20 @@ describe('track engineer con equipo montado', () => {
         sentFirstMessage: true,
         assignedAnyContext: true,
         doneSteps: ['assign_context', 'open_terminal'],
+      }),
+    ).toBeNull()
+  })
+
+  it('con pane terminal abierto auto-salta open_terminal y agota la escalera', () => {
+    expect(
+      resolveStep({
+        ...teamTabBase,
+        paneKinds: { p1: 'agent', p2: 'terminal' },
+        path: 'engineer',
+        planeOpenChatAgentId: 'agent-1',
+        sentFirstMessage: true,
+        assignedAnyContext: true,
+        doneSteps: [],
       }),
     ).toBeNull()
   })

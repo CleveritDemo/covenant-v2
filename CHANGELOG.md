@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.5
+El modelo del motor ya se elige dentro de la propia tarjeta, tanto en el primario como en el respaldo. Desaparecen los dos desplegables sueltos que había debajo de las tarjetas.
+
+Primario y respaldo se distinguen por el color del borde, tomado del tema activo: acento para el primario y cian del tema para el respaldo, con ajuste propio en temas claros. Sin cambios en cuándo entra el respaldo: la política de failover no se tocó.
+
 ## v0.95.4
 El motor de respaldo se elige en las mismas tarjetas del motor, no en un desplegable aparte: la primera tarjeta que marcas es el **Primario**, la segunda queda como **Respaldo**, y volver a pulsarla lo quita. Cada tarjeta seleccionada dice cuál es cuál.
 

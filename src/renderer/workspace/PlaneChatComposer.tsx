@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ClipboardEvent } from 'react'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { hasPlaneContextDrag, readPlaneContextDragData } from './planeContextDrag'
@@ -42,6 +42,7 @@ import {
   MAX_PENDING_PASTED_TEXTS,
   composeTextWithPastes,
   createPastedText,
+  createQuotedReference,
   shouldCapturePastedText,
   type ComposerPastedText,
 } from '@shared/composerPastedText'
@@ -149,32 +150,37 @@ export interface PlaneChatComposerProps {
   onLoadPromptHistory?: (paneId: string, threadId: string | null) => Promise<string[]>
 }
 
-export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
-  agents,
-  contexts = [],
-  selectedAgentId,
-  activeThreadId = '',
-  placeholder,
-  emptyAgentsHint,
-  sendLabel,
-  queuedTurns = [],
-  agentCatalog = [],
-  queueFullNotice = null,
-  onQueueFullNoticeDismiss,
-  onSelectAgent,
-  onStop,
-  onSend,
-  onRemoveQueuedTurn,
-  onUpdateQueuedTurn,
-  onMergeQueuedTurns,
-  gitRepos = [],
-  onOpenRepoGit,
-  onRefreshRepos,
-  systemSoundsEnabled = true,
-  cwd = '',
-  onContextSaved,
-  onLoadPromptHistory,
-}) => {
+export interface PlaneChatComposerHandle {
+  attachReference: (content: string) => void
+}
+
+export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatComposerProps>(
+  function PlaneChatComposer({
+    agents,
+    contexts = [],
+    selectedAgentId,
+    activeThreadId = '',
+    placeholder,
+    emptyAgentsHint,
+    sendLabel,
+    queuedTurns = [],
+    agentCatalog = [],
+    queueFullNotice = null,
+    onQueueFullNoticeDismiss,
+    onSelectAgent,
+    onStop,
+    onSend,
+    onRemoveQueuedTurn,
+    onUpdateQueuedTurn,
+    onMergeQueuedTurns,
+    gitRepos = [],
+    onOpenRepoGit,
+    onRefreshRepos,
+    systemSoundsEnabled = true,
+    cwd = '',
+    onContextSaved,
+    onLoadPromptHistory,
+  }, ref) {
   const { t, i18n } = useT()
   const [draft, setDraft] = useState('')
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
@@ -400,6 +406,16 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
   const removePendingPaste = useCallback((id: string): void => {
     setPendingPastes(previous => previous.filter(paste => paste.id !== id))
   }, [])
+
+  const attachReference = useCallback((content: string): void => {
+    setPendingPastes(previous =>
+      previous.length >= MAX_PENDING_PASTED_TEXTS
+        ? previous
+        : [...previous, createQuotedReference(content)],
+    )
+  }, [])
+
+  useImperativeHandle(ref, () => ({ attachReference }), [attachReference])
 
   const handleSketchAttach = useCallback((blob: Blob): void => {
     void pendingImageFromBlob(blob, `sketch-${Date.now()}.png`).then(image => {
@@ -826,4 +842,4 @@ export const PlaneChatComposer: React.FC<PlaneChatComposerProps> = ({
       />
       </div>
   )
-}
+})

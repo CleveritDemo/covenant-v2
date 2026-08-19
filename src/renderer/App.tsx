@@ -32,10 +32,11 @@ import { ONBOARDING_VERSION, type OrchestratorPath } from '@shared/onboarding'
 import {
   canCompleteOnboarding,
   isOnboardingActive,
+  isOnboardingGuideActive,
   isOnboardingIncomplete,
   onboardingChromeHidden,
   onboardingLockedSurface,
-  sessionHasOrchestrationPanes,
+  shouldAutoCompleteFromPanes,
   shouldWarnComposerMissingCli,
 } from '@shared/onboardingFlow'
 import {
@@ -6922,7 +6923,8 @@ export const App: React.FC = () => {
   const ready = configReady && sessionReady.loaded
   const incomplete = isOnboardingIncomplete(config.onboardingCompletedVersion)
   const onboardingActive = isOnboardingActive({ incomplete, tabs })
-  const locked = onboardingActive && ready
+  const chromeLocked = onboardingActive && ready
+  const guideLocked = isOnboardingGuideActive({ incomplete }) && ready
   const chrome = onboardingChromeHidden(onboardingActive)
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
@@ -6937,7 +6939,7 @@ export const App: React.FC = () => {
     const draft = brainstormSetupDraftByTab[tab.id]
     const rooms = brainstormRoomsByTab[tab.id] ?? []
     return buildGuideResolveArgs({
-      incomplete: locked,
+      incomplete: guideLocked,
       path: config.orchestratorPath,
       projectFolder: tab.projectFolder,
       paneKinds: tab.paneKinds,
@@ -6958,19 +6960,22 @@ export const App: React.FC = () => {
   }
 
   const resolveGuideStepForTab = (tab: TabSession): OnboardingGuideStep | null => {
-    if (!locked) return null
+    if (!guideLocked) return null
     return resolveOnboardingGuideStep(guideArgsForTab(tab))
   }
 
   useEffect(() => {
     if (!ready) return
-    if (!incomplete) return
-    if (!sessionHasOrchestrationPanes(tabs)) return
+    if (!shouldAutoCompleteFromPanes({
+      incomplete,
+      path: config.orchestratorPath,
+      tabs,
+    })) return
     persistOnboardingCompleted(ONBOARDING_VERSION)
-  }, [ready, incomplete, tabs, persistOnboardingCompleted])
+  }, [ready, incomplete, config.orchestratorPath, tabs, persistOnboardingCompleted])
 
   useEffect(() => {
-    if (!locked || !activeTab) return
+    if (!guideLocked || !activeTab) return
     if (shouldCompleteByGuideExhausted({
       resolveArgs: guideArgsForTab(activeTab),
       cliAllMissing: clisAllMissing(onboardingClis),
@@ -6978,7 +6983,7 @@ export const App: React.FC = () => {
       persistOnboardingCompleted(ONBOARDING_VERSION)
     }
   }, [
-    locked,
+    guideLocked,
     activeTab,
     config.orchestratorPath,
     config.onboardingSentFirstMessage,
@@ -7883,7 +7888,7 @@ export const App: React.FC = () => {
                     if (handle) tabExplorerHostByTabRef.current.set(tab.id, handle)
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
-                  onboardingLocked={locked}
+                  onboardingLocked={chromeLocked}
                   onboardingGuideStep={resolveGuideStepForTab(tab)}
                   onboardingGuideDismissLabel={t('tabs.onboardingGuide.dismiss')}
                   onOnboardingGuideDismiss={step => {
@@ -7894,7 +7899,7 @@ export const App: React.FC = () => {
                   orchestratorPath={config.orchestratorPath}
                   onSelectOrchestratorPath={handleOnboardingSelectPath}
                   onInviteToOrg={() => { setOrgModalOpen(true) }}
-                  hideComposer={!s.showComposer && locked}
+                  hideComposer={!s.showComposer && chromeLocked}
                   hidePulse={chrome.hidePulse}
                   hideWiki={chrome.hideWiki}
                   hideLoops={chrome.hideLoops}

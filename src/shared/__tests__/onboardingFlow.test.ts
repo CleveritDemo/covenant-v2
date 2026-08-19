@@ -3,11 +3,13 @@ import { ONBOARDING_VERSION } from '../onboarding'
 import {
   canCompleteOnboarding,
   isOnboardingActive,
+  isOnboardingGuideActive,
   isOnboardingIncomplete,
   onboardingChromeHidden,
   onboardingGuideExhausted,
   onboardingLockedSurface,
   sessionHasOrchestrationPanes,
+  shouldAutoCompleteFromPanes,
   tabHasOrchestrationPanes,
   shouldWarnComposerMissingCli,
 } from '../onboardingFlow'
@@ -72,6 +74,62 @@ describe('isOnboardingActive', () => {
     expect(isOnboardingActive({ incomplete: false, tabs: [] })).toBe(false)
     expect(isOnboardingActive({ incomplete: true, tabs: [] })).toBe(true)
     expect(isOnboardingActive({ incomplete: true, tabs: [{ paneKinds: {} }] })).toBe(true)
+  })
+})
+
+describe('isOnboardingGuideActive', () => {
+  it('is true when incomplete even with orchestration panes', () => {
+    expect(isOnboardingGuideActive({ incomplete: true })).toBe(true)
+  })
+
+  it('is false when onboarding is complete', () => {
+    expect(isOnboardingGuideActive({ incomplete: false })).toBe(false)
+  })
+})
+
+describe('shouldAutoCompleteFromPanes', () => {
+  const withPanes = [{ paneKinds: { a: 'agent' } }]
+
+  it('is true with incomplete, empty path and orchestration panes', () => {
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: true,
+      path: '',
+      tabs: withPanes,
+    })).toBe(true)
+  })
+
+  it('is false with engineer or business path even when panes exist', () => {
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: true,
+      path: 'engineer',
+      tabs: withPanes,
+    })).toBe(false)
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: true,
+      path: 'business',
+      tabs: withPanes,
+    })).toBe(false)
+  })
+
+  it('is false without orchestration panes', () => {
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: true,
+      path: '',
+      tabs: [],
+    })).toBe(false)
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: true,
+      path: '',
+      tabs: [{ paneKinds: {} }],
+    })).toBe(false)
+  })
+
+  it('is false when onboarding is complete', () => {
+    expect(shouldAutoCompleteFromPanes({
+      incomplete: false,
+      path: '',
+      tabs: withPanes,
+    })).toBe(false)
   })
 })
 

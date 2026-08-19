@@ -26,12 +26,26 @@ export function sessionHasOrchestrationPanes(
   return tabs.some(tab => tabHasOrchestrationPanes(tab.paneKinds))
 }
 
-/** UI de onboarding solo en primera apertura con sesión aún sin agentes ni terminales. */
+/** Chrome del plano (add-tab, idle gravity, composer): solo sin agentes ni terminales. No gobierna la guía. */
 export function isOnboardingActive(args: {
   incomplete: boolean
   tabs: readonly OnboardingTabSnapshot[]
 }): boolean {
   return args.incomplete && !sessionHasOrchestrationPanes(args.tabs)
+}
+
+/** La escalera de coach marks vive mientras el onboarding esté incompleto, haya o no panes. */
+export function isOnboardingGuideActive(args: { incomplete: boolean }): boolean {
+  return args.incomplete
+}
+
+/** Cierre por panes: solo sesiones heredadas que nunca eligieron rol (path vacío). */
+export function shouldAutoCompleteFromPanes(args: {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+  tabs: readonly OnboardingTabSnapshot[]
+}): boolean {
+  return args.incomplete && args.path === '' && sessionHasOrchestrationPanes(args.tabs)
 }
 
 export type OnboardingCompleteTrigger =

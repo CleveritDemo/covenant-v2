@@ -51,7 +51,7 @@ export const BrainstormHumanComposer: React.FC<BrainstormHumanComposerProps> = (
   }, [disabled, onSend, target, value])
 
   return (
-    <div className="brainstorm-human-composer">
+    <div className="brainstorm-human-composer" data-onboarding="brainstorm-human-composer">
       <div className="brainstorm-human-composer__row">
         <TextArea
           size="sm"

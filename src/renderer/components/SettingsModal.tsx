@@ -88,9 +88,9 @@ const SEARCH_INDEX = [
   { category: 'advanced', anchor: 'settings-workspaces', titleKey: 'settings.workspacesSection', termKeys: ['settings.defaultWorkspacesDirLabel', 'settings.defaultWorkspacesDirHint'] },
   { category: 'advanced', anchor: 'settings-config', titleKey: 'settings.configSection', termKeys: ['settings.configHint', 'settings.revealConfig'] },
   { category: 'advanced', anchor: 'settings-lsp', titleKey: 'lsp.settings.title', termKeys: ['lsp.settings.masterToggle', 'lsp.settings.hint'] },
-  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.onboardingLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
+  { category: 'developer', anchor: 'settings-developer', titleKey: 'settings.developerSection', termKeys: ['settings.splashLabel', 'settings.quitModalLabel', 'settings.updateBannerLabel', 'settings.releaseNotesLabel'] },
   { category: 'updates', anchor: 'settings-updates', titleKey: 'settings.updatesSection', termKeys: ['settings.autoUpdatesTitle', 'settings.checkUpdates', 'settings.restartToUpdate'] },
-  { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion'] },
+  { category: 'about', anchor: 'settings-about', titleKey: 'settings.aboutSection', termKeys: ['settings.aboutVersion', 'settings.onboardingLabel'] },
   // `as const` no es decoración: sin literales, `t()` rechaza las claves.
 ] as const
 
@@ -779,13 +779,6 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                   {t('settings.splashReplay')}
                 </Button>
               </SettingsField>
-              {onReplayOnboarding ? (
-                <SettingsField label={t('settings.onboardingLabel')}>
-                  <Button variant="secondary" size="sm" onClick={handleReplayClick}>
-                    {t('settings.onboardingButton')}
-                  </Button>
-                </SettingsField>
-              ) : null}
               <SettingsField
                 label={t('settings.quitModalLabel')}
                 hint={t('settings.quitModalHint')}
@@ -883,6 +876,13 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
               title={t('settings.aboutVersion', { version: appVersion })}
               anchor="settings-about"
             >
+              {onReplayOnboarding ? (
+                <SettingsField label={t('settings.onboardingLabel')}>
+                  <Button variant="secondary" size="sm" onClick={handleReplayClick}>
+                    {t('settings.onboardingButton')}
+                  </Button>
+                </SettingsField>
+              ) : null}
               <div className="settings-changelog">
                 <AiMarkdown content={settingsChangelogMd} />
               </div>

@@ -321,6 +321,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         draggingChip ? 'plane-context-pool-shell--dragging' : '',
         elevated ? 'plane-context-pool-shell--elevated' : '',
       ].filter(Boolean).join(' ')}
+      data-onboarding="context-pool"
       role="toolbar"
       aria-label={title}
       onMouseDown={event => event.stopPropagation()}

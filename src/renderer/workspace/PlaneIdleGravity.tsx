@@ -1,6 +1,8 @@
 import React from 'react'
 import { Gravity } from '../agent/Gravity'
+import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PlaneOnboardingHome } from './PlaneOnboardingHome'
 import './PlaneIdleGravity.css'
 
 export interface PlaneIdleGravityProps {
@@ -21,6 +23,16 @@ export interface PlaneIdleGravityProps {
   showBootstrapAgents?: boolean
   canBootstrapAgents?: boolean
   onBootstrapAgents?: () => void
+  /** Primera vez: el plano es la casa; no hay wizard. */
+  onboardingLocked?: boolean
+  orchestratorPath?: '' | 'business' | 'engineer'
+  onSelectOrchestratorPath?: (path: 'business' | 'engineer') => void
+  onInviteToOrg?: () => void
+  /** Con lock, App manda el surface; sin lock se ignoran. */
+  showPathPicker?: boolean
+  showFolderCta?: boolean
+  showTeamFab?: boolean
+  showInviteCta?: boolean
 }
 
 /**
@@ -39,21 +51,24 @@ export const PlaneIdleGravity: React.FC<PlaneIdleGravityProps> = ({
   showBootstrapAgents = false,
   canBootstrapAgents = false,
   onBootstrapAgents,
+  onboardingLocked = false,
+  onSelectOrchestratorPath,
+  onInviteToOrg,
+  showPathPicker = false,
+  showFolderCta = false,
+  showTeamFab = false,
+  showInviteCta = false,
 }) => {
+  const pathPicker = Boolean(onboardingLocked && showPathPicker && onSelectOrchestratorPath)
   // Sin carpeta: CTA de seleccionar folder. Con carpeta: CTA de crear equipo.
   // No mostramos «Crear equipo» deshabilitado — se sustituye por la instrucción.
-  const showSelectFolder = Boolean(
-    showBootstrapAgents
-      && !canBootstrapAgents
-      && selectFolderLabel
-      && onSelectProjectFolder,
-  )
-  const showCreateTeam = Boolean(
-    showBootstrapAgents
-      && canBootstrapAgents
-      && bootstrapAgentsLabel
-      && onBootstrapAgents,
-  )
+  // Con onboardingLocked manda el surface por props; sin locked, igual que main.
+  const showSelectFolder = onboardingLocked
+    ? Boolean(showFolderCta && selectFolderLabel && onSelectProjectFolder)
+    : Boolean(showBootstrapAgents && !canBootstrapAgents && selectFolderLabel && onSelectProjectFolder)
+  const showCreateTeam = onboardingLocked
+    ? Boolean(showTeamFab && bootstrapAgentsLabel && onBootstrapAgents)
+    : Boolean(showBootstrapAgents && canBootstrapAgents && bootstrapAgentsLabel && onBootstrapAgents)
 
   const actionLabel = showSelectFolder
     ? selectFolderLabel!
@@ -72,43 +87,81 @@ export const PlaneIdleGravity: React.FC<PlaneIdleGravityProps> = ({
       : undefined
 
   const meta = emptyTitle?.trim() || ''
-  const rawHint = showCreateTeam
-    ? (bootstrapAgentsHint?.trim() || bootstrapAgentsTitle?.trim() || '')
-    : (emptyHint?.trim() || '')
+  const rawHint = pathPicker
+    ? ''
+    : showCreateTeam
+      ? (bootstrapAgentsHint?.trim() || bootstrapAgentsTitle?.trim() || '')
+      : (emptyHint?.trim() || '')
   const hint = rawHint && rawHint !== actionLabel ? rawHint : ''
+  const guideHint = Boolean(onboardingLocked && hint && showCreateTeam)
 
-  const showCopy = Boolean(meta || actionLabel || hint)
-  const interactive = Boolean(actionLabel && onAction)
+  const showCopy = Boolean(meta || actionLabel || hint || pathPicker)
+  const interactive = Boolean((actionLabel && onAction) || pathPicker)
+
+  const copy = (
+    <div className="plane-idle-gravity__copy">
+      {meta ? (
+        <p
+          className={
+            onboardingLocked && !pathPicker
+              ? 'plane-idle-gravity__title'
+              : 'plane-idle-gravity__meta'
+          }
+        >
+          {meta}
+        </p>
+      ) : null}
+      {pathPicker && onSelectOrchestratorPath ? (
+        <PlaneOnboardingHome
+          onSelectPath={onSelectOrchestratorPath}
+          onInviteToOrg={showInviteCta ? onInviteToOrg : undefined}
+        />
+      ) : null}
+      {actionLabel && onAction ? (
+        <Tooltip content={actionTitle || actionLabel}>
+          <button
+            type="button"
+            className="plane-idle-gravity__cta plane-idle-gravity__cta--ghost"
+            aria-label={actionTitle || actionLabel}
+            data-onboarding={showCreateTeam ? 'create-team' : undefined}
+            onClick={onAction}
+          >
+            {onboardingLocked && showSelectFolder ? (
+              <Icon name="folder" size={18} />
+            ) : null}
+            {onboardingLocked && showCreateTeam ? (
+              <Icon name="users" size={18} />
+            ) : null}
+            <span>{actionLabel}</span>
+          </button>
+        </Tooltip>
+      ) : null}
+      {hint ? (
+        <p
+          className={[
+            'plane-idle-gravity__hint',
+            guideHint ? 'plane-idle-gravity__hint--guide' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  )
 
   return (
     <div
       className="plane-idle-gravity"
       aria-hidden={interactive ? undefined : true}
     >
-      <div className="plane-idle-gravity__stack">
+      <div
+        className={[
+          'plane-idle-gravity__stack',
+          pathPicker ? 'plane-idle-gravity__stack--wide' : '',
+        ].filter(Boolean).join(' ')}
+      >
         <Gravity size="solo" />
-        {showCopy ? (
-          <div className="plane-idle-gravity__copy">
-            {meta ? (
-              <p className="plane-idle-gravity__meta">{meta}</p>
-            ) : null}
-            {actionLabel && onAction ? (
-              <Tooltip content={actionTitle || actionLabel}>
-                <button
-                  type="button"
-                  className="plane-idle-gravity__cta plane-idle-gravity__cta--ghost"
-                  aria-label={actionTitle || actionLabel}
-                  onClick={onAction}
-                >
-                  {actionLabel}
-                </button>
-              </Tooltip>
-            ) : null}
-            {hint ? (
-              <p className="plane-idle-gravity__hint">{hint}</p>
-            ) : null}
-          </div>
-        ) : null}
+        {showCopy ? copy : null}
       </div>
     </div>
   )

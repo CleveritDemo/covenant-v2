@@ -24,6 +24,7 @@ vi.mock('../PlaneMap', () => ({
   planeFloorAuroraActive: () => false,
 }))
 vi.mock('../PlaneIdleGravity', () => ({ PlaneIdleGravity: () => null }))
+vi.mock('../OnboardingCoachMark', () => ({ OnboardingCoachMark: () => null }))
 vi.mock('../PlaneChatDock', () => ({
   PlaneChatDock: ({ composer }: { composer?: React.ReactNode }) => (
     <div data-testid="plane-chat-dock">{composer}</div>
@@ -125,5 +126,10 @@ describe('composer en plano vacío', () => {
   it('monta el composer cuando hay al menos un agente', () => {
     render(<TabAgenticPlane {...baseProps} entities={[agentEntity]} />)
     expect(screen.getByTestId('plane-chat-composer')).toBeTruthy()
+  })
+
+  it('no monta el composer con hideComposer aunque haya agentes', () => {
+    render(<TabAgenticPlane {...baseProps} entities={[agentEntity]} hideComposer />)
+    expect(screen.queryByTestId('plane-chat-composer')).toBeNull()
   })
 })

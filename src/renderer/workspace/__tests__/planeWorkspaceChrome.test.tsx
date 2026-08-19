@@ -29,7 +29,10 @@ vi.mock('../PlaneChatContextsBar', () => ({ PlaneChatContextsBar: () => null }))
 vi.mock('../PlaneQuickChat', () => ({ PlaneQuickChat: () => null }))
 vi.mock('../PlaneContextPool', () => ({ PlaneContextPool: () => null }))
 vi.mock('../PlaneFabStack', () => ({ PlaneFabStack: () => null }))
-vi.mock('../PlaneLoopsSection', () => ({ PlaneLoopsSection: () => null }))
+vi.mock('../OnboardingCoachMark', () => ({ OnboardingCoachMark: () => null }))
+vi.mock('../PlaneLoopsSection', () => ({
+  PlaneLoopsSection: () => <div data-testid="plane-loops-section" />,
+}))
 vi.mock('../PlaneBrainstormTable', () => ({ PlaneBrainstormTable: () => null }))
 vi.mock('../TabFileExplorerWindow', () => ({ TabFileExplorerWindow: () => null }))
 vi.mock('../PulseView', () => ({ PulseView: () => null }))
@@ -218,5 +221,70 @@ describe('chrome del plano bajo una vista de la app', () => {
     for (const selector of floating) {
       expect(container.querySelector(selector), selector).toBeNull()
     }
+  })
+})
+
+describe('chrome de onboarding in-plane', () => {
+  it('oculta Pulse y wiki cuando hidePulse y hideWiki', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        hidePulse
+        hideWiki
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'pulse.button' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'tabs.wikiMapButton' })).toBeNull()
+  })
+
+  it('no monta Loops si hideLoops', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        hideLoops
+        loopsOpen
+      />,
+    )
+
+    expect(screen.queryByTestId('plane-loops-section')).toBeNull()
+  })
+
+  it('muestra el camino Planear con lock y business', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        onboardingLocked
+        orchestratorPath="business"
+      />,
+    )
+
+    expect(screen.getByText('tabs.pathPlan')).toBeTruthy()
+    expect(screen.queryByText('tabs.pathExecute')).toBeNull()
+  })
+
+  it('muestra el camino Ejecutar con lock y engineer', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        onboardingLocked
+        orchestratorPath="engineer"
+      />,
+    )
+
+    expect(screen.getByText('tabs.pathExecute')).toBeTruthy()
+    expect(screen.queryByText('tabs.pathPlan')).toBeNull()
+  })
+
+  it('no monta el badge de camino sin lock', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        orchestratorPath="business"
+      />,
+    )
+
+    expect(screen.queryByText('tabs.pathPlan')).toBeNull()
+    expect(screen.queryByText('tabs.pathExecute')).toBeNull()
   })
 })

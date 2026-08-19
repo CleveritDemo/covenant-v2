@@ -65,6 +65,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
             hint={terminalHint}
             disabled={!canAddTerminal}
             disabledTitle={terminalDisabledTitle}
+            dataOnboarding="plane-terminal-fab"
             onClick={onAddTerminal}
           />
         </div>

@@ -45,12 +45,15 @@ export interface PlaneChatContextsBarProps {
   onRenameThread?: (title: string) => void
 }
 
-/** Título visible en chip: delegación usa i18n fijo, no actividad ni `threadUntitled`. */
+/** Título visible en chip: delegación sin catálogo usa delegatingTitle; resto sin cambios. */
 function threadChipTitle(
   thread: AgentThread,
   t: (key: string) => string,
 ): string {
   if (thread.origin === 'delegation') {
+    if (!threadTitleHasVisibleText(thread.title.trim())) {
+      return t('agentPane.delegatingTitle')
+    }
     return t('agentPane.threadDelegationTitle')
   }
   return threadDisplayTitleOr(thread.title, t('agentPane.threadUntitled'))

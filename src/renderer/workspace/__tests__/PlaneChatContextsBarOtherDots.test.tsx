@@ -122,7 +122,7 @@ describe('PlaneChatContextsBar: chips de hilos recientes', () => {
     ).toBe(longTitle)
   })
 
-  it('hilo delegación sin título: chip muestra threadDelegationTitle', () => {
+  it('hilo delegación sin título: chip muestra delegatingTitle', () => {
     const delegationThreads = [
       { id: 't-1', title: 'One', updatedAt: 1, createdAt: 1 },
       {
@@ -144,8 +144,9 @@ describe('PlaneChatContextsBar: chips de hilos recientes', () => {
       />,
     )
     expect(chipTitles(container)[0]).toBe('One')
-    expect(chipTitles(container)[1]).toBe('agentPane.threa...')
+    expect(chipTitles(container)[1]).toBe('agentPane.deleg...')
     const chip = chipsRegion(container).querySelector('.plane-chat-contexts-bar__chip--recent')
-    expect(chip?.textContent).toContain('agentPane.threa...')
+    expect(chip?.textContent).toContain('agentPane.deleg...')
+    expect(chip?.getAttribute('aria-label')).toBe('agentPane.delegatingTitle')
   })
 })

@@ -5,6 +5,19 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.96.0
+### Organizaciones
+- La vista ya no tapa la barra de la app: la miga «Organizaciones / <organización>» vive debajo y los botones de la ventana quedan libres.
+- «Abrir como tab» desde el detalle del workspace: clona y abre sin pasar por New tab.
+- Al elegir una organización queda seleccionado su primer workspace; si no tiene ninguno, el hueco ofrece crear uno.
+- Filtro en las listas de organizaciones y de workspaces cuando pasan de seis filas.
+- Las filas muestran el rol y las iniciales apiladas de las personas en vez de un contador.
+### Agentes
+- El proveedor de respaldo también entra cuando el CLI responde un error de sobrecarga (529) y termina sin código de error.
+### Otros
+- El aviso de actualización deja de mostrar el error técnico en rojo: gris si no hay conexión, ámbar si falló, y el detalle en el tooltip.
+- El paso Cuenta del onboarding acepta pegar el token de GitHub ahí mismo.
+
 ## v0.95.6
 Cuando una delegación no llega a arrancar, la fila se queda en marcha durante cinco minutos antes de cerrarse sola (antes un minuto), para dar margen a los especialistas que tardan en publicar su primer estado. Las delegaciones que sí están trabajando no tienen corte por tiempo.
 

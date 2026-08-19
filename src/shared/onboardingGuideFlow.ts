@@ -30,11 +30,21 @@ export type OnboardingGuideStepId =
   | 'assign_context'
   | 'open_terminal'
 
+export const DISMISSIBLE_GUIDE_STEPS: readonly OnboardingGuideStepId[] = [
+  'saved_rooms',
+  'assign_context',
+  'open_terminal',
+]
+
+export function isDismissibleGuideStep(step: string): boolean {
+  return (DISMISSIBLE_GUIDE_STEPS as readonly string[]).includes(step)
+}
+
 export type OnboardingGuideStep = {
   step: OnboardingGuideStepId
   anchor: OnboardingGuideAnchor
   messageKey: string
-  /** true: no hay acción que lo cierre; el coach mark avanza con «Entendido». */
+  /** true solo si step ∈ DISMISSIBLE_GUIDE_STEPS; el coach mark avanza con «Entendido». */
   dismissible?: boolean
 }
 
@@ -60,13 +70,12 @@ function guideStep(
   step: OnboardingGuideStepId,
   anchor: OnboardingGuideAnchor,
   messageCamel: string,
-  dismissible?: true,
 ): OnboardingGuideStep {
   return {
     step,
     anchor,
     messageKey: `tabs.onboardingGuide.${messageCamel}`,
-    ...(dismissible ? { dismissible: true } : {}),
+    ...(isDismissibleGuideStep(step) ? { dismissible: true } : {}),
   }
 }
 
@@ -115,7 +124,7 @@ export function resolveOnboardingGuideStep(
       return guideStep('join_round', 'brainstorm-human-composer', 'joinRound')
     }
     if (args.humanSpokeInRoom && !doneSteps.includes('saved_rooms')) {
-      return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms', true)
+      return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms')
     }
     return null
   }
@@ -128,10 +137,10 @@ export function resolveOnboardingGuideStep(
       return guideStep('send_message', 'composer-input', 'sendMessage')
     }
     if (!args.assignedAnyContext && !doneSteps.includes('assign_context')) {
-      return guideStep('assign_context', 'context-pool', 'assignContext', true)
+      return guideStep('assign_context', 'context-pool', 'assignContext')
     }
     if (!doneSteps.includes('open_terminal')) {
-      return guideStep('open_terminal', 'plane-terminal-fab', 'openTerminal', true)
+      return guideStep('open_terminal', 'plane-terminal-fab', 'openTerminal')
     }
     return null
   }

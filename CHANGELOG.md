@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.95.2
+
+### Corregido
+- El chat ya no rompe un párrafo cuando hay negrita o código con un punto seguido.
+- El selector de tema, el alcance de resync y el aviso de actualización ya no quedan detrás de las salas de brainstorm, el mapa de wiki ni Pulse.
+- New tab ya no lista workspaces de organización cuando la cuenta del workspace no tiene sesión en Covenant, y explica qué hacer en vez de decir «Not signed in».
+
 ## v0.95.1
 
 ### Corregido

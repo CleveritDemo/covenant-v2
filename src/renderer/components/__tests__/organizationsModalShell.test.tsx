@@ -218,6 +218,53 @@ describe('OrganizationsView — selector de cuenta', () => {
     expect(trigger).toBeTruthy()
   })
 
+  it('un 403 obsoleto al cambiar de cuenta no pinta forbidden sobre la org nueva', async () => {
+    githubAccountsList.mockResolvedValue({
+      ok: true,
+      accounts: [
+        { id: 'a1', label: 'Personal' },
+        { id: 'a2', label: 'Trabajo' },
+      ],
+      defaultAccountId: 'a1',
+    })
+    covenant.orgsList.mockImplementation((accountId: string) => {
+      if (accountId === 'a2') return ok([{ slug: 'org-b', name: 'Org B', role: 'owner' }])
+      return ok([{ slug: 'org-a', name: 'Org A', role: 'owner' }])
+    })
+    let resolveStaleForbidden!: (value: { ok: false; error: string }) => void
+    const staleForbidden = new Promise<{ ok: false; error: string }>((resolve) => {
+      resolveStaleForbidden = resolve
+    })
+    covenant.workspacesList.mockImplementation((accountId: string, slug: string) => {
+      if (accountId === 'a2' && slug === 'org-a') return staleForbidden
+      if (accountId === 'a2' && slug === 'org-b') {
+        return ok([{ id: 'wb', name: 'workspace-b', assignees: [], admins: ['karluiz'], createdBy: 'karluiz' }])
+      }
+      return ok([{ id: 'wa', name: 'workspace-a', assignees: [], admins: ['karluiz'], createdBy: 'karluiz' }])
+    })
+    render(<OrganizationsView onClose={() => {}} />)
+
+    expect(await screen.findByText('workspace-a')).toBeTruthy()
+
+    const panel = screen.getByRole('listbox', { hidden: true })
+    act(() => {
+      panel.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
+      panel.showPopover()
+    })
+    fireEvent.pointerDown(within(panel).getByRole('option', { name: 'Trabajo' }))
+    fireEvent.click(within(panel).getByRole('option', { name: 'Trabajo' }))
+
+    expect(await screen.findByText('workspace-b')).toBeTruthy()
+
+    await act(async () => {
+      resolveStaleForbidden({ ok: false, error: 'forbidden' })
+    })
+
+    expect(screen.getByText('workspace-b')).toBeTruthy()
+    expect(document.querySelector('.orgs-section-error')).toBeNull()
+    expect(screen.queryByText('forbidden')).toBeNull()
+  })
+
   it('con una sola cuenta no muestra selector', async () => {
     githubAccountsList.mockResolvedValue({
       ok: true,

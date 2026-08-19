@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import {
   getCovenantApi,
@@ -454,6 +454,8 @@ export const OrganizationsView: React.FC<Props> = ({
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [detailView, setDetailView] = useState<OrgDetailView>('workspace')
   const [composing, setComposing] = useState<ComposeTarget>(null)
+  const authRunRef = useRef(0)
+  const detailsRunRef = useRef(0)
 
   const signedIn = auth?.signedIn === true
   const currentLogin = auth?.login?.trim() || ''
@@ -472,6 +474,7 @@ export const OrganizationsView: React.FC<Props> = ({
   const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
+    const runId = ++authRunRef.current
     if (!covenant) {
       setAuth(null)
       setOrgs([])
@@ -487,6 +490,7 @@ export const OrganizationsView: React.FC<Props> = ({
     setOrgsError(null)
 
     const statusResult = await covenant.status()
+    if (authRunRef.current !== runId) return
     setAuthLoading(false)
 
     if (!statusResult.ok) {
@@ -514,6 +518,7 @@ export const OrganizationsView: React.FC<Props> = ({
     }
 
     const orgsResult = await covenant.orgsList()
+    if (authRunRef.current !== runId) return
     setOrgsLoading(false)
 
     if (orgsResult.ok) {
@@ -537,6 +542,7 @@ export const OrganizationsView: React.FC<Props> = ({
 
   const loadOrgDetails = useCallback(async (slug: string): Promise<void> => {
     if (!covenant || !slug) {
+      detailsRunRef.current += 1
       setMembers([])
       setDefaults([])
       setWorkspaces([])
@@ -550,6 +556,7 @@ export const OrganizationsView: React.FC<Props> = ({
       return
     }
 
+    const runId = ++detailsRunRef.current
     const orgRole = orgs.find(org => org.slug === slug)?.role
     const isOrgAdminHint = orgRole === 'owner' || orgRole === 'admin'
 
@@ -588,6 +595,7 @@ export const OrganizationsView: React.FC<Props> = ({
         settleCovenantResult(memberLoginsPromise, 'memberLoginsList failed'),
       ])
 
+    if (detailsRunRef.current !== runId) return
     setMembersLoading(false)
     setDefaultsLoading(false)
     setWorkspacesLoading(false)
@@ -613,8 +621,10 @@ export const OrganizationsView: React.FC<Props> = ({
       setMembersForbidden(false)
     }
 
-    if (defaultsResult.ok) setDefaults(defaultsResult.data)
-    else {
+    if (defaultsResult.ok) {
+      setDefaults(defaultsResult.data)
+      setDefaultsError(null)
+    } else {
       setDefaults([])
       setDefaultsError(defaultsResult.error)
     }
@@ -623,6 +633,7 @@ export const OrganizationsView: React.FC<Props> = ({
       setWorkspaces([])
       setWorkspacesError(null)
     } else if (workspacesResult.ok) {
+      setWorkspacesError(null)
       setWorkspaces(workspacesResult.data.filter(workspace => canAccessOrgWorkspace({
         login: currentLogin,
         orgRole: orgRole ?? '',
@@ -642,6 +653,7 @@ export const OrganizationsView: React.FC<Props> = ({
         setOrgAdminsError(null)
       } else if (orgAdminsResult.ok) {
         setOrgAdmins(orgAdminsResult.data)
+        setOrgAdminsError(null)
       } else {
         setOrgAdmins([])
         setOrgAdminsError(orgAdminsResult.error)
@@ -670,6 +682,16 @@ export const OrganizationsView: React.FC<Props> = ({
       cancelled = true
     }
   }, [open])
+
+  useEffect(() => {
+    // Al cambiar de cuenta, el detalle de la cuenta anterior no puede seguir pintado ni consultado.
+    detailsRunRef.current += 1
+    setDetailSlug(null); setActiveSlug(''); setOrgs([])
+    setWorkspaces([]); setMembers([]); setDefaults([]); setOrgAdmins([]); setMemberLogins([])
+    setSelectedWorkspaceId(''); setDetailView('workspace'); setComposing(null); setDeleteWorkspace(null)
+    setOrgsError(null); setAuthError(null); setMembersError(null); setMembersForbidden(false)
+    setDefaultsError(null); setWorkspacesError(null); setOrgAdminsError(null); setLeaveError(null)
+  }, [activeAccountId])
 
   useEffect(() => {
     if (!open) return

@@ -51,6 +51,7 @@ export interface AgentPaneMessagesProps {
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onReferenceMessage?: (content: string) => void
 }
 
 export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
@@ -77,6 +78,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onAbortDelegation,
   projectAgents = [],
   onInsertCommand,
+  onReferenceMessage,
 }) => {
   const { t } = useT()
   const waveLabel = orchestrationAwaiting
@@ -110,6 +112,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           scrollRef={scrollRef}
           projectAgents={projectAgents}
           onInsertCommand={onInsertCommand}
+          onReferenceMessage={onReferenceMessage}
         />
         {awaitingDelegations ? (
           <div className="agent-pane__delegating">

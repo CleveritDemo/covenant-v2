@@ -186,3 +186,46 @@ describe('AgentChatBubbles markdown + collapse', () => {
     expect(screen.queryByText(/"summary":"hidden"/)).toBeNull()
   })
 })
+
+describe('AgentChatBubbles reference action', () => {
+  it('shows the reference button on an assistant bubble with content', () => {
+    const onReferenceMessage = vi.fn()
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-ref', role: 'assistant', content: 'Full reply body.' }]}
+        busy={false}
+        activeAssistantId={null}
+        onReferenceMessage={onReferenceMessage}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'agentPane.referenceBubble' })
+    expect(button).toBeTruthy()
+    fireEvent.click(button)
+    expect(onReferenceMessage).toHaveBeenCalledTimes(1)
+    expect(onReferenceMessage).toHaveBeenCalledWith('Full reply body.')
+  })
+
+  it('does not show the reference button on a user bubble', () => {
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'u-ref', role: 'user', content: 'Hello there.' }]}
+        busy={false}
+        activeAssistantId={null}
+        onReferenceMessage={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
+  })
+
+  it('does not show the reference button on the live bubble', () => {
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-live', role: 'assistant', content: 'Streaming…' }]}
+        busy
+        activeAssistantId="a-live"
+        onReferenceMessage={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'agentPane.referenceBubble' })).toBeNull()
+  })
+})

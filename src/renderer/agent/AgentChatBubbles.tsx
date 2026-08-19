@@ -22,6 +22,7 @@ import { useT } from '@i18n/useT'
 import { isAiMessagesNearBottom, scrollAiMessagesToBottom } from '../components/ai/aiMessagesScroll'
 import { AssistantFormattedBody } from '../components/ai/AssistantFormattedBody'
 import { ChatBubble } from '../components/ai/ChatBubble'
+import { Icon } from '../components/ui/Icon'
 import { Gravity } from './Gravity'
 
 /** Primer lote (cola) y cada ampliación al acercarse al tope. */
@@ -126,6 +127,7 @@ interface AgentChatBubbleRowProps {
   onMaterializingAnimationEnd?: (id: string) => void
   projectAgents?: readonly ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onReferenceMessage?: (content: string) => void
 }
 
 const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
@@ -143,6 +145,7 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   onMaterializingAnimationEnd,
   projectAgents = [],
   onInsertCommand,
+  onReferenceMessage,
 }) => {
   const { t } = useT()
   const live = busy &&
@@ -266,6 +269,16 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
               )
             : ''}
       </ChatBubble>
+      {message.role === 'assistant' && !live && Boolean(message.content) && onReferenceMessage ? (
+        <button
+          type="button"
+          className="agent-pane__bubble-reference"
+          aria-label={t('agentPane.referenceBubble')}
+          onClick={() => onReferenceMessage(message.content)}
+        >
+          <Icon name="quote" size={12} />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -315,6 +328,7 @@ export interface AgentChatBubblesProps {
   /** Contenedor con scroll (`.agent-pane__messages`). */
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
   onInsertCommand?: (cmd: string) => void
+  onReferenceMessage?: (content: string) => void
 }
 
 /** Lista de burbujas user/assistant + Gravity de espera (panel / plano). */
@@ -332,6 +346,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     projectAgents = [],
     scrollRef,
     onInsertCommand,
+    onReferenceMessage,
   },
   ref,
 ) {
@@ -490,6 +505,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     onMaterializingAnimationEnd,
     projectAgents,
     onInsertCommand,
+    onReferenceMessage,
   }
 
   const rootClass = [

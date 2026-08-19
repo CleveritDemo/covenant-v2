@@ -30,6 +30,7 @@ export interface PlaneQuickChatProps {
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onReferenceMessage?: (content: string) => void
 }
 
 /** Conversación user/assistant del plano (sin system). */
@@ -58,6 +59,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   onAbortDelegation,
   projectAgents = [],
   onInsertCommand,
+  onReferenceMessage,
 }) => {
   const { t } = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -146,6 +148,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 scrollRef={scrollRef}
                 projectAgents={projectAgents}
                 onInsertCommand={onInsertCommand}
+                onReferenceMessage={onReferenceMessage}
               />
               {awaitingDelegations ? (
                 <div className="plane-quick-chat__delegating">

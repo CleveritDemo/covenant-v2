@@ -123,6 +123,8 @@ import {
   disconnectJira,
   previewJiraIssue,
   searchJiraQuick,
+  listJiraIssueTypes,
+  createJiraIssues,
   DISCONNECTED as JIRA_DISCONNECTED,
 } from './jiraIpcOps'
 import {
@@ -1161,6 +1163,50 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud de vista previa no válida.' }
     }
     return previewJiraIssue(cwd, issueKey)
+  })
+
+  ipcMain.handle(IPC.JIRA_ISSUE_TYPES, async (_e, cwd: unknown, projectKey: unknown) => {
+    if (typeof cwd !== 'string' || typeof projectKey !== 'string') {
+      return { ok: false, error: 'Solicitud inválida.', issueTypes: [] }
+    }
+    return listJiraIssueTypes(cwd, projectKey)
+  })
+
+  ipcMain.handle(IPC.JIRA_CREATE_ISSUES, async (_e, cwd: unknown, input: unknown) => {
+    if (typeof cwd !== 'string' || !input || typeof input !== 'object') {
+      return { ok: false, error: 'Solicitud inválida.', results: [] }
+    }
+    const { projectKey, nodes } = input as Record<string, unknown>
+    if (typeof projectKey !== 'string' || !Array.isArray(nodes)) {
+      return { ok: false, error: 'Solicitud inválida.', results: [] }
+    }
+    const parsed: Array<{
+      tempId: string
+      parentTempId?: string
+      issueTypeName: string
+      summary: string
+      description?: string
+    }> = []
+    for (const raw of nodes) {
+      if (!raw || typeof raw !== 'object') continue
+      const node = raw as Record<string, unknown>
+      if (
+        typeof node.tempId !== 'string'
+        || typeof node.issueTypeName !== 'string'
+        || typeof node.summary !== 'string'
+      ) continue
+      parsed.push({
+        tempId: node.tempId,
+        parentTempId: typeof node.parentTempId === 'string' ? node.parentTempId : undefined,
+        issueTypeName: node.issueTypeName,
+        summary: node.summary,
+        description: typeof node.description === 'string' ? node.description : undefined,
+      })
+    }
+    if (parsed.length !== nodes.length) {
+      return { ok: false, error: 'Solicitud inválida.', results: [] }
+    }
+    return createJiraIssues(cwd, { projectKey, nodes: parsed })
   })
 
   // ─── GitHub issues ──────────────────────────────────────────────────────

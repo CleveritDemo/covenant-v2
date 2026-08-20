@@ -1305,6 +1305,35 @@ const api = {
   ): Promise<{ ok: boolean; content?: string; error?: string }> {
     return ipcRenderer.invoke(IPC.JIRA_PREVIEW_ISSUE, cwd, issueKey)
   },
+  jiraIssueTypes(
+    cwd: string,
+    projectKey: string,
+  ): Promise<{
+    ok: boolean
+    issueTypes: Array<{ id: string; name: string; subtask: boolean }>
+    error?: string
+  }> {
+    return ipcRenderer.invoke(IPC.JIRA_ISSUE_TYPES, cwd, projectKey)
+  },
+  jiraCreateIssues(
+    cwd: string,
+    input: {
+      projectKey: string
+      nodes: Array<{
+        tempId: string
+        parentTempId?: string
+        issueTypeName: string
+        summary: string
+        description?: string
+      }>
+    },
+  ): Promise<{
+    ok: boolean
+    error?: string
+    results: Array<{ tempId: string; ok: boolean; key?: string; error?: string }>
+  }> {
+    return ipcRenderer.invoke(IPC.JIRA_CREATE_ISSUES, cwd, input)
+  },
 
   githubIssueStatus(
     cwd: string,

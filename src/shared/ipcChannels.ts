@@ -429,6 +429,10 @@ export const IPC = {
   JIRA_SEARCH: 'jira:search',
   /** Markdown de una issue para la vista previa del formulario; no escribe disco. */
   JIRA_PREVIEW_ISSUE: 'jira:previewIssue',
+  /** Renderer → main (invoke): tipos de issue disponibles al crear en un proyecto */
+  JIRA_ISSUE_TYPES: 'jira:issueTypes',
+  /** Renderer → main (invoke): crear issues en lote (padre → subtarea) */
+  JIRA_CREATE_ISSUES: 'jira:createIssues',
 
   // ─── GitHub issues ──────────────────────────────────────────────────────────
   /** Renderer → main (invoke): ¿hay repo GitHub + token para este cwd? */

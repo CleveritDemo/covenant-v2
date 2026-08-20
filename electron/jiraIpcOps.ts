@@ -9,7 +9,7 @@ import { isJiraProjectKey, parseJiraConfig } from '../src/shared/jiraConfig'
 import { buildJiraQuickJql } from '../src/shared/jiraQuickJql'
 import { normalizeIssueKey, parsePartialIssueKey, type JiraIssueRef } from '../src/shared/jiraIssue'
 import { issueAutoMarkdown } from '../src/shared/jiraIssueDoc'
-import { jiraGetIssue, jiraMyself, jiraSearch } from './jiraClient'
+import { jiraCreateIssue, jiraGetIssue, jiraIssueTypes, jiraMyself, jiraSearch } from './jiraClient'
 import { ensureJiraGitignore, type JiraGitignoreOutcome } from './jiraGitignore'
 import { clearJiraRefreshFailures } from './jiraContextRefresh'
 import {
@@ -197,6 +197,249 @@ export interface JiraSearchResult {
    * su configuración estaba rota.
    */
   error?: string
+}
+
+export interface JiraIssueTypesResult {
+  ok: boolean
+  issueTypes: Array<{ id: string; name: string; subtask: boolean }>
+  error?: string
+}
+
+export async function listJiraIssueTypes(cwd: string, projectKey: string): Promise<JiraIssueTypesResult> {
+  const key = projectKey.trim()
+  if (!key) return { ok: false, error: 'Clave de proyecto vacía.', issueTypes: [] }
+  if (!hasProject(cwd)) return { ok: false, error: 'No hay proyecto abierto.', issueTypes: [] }
+  const config = readJiraConfig(cwd)
+  if (!config) return { ok: false, error: 'Este proyecto todavía no tiene Jira configurado.', issueTypes: [] }
+  const credentials = readJiraCredentials(config.site)
+  if (!credentials) return { ok: false, error: 'Sin credenciales de Jira para este sitio.', issueTypes: [] }
+  try {
+    const issueTypes = await jiraIssueTypes(credentials, key)
+    return { ok: true, issueTypes }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error), issueTypes: [] }
+  }
+}
+
+export type JiraCreateNodeInput = {
+  tempId: string
+  parentTempId?: string
+  issueTypeName: string
+  summary: string
+  description?: string
+}
+
+export interface JiraCreateIssuesResult {
+  ok: boolean
+  error?: string
+  results: Array<{ tempId: string; ok: boolean; key?: string; error?: string }>
+}
+
+const MAX_CREATE_NODES = 50
+
+function resolveCredentials(cwd: string): { credentials: ReturnType<typeof readJiraCredentials>; error?: string } {
+  if (!hasProject(cwd)) return { credentials: null, error: 'No hay proyecto abierto.' }
+  const config = readJiraConfig(cwd)
+  if (!config) return { credentials: null, error: 'Este proyecto todavía no tiene Jira configurado.' }
+  const credentials = readJiraCredentials(config.site)
+  if (!credentials) return { credentials: null, error: 'Sin credenciales de Jira para este sitio.' }
+  return { credentials }
+}
+
+function collectDescendants(parentId: string, childrenByParent: Map<string, string[]>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const stack = [...(childrenByParent.get(parentId) ?? [])]
+  while (stack.length) {
+    const id = stack.pop()!
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+    stack.push(...(childrenByParent.get(id) ?? []))
+  }
+  return out
+}
+
+function findCycleNodes(nodes: JiraCreateNodeInput[]): Set<string> {
+  const byId = new Map(nodes.map(node => [node.tempId, node]))
+  const inCycle = new Set<string>()
+
+  for (const start of nodes) {
+    const chain: string[] = []
+    const indexInChain = new Map<string, number>()
+    let current: string | undefined = start.tempId
+
+    while (current) {
+      if (indexInChain.has(current)) {
+        const from = indexInChain.get(current)!
+        for (let i = from; i < chain.length; i++) inCycle.add(chain[i]!)
+        break
+      }
+      if (!byId.has(current)) break
+      indexInChain.set(current, chain.length)
+      chain.push(current)
+      current = byId.get(current)!.parentTempId
+    }
+  }
+
+  return inCycle
+}
+
+function topologicalOrder(
+  nodes: JiraCreateNodeInput[],
+): { order: JiraCreateNodeInput[]; upfrontErrors: Map<string, string> } {
+  const byId = new Map(nodes.map(node => [node.tempId, node]))
+  const upfrontErrors = new Map<string, string>()
+
+  for (const node of nodes) {
+    if (node.parentTempId && !byId.has(node.parentTempId)) {
+      upfrontErrors.set(node.tempId, 'parentTempId inexistente')
+    }
+  }
+
+  for (const tempId of findCycleNodes(nodes)) {
+    upfrontErrors.set(tempId, 'ciclo en parentTempId')
+  }
+
+  const order: JiraCreateNodeInput[] = []
+  const placed = new Set<string>()
+
+  function place(id: string): void {
+    if (placed.has(id) || upfrontErrors.has(id)) return
+    const node = byId.get(id)
+    if (!node) return
+    if (node.parentTempId && !upfrontErrors.has(node.parentTempId)) place(node.parentTempId)
+    if (upfrontErrors.has(id) || placed.has(id)) return
+    order.push(node)
+    placed.add(id)
+  }
+
+  for (const node of nodes) place(node.tempId)
+  return { order, upfrontErrors }
+}
+
+export async function createJiraIssues(
+  cwd: string,
+  input: { projectKey: string; nodes: JiraCreateNodeInput[] },
+): Promise<JiraCreateIssuesResult> {
+  const projectKey = input.projectKey.trim()
+  if (!projectKey) return { ok: false, error: 'Clave de proyecto vacía.', results: [] }
+  if (!input.nodes.length) return { ok: false, error: 'Sin nodos que crear.', results: [] }
+  if (input.nodes.length > MAX_CREATE_NODES) {
+    return { ok: false, error: `Máximo ${MAX_CREATE_NODES} issues por lote.`, results: [] }
+  }
+
+  const { credentials, error: credError } = resolveCredentials(cwd)
+  if (!credentials) return { ok: false, error: credError, results: [] }
+
+  let issueTypes: Array<{ id: string; name: string; subtask: boolean }>
+  try {
+    issueTypes = await jiraIssueTypes(credentials, projectKey)
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      results: [],
+    }
+  }
+
+  const { order, upfrontErrors } = topologicalOrder(input.nodes)
+  const results: JiraCreateIssuesResult['results'] = []
+  const resultById = new Map<string, JiraCreateIssuesResult['results'][number]>()
+  const failedIds = new Set<string>()
+  const keysByTempId = new Map<string, string>()
+  const childrenByParent = new Map<string, string[]>()
+
+  for (const node of input.nodes) {
+    if (node.parentTempId) {
+      const siblings = childrenByParent.get(node.parentTempId) ?? []
+      siblings.push(node.tempId)
+      childrenByParent.set(node.parentTempId, siblings)
+    }
+  }
+
+  for (const [tempId, message] of upfrontErrors) {
+    failedIds.add(tempId)
+    const row = { tempId, ok: false, error: message }
+    results.push(row)
+    resultById.set(tempId, row)
+    for (const desc of collectDescendants(tempId, childrenByParent)) {
+      if (upfrontErrors.has(desc)) continue
+      failedIds.add(desc)
+      const skip = { tempId: desc, ok: false, error: 'padre no creado' }
+      results.push(skip)
+      resultById.set(desc, skip)
+    }
+  }
+
+  const resolveType = (name: string): { id: string } | { error: string } => {
+    const match = issueTypes.find(type => type.name.toLowerCase() === name.toLowerCase())
+    if (!match) {
+      const available = issueTypes.map(type => type.name).join(', ')
+      return { error: `Tipo "${name}" no existe. Disponibles: ${available}` }
+    }
+    return { id: match.id }
+  }
+
+  const markFailed = (tempId: string, error: string): void => {
+    if (resultById.has(tempId)) return
+    failedIds.add(tempId)
+    const row = { tempId, ok: false, error }
+    results.push(row)
+    resultById.set(tempId, row)
+    for (const desc of collectDescendants(tempId, childrenByParent)) {
+      if (resultById.has(desc)) continue
+      failedIds.add(desc)
+      const skip = { tempId: desc, ok: false, error: 'padre no creado' }
+      results.push(skip)
+      resultById.set(desc, skip)
+    }
+  }
+
+  let createdCount = 0
+
+  for (const node of order) {
+    if (resultById.has(node.tempId)) continue
+
+    if (node.parentTempId) {
+      const parentResult = resultById.get(node.parentTempId)
+      if (!parentResult?.ok) {
+        markFailed(node.tempId, 'padre no creado')
+        continue
+      }
+    }
+
+    const type = resolveType(node.issueTypeName)
+    if ('error' in type) {
+      markFailed(node.tempId, type.error)
+      continue
+    }
+
+    const parentKey = node.parentTempId ? keysByTempId.get(node.parentTempId) : undefined
+    if (node.parentTempId && !parentKey) {
+      markFailed(node.tempId, 'padre no creado')
+      continue
+    }
+
+    try {
+      const created = await jiraCreateIssue(credentials, {
+        projectKey,
+        issueTypeId: type.id,
+        summary: node.summary,
+        description: node.description,
+        parentKey,
+      })
+      keysByTempId.set(node.tempId, created.key)
+      createdCount += 1
+      const row = { tempId: node.tempId, ok: true, key: created.key }
+      results.push(row)
+      resultById.set(node.tempId, row)
+    } catch (error) {
+      markFailed(node.tempId, error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return { ok: createdCount > 0, results }
 }
 
 export async function searchJiraQuick(cwd: string, query: string): Promise<JiraSearchResult> {

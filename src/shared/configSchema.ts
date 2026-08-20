@@ -1,7 +1,7 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import { parseGithubAccounts, type GithubAccount } from './githubAccounts'
-import type { OrgWorkspaceCatalog } from './orgWorkspaceCatalog'
-import { parseOrgWorkspaceCatalog } from './orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogMap } from './orgWorkspaceCatalog'
+import { parseOrgWorkspaceCatalogMap } from './orgWorkspaceCatalog'
 import {
   sanitizeOrchestratorPath,
   type OrchestratorPath,
@@ -150,7 +150,7 @@ export interface AppConfig {
    * Snapshot de workspaces org para Cmd+T sin red.
    * Ausente/undefined = sin tocar en merges parciales; null = borrar cache.
    */
-  orgWorkspaceCatalogCache?: OrgWorkspaceCatalog | null
+  orgWorkspaceCatalogCache?: OrgWorkspaceCatalogMap | null
   /** Curador wiki global (nombre, CLI, modelo, reglas); persiste en userData/config.json. */
   wikiCurator: WikiCuratorConfig
 
@@ -337,7 +337,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const orgWorkspaceCatalogCache = catalogKeyPresent
     ? catalogRaw === null || catalogRaw === undefined
       ? undefined
-      : (parseOrgWorkspaceCatalog(catalogRaw) ?? undefined)
+      : (parseOrgWorkspaceCatalogMap(catalogRaw) ?? undefined)
     : undefined
   const wikiCurator = sanitizeWikiCuratorConfig(
     Object.prototype.hasOwnProperty.call(partial, 'wikiCurator')
@@ -381,7 +381,7 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     else delete merged.orgWorkspaceCatalogCache
   } else if (
     merged.orgWorkspaceCatalogCache !== undefined
-    && parseOrgWorkspaceCatalog(merged.orgWorkspaceCatalogCache) == null
+    && parseOrgWorkspaceCatalogMap(merged.orgWorkspaceCatalogCache) == null
   ) {
     delete merged.orgWorkspaceCatalogCache
   }
@@ -450,7 +450,7 @@ export function validateConfig(config: AppConfig): string[] {
   }
   if (
     config.orgWorkspaceCatalogCache != null
-    && parseOrgWorkspaceCatalog(config.orgWorkspaceCatalogCache) == null
+    && parseOrgWorkspaceCatalogMap(config.orgWorkspaceCatalogCache) == null
   ) {
     errors.push('orgWorkspaceCatalogCache tiene una forma inválida')
   }

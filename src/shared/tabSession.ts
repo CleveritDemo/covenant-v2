@@ -103,6 +103,8 @@ export interface TabSession {
     workspaceId: string
     /** Carpeta local donde se clonaron los repos del workspace. */
     localDir?: string
+    /** Cuenta Covenant dueña de esta pestaña; vacío o ausente = resolver por la carpeta. */
+    accountId?: string
   }
   /**
    * @deprecated Legacy nest links; ya no se orquestan. Se mantienen por sanitize.

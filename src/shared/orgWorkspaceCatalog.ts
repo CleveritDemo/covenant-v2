@@ -20,6 +20,9 @@ export type OrgWorkspaceCatalog = {
   fetchedAt: number
 }
 
+/** Catálogos org indexados por accountId Covenant; `''` = cuenta por defecto. */
+export type OrgWorkspaceCatalogMap = { byAccount: Record<string, OrgWorkspaceCatalog> }
+
 /** Input al construir el catálogo (permisos ya resueltos por el caller). */
 export type OrgWorkspaceCatalogWorkspaceInput = {
   id: string
@@ -186,6 +189,57 @@ export function parseOrgWorkspaceCatalog(raw: unknown): OrgWorkspaceCatalog | nu
     entries.push(entry)
   }
   return { login: obj.login.trim(), entries, fetchedAt: obj.fetchedAt }
+}
+
+export function catalogForAccount(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  accountId: string,
+): OrgWorkspaceCatalog | null {
+  if (!map) return null
+  return map.byAccount[accountId.trim()] ?? null
+}
+
+export function upsertAccountCatalog(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  accountId: string,
+  cat: OrgWorkspaceCatalog,
+): OrgWorkspaceCatalogMap {
+  const key = accountId.trim()
+  return {
+    byAccount: {
+      ...(map?.byAccount ?? {}),
+      [key]: cat,
+    },
+  }
+}
+
+export function accountIdsInCatalogMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+): string[] {
+  if (!map) return []
+  return Object.keys(map.byAccount).sort()
+}
+
+/**
+ * Acepta `{ byAccount }` o un catálogo legacy suelto (`login`/`entries`).
+ * Entradas inválidas en `byAccount` se descartan; null si no queda nada válido.
+ */
+export function parseOrgWorkspaceCatalogMap(raw: unknown): OrgWorkspaceCatalogMap | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const byAccountRaw = obj.byAccount
+  if (byAccountRaw != null && typeof byAccountRaw === 'object' && !Array.isArray(byAccountRaw)) {
+    const byAccount: Record<string, OrgWorkspaceCatalog> = {}
+    for (const [key, value] of Object.entries(byAccountRaw as Record<string, unknown>)) {
+      const cat = parseOrgWorkspaceCatalog(value)
+      if (cat) byAccount[key] = cat
+    }
+    if (Object.keys(byAccount).length === 0) return null
+    return { byAccount }
+  }
+  const legacy = parseOrgWorkspaceCatalog(raw)
+  if (legacy) return { byAccount: { '': legacy } }
+  return null
 }
 
 export function findOrgWorkspaceCatalogEntry(

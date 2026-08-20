@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest'
+import { mergeWithDefaults } from '../configSchema'
 import {
+  accountIdsInCatalogMap,
   buildOrgWorkspaceCatalog,
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   canUploadOrgWorkspaceFromCatalog,
+  catalogForAccount,
   catalogForLogin,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
   isCatalogFresh,
   orgWorkspaceTokenMissing,
+  parseOrgWorkspaceCatalogMap,
   patchOrgWorkspaceCatalogName,
   syncTabTitlesFromOrgWorkspaceCatalog,
+  upsertAccountCatalog,
 } from '../orgWorkspaceCatalog'
 
 describe('orgWorkspaceTokenMissing', () => {
@@ -327,5 +332,107 @@ describe('patchOrgWorkspaceCatalogName', () => {
     const next = patchOrgWorkspaceCatalogName(cat, 'acme', 'w1', 'Gamma')
     expect(findOrgWorkspaceCatalogEntry(next, 'acme', 'w1')?.name).toBe('Gamma')
     expect(findOrgWorkspaceCatalogEntry(next, 'acme', 'w2')?.name).toBe('Beta')
+  })
+})
+
+const sampleEntry = {
+  slug: 'acme',
+  orgName: 'Acme',
+  workspaceId: 'w1',
+  name: 'Alpha',
+}
+
+function sampleCatalog(login = 'alice') {
+  return {
+    login,
+    fetchedAt: 100,
+    entries: [sampleEntry],
+  }
+}
+
+describe('parseOrgWorkspaceCatalogMap', () => {
+  it('migra la forma legacy a la clave vacía', () => {
+    const legacy = sampleCatalog()
+    const parsed = parseOrgWorkspaceCatalogMap(legacy)
+    expect(parsed).toEqual({ byAccount: { '': legacy } })
+  })
+
+  it('acepta la forma nueva con dos cuentas', () => {
+    const acc1 = sampleCatalog('alice')
+    const acc2 = sampleCatalog('bob')
+    const parsed = parseOrgWorkspaceCatalogMap({
+      byAccount: { 'acc-1': acc1, 'acc-2': acc2 },
+    })
+    expect(parsed).toEqual({ byAccount: { 'acc-1': acc1, 'acc-2': acc2 } })
+    expect(accountIdsInCatalogMap(parsed)).toEqual(['acc-1', 'acc-2'])
+  })
+
+  it('descarta una cuenta con entries corruptas y conserva la buena', () => {
+    const good = sampleCatalog()
+    const parsed = parseOrgWorkspaceCatalogMap({
+      byAccount: {
+        good: good,
+        bad: { login: '', fetchedAt: 1, entries: [] },
+      },
+    })
+    expect(parsed).toEqual({ byAccount: { good: good } })
+  })
+
+  it('devuelve null con basura', () => {
+    expect(parseOrgWorkspaceCatalogMap(null)).toBeNull()
+    expect(parseOrgWorkspaceCatalogMap({ foo: 'bar' })).toBeNull()
+    expect(parseOrgWorkspaceCatalogMap({ byAccount: {} })).toBeNull()
+    expect(parseOrgWorkspaceCatalogMap({ byAccount: { bad: { login: '' } } })).toBeNull()
+  })
+})
+
+describe('catalogForAccount', () => {
+  const map = {
+    byAccount: {
+      '': sampleCatalog('default'),
+      'acc-2': sampleCatalog('second'),
+    },
+  }
+
+  it('encuentra por accountId', () => {
+    expect(catalogForAccount(map, 'acc-2')?.login).toBe('second')
+  })
+
+  it('devuelve null para una cuenta ausente', () => {
+    expect(catalogForAccount(map, 'missing')).toBeNull()
+    expect(catalogForAccount(null, 'acc-2')).toBeNull()
+  })
+
+  it('trata la cadena vacía como la cuenta por defecto', () => {
+    expect(catalogForAccount(map, '')?.login).toBe('default')
+    expect(catalogForAccount(map, '   ')?.login).toBe('default')
+  })
+})
+
+describe('upsertAccountCatalog', () => {
+  it('no muta el mapa de entrada y reemplaza solo esa cuenta', () => {
+    const original = {
+      byAccount: { 'acc-1': sampleCatalog('keep') },
+    }
+    const replacement = sampleCatalog('new')
+    const next = upsertAccountCatalog(original, 'acc-2', replacement)
+    expect(original.byAccount).toEqual({ 'acc-1': sampleCatalog('keep') })
+    expect(next.byAccount['acc-1']?.login).toBe('keep')
+    expect(next.byAccount['acc-2']).toEqual(replacement)
+    expect(next).not.toBe(original)
+  })
+})
+
+describe('mergeWithDefaults orgWorkspaceCatalogCache', () => {
+  it('migra la forma legacy al leer config', () => {
+    const legacy = sampleCatalog()
+    const merged = mergeWithDefaults({ orgWorkspaceCatalogCache: legacy })
+    expect(merged.orgWorkspaceCatalogCache).toEqual({ byAccount: { '': legacy } })
+  })
+
+  it('elimina la clave si el valor es basura', () => {
+    const merged = mergeWithDefaults({ orgWorkspaceCatalogCache: { foo: 'bar' } })
+    expect(merged.orgWorkspaceCatalogCache).toBeUndefined()
+    expect(Object.prototype.hasOwnProperty.call(merged, 'orgWorkspaceCatalogCache')).toBe(false)
   })
 })

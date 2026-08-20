@@ -99,6 +99,18 @@ describe('JiraAccountsField', () => {
     expect(onDelete).toHaveBeenCalledWith('j1')
   })
 
+  it('sin onVerify no pinta el botón de verificar; con él sigue llamando', () => {
+    renderField({ onVerify: undefined })
+
+    expect(screen.queryByRole('button', { name: 'jiraAccounts.verify Acme' })).toBeNull()
+
+    cleanup()
+    const { onVerify } = renderField()
+
+    fireEvent.click(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' }))
+    expect(onVerify).toHaveBeenCalledWith('j1')
+  })
+
   it('el alta llama onAdd con los cuatro campos y exige token', () => {
     const { onAdd } = renderField({ accounts: [] })
 

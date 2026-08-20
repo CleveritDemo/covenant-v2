@@ -24,7 +24,8 @@ export interface JiraAccountsFieldProps {
   onSetDefault: (id: string) => void
   onDelete: (id: string) => void
   onUseInWorkspace: (id: string) => void
-  onVerify: (id: string) => void
+  /** Sin handler no se pinta la acción de verificar (canal IPC aún no disponible). */
+  onVerify?: (id: string) => void
   onAdd: (input: { label: string; site: string; email: string; apiToken: string }) => void
 }
 
@@ -100,7 +101,7 @@ type JiraAccountCardProps = {
   busy: boolean
   verifyResult?: { ok: boolean; message?: string }
   onSetDefault: () => void
-  onVerify: () => void
+  onVerify?: () => void
   onDelete: () => void
 }
 
@@ -137,15 +138,17 @@ function JiraAccountCard({
                 {t('jiraAccounts.makeDefault')}
               </Button>
             )}
-            <Button
-              size="xs"
-              variant="ghost"
-              disabled={busy}
-              aria-label={`${t('jiraAccounts.verify')} ${account.label}`}
-              onClick={onVerify}
-            >
-              {t('jiraAccounts.verify')}
-            </Button>
+            {onVerify ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`${t('jiraAccounts.verify')} ${account.label}`}
+                onClick={onVerify}
+              >
+                {t('jiraAccounts.verify')}
+              </Button>
+            ) : null}
             <Tooltip content={t('jiraAccounts.deleteAccount')}>
               <Button
                 size="xs"
@@ -231,7 +234,7 @@ export const JiraAccountsField: React.FC<JiraAccountsFieldProps> = ({
               busy={busyAccountId === account.id}
               verifyResult={verifyResultById?.[account.id]}
               onSetDefault={() => onSetDefault(account.id)}
-              onVerify={() => onVerify(account.id)}
+              onVerify={onVerify ? () => onVerify(account.id) : undefined}
               onDelete={() => setPendingDelete(account)}
             />
           ))}

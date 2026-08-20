@@ -563,6 +563,19 @@ export interface TabContextDeleteResult {
   error?: string
 }
 
+export interface ContextSkillEntry {
+  stem: string
+  name: string
+  description: string
+  filePath: string
+}
+
+export interface ContextSkillsListResult {
+  ok: boolean
+  skills: ContextSkillEntry[]
+  error?: string
+}
+
 export interface TabContextAnnotation {
   key: string
   text: string

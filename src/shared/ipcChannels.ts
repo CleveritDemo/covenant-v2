@@ -79,6 +79,8 @@ export const IPC = {
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
+  /** Renderer → main (invoke): lista skills instaladas en `.gravity/skills/`. */
+  CONTEXT_SKILLS_LIST: 'context:skills:list',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Renderer → main (invoke): grafo de la wiki (`.gravity/wiki/pages`) de un cwd. */
   WIKI_GRAPH: 'wiki:graph',

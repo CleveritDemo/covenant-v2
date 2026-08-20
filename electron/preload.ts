@@ -88,6 +88,7 @@ import type {
   TabContextDeleteResult,
   TabContextDiscoveryRequest,
   TabContextDiscoveryResult,
+  ContextSkillsListResult,
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
@@ -328,6 +329,9 @@ const api = {
   },
   discoverTabContexts(request: TabContextDiscoveryRequest): Promise<TabContextDiscoveryResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DISCOVER, request)
+  },
+  listSkills(cwd: string): Promise<ContextSkillsListResult> {
+    return ipcRenderer.invoke(IPC.CONTEXT_SKILLS_LIST, cwd)
   },
   ensureAiAgentResults(request: {
     cwd: string

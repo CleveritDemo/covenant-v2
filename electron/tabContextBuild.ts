@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs'
-import { extname, isAbsolute, join, relative, resolve, basename } from 'path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'path'
 import ts from 'typescript'
 import { read as readXlsx, utils as xlsxUtils } from 'xlsx'
 import type {
@@ -1191,6 +1191,61 @@ function skillSourcePath(context: TabContext, root: string): string {
   return projectDirPath(root, 'skills', stem, 'SKILL.md')
 }
 
+function parseSkillFrontmatter(
+  raw: string,
+  stem: string,
+): { name: string; description: string } {
+  const lines = raw.split('\n')
+  if (lines[0]?.trim() !== '---') {
+    return { name: stem, description: '' }
+  }
+  const endIdx = lines.slice(1).findIndex(line => line.trim() === '---')
+  if (endIdx === -1) {
+    return { name: stem, description: '' }
+  }
+  let name = stem
+  let description = ''
+  for (const line of lines.slice(1, endIdx + 1)) {
+    const nameMatch = /^name:\s*(.+)$/.exec(line)
+    if (nameMatch) {
+      name = nameMatch[1].trim().replace(/^["']|["']$/g, '')
+      continue
+    }
+    const descMatch = /^description:\s*(.+)$/.exec(line)
+    if (descMatch) {
+      description = descMatch[1].trim().replace(/^["']|["']$/g, '')
+    }
+  }
+  return { name, description }
+}
+
+/** Lista subdirectorios de `<cwd>/.gravity/skills/` que contienen `SKILL.md`. */
+export function listSkills(
+  cwd: string,
+): { ok: true; skills: Array<{ stem: string; name: string; description: string; filePath: string }> }
+  | { ok: false; error: string } {
+  try {
+    const skillsDir = projectDirPath(cwd, 'skills')
+    if (!existsSync(skillsDir)) {
+      return { ok: true, skills: [] }
+    }
+    const skills = readdirSync(skillsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+      .sort()
+      .flatMap(stem => {
+        const filePath = join(skillsDir, stem, 'SKILL.md')
+        if (!existsSync(filePath)) return []
+        const raw = readFileSync(filePath, 'utf8')
+        const { name, description } = parseSkillFrontmatter(raw, stem)
+        return [{ stem, name, description, filePath }]
+      })
+    return { ok: true, skills }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 function buildAutoContent(
   context: TabContext,
   cwd: string,
@@ -1234,6 +1289,10 @@ function buildAutoContent(
       return auto || raw
     }
     case 'skill': {
+      if (typeof options.content === 'string') {
+        const trimmed = options.content.trim()
+        return trimmed || '(empty)'
+      }
       const path = skillSourcePath(context, root)
       return existsSync(path) ? readFileSync(path, 'utf8').trim() || '(empty)' : '(empty)'
     }
@@ -1451,6 +1510,16 @@ export function materializeTabContext(
       }
     }
 
+    if (
+      options.write === true
+      && contextToWrite.kind === 'skill'
+      && typeof options.content === 'string'
+    ) {
+      const skillPath = skillSourcePath(contextToWrite, safeRoot(cwd, contextToWrite.rootPath))
+      mkdirSync(dirname(skillPath), { recursive: true })
+      writeFileSync(skillPath, options.content, 'utf8')
+    }
+
     const existingNotes = readExistingNotes(filePath)
     const referenceOnlyWrite = options.write === true
       && contextToWrite.referenceOnly === true
@@ -1507,10 +1576,19 @@ export function materializeTabContext(
         )
       }
     }
+    let notesContent = notes
+    if (contextToWrite.kind === 'skill') {
+      if (typeof options.content === 'string') {
+        notesContent = options.content
+      } else {
+        const skillPath = skillSourcePath(contextToWrite, safeRoot(cwd, contextToWrite.rootPath))
+        notesContent = existsSync(skillPath) ? readFileSync(skillPath, 'utf8') : ''
+      }
+    }
     return {
       ok: true,
       content,
-      notesContent: notes,
+      notesContent,
       filePath,
     }
   } catch (error) {

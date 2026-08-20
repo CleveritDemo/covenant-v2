@@ -153,6 +153,7 @@ import type { LoopChainStartConfig } from './loopChainRun'
 import {
   deleteTabContext,
   discoverTabContexts,
+  listSkills,
   materializeTabContext,
 } from './tabContextBuild'
 import { resolveTabContextRevealPath } from './tabContextReveal'
@@ -2446,6 +2447,12 @@ function registerIpc(): void {
       clearAgentContextDeliveryState()
     }
     return result
+  })
+  ipcMain.handle(IPC.CONTEXT_SKILLS_LIST, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, skills: [], error: 'Solicitud inválida.' }
+    }
+    return listSkills(cwd)
   })
   ipcMain.handle(IPC.AGENT_RESULTS_ENSURE, (_event, request: unknown) => {
     if (!request || typeof request !== 'object') {

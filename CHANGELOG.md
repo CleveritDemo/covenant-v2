@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.99.5
+La guía de primeros pasos ya no se apaga al entrar a un brainstorm en Planear: si terminás una sala o ya hablaste en ella, los avisos siguen ahí al volver a las salas o al setup, y el paso de salas guardadas queda alcanzable.
+
+Un aviso cuyo sitio aparece un instante más tarde ya no se queda en blanco: la guía espera a que ese sitio exista y entonces lo señala.
+
 ## v0.99.4
 La guía de primeros pasos ya no se corta al montar tu primer agente: sigue contigo hasta el final, aunque ya tengas equipo en el plano.
 

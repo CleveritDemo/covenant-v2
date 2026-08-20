@@ -508,7 +508,7 @@ function syncAllOrgTabTitlesFromMap(
   map: OrgWorkspaceCatalogMap | null,
   resolveAccountId: (cwd: string | undefined | null) => string,
 ): TabSession[] | null {
-  let merged = tabs
+  let merged: TabSession[] = [...tabs]
   let changed = false
   for (const tab of tabs) {
     if (!tab.orgWorkspace) continue

@@ -12,7 +12,7 @@ function highlightedSegments(
   content: string,
   matches: ReturnType<typeof findTextMatches>,
   activeIndex: number,
-  activeRef: React.RefObject<HTMLElement | null>,
+  activeRef: React.RefObject<HTMLElement>,
 ): React.ReactNode[] {
   if (matches.length === 0) return [content]
 

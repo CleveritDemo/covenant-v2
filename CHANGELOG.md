@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.98.11
+La marca Covenant vuelve al centro de la barra superior. Si aparece el aviso de actualización, la marca se aparta para dejarle el sitio.
+
 ## v0.98.10
 La barra superior queda limpia: se retiró la marca del centro, así que el espacio es para lo que estás haciendo. En Ajustes, la sección de motores pasa a llamarse Harnesses, el mismo nombre que se usa al hablar de ellos en el resto del producto.
 

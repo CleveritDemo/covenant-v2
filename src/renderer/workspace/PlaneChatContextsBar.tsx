@@ -1,4 +1,4 @@
-import React, { useId, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Icon, Input, Tooltip } from '../components/ui'
 import { useT } from '@i18n/useT'
 import { barChipThreads, threadDisplayTitleOr, threadTitleHasVisibleText, truncateThreadChipLabel, type AgentThread } from '@shared/agentThreads'
@@ -94,11 +94,46 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   const chipOrderKey = chipThreads.map(thread => thread.id).join('\0')
   const threadPanelId = `thread-history-panel-${useId().replace(/:/g, '')}`
   const threadHistoryTriggerRef = useRef<HTMLSpanElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const chipsRef = useRef<HTMLDivElement>(null)
   const chipLeftByIdRef = useRef<Map<string, number>>(new Map())
   const [threadPanelOpen, setThreadPanelOpen] = useState(false)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
+  const [scrollFadeStart, setScrollFadeStart] = useState(false)
+  const [scrollFadeEnd, setScrollFadeEnd] = useState(false)
+
+  const syncScrollFade = useCallback((): void => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const hasOverflow = el.scrollWidth - el.clientWidth > 1
+    if (!hasOverflow) {
+      setScrollFadeStart(false)
+      setScrollFadeEnd(false)
+      return
+    }
+    setScrollFadeStart(el.scrollLeft > 0)
+    setScrollFadeEnd(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+
+  useEffect(() => {
+    syncScrollFade()
+    const scrollEl = scrollContainerRef.current
+    const chipsEl = chipsRef.current
+    if (!scrollEl) return
+
+    scrollEl.addEventListener('scroll', syncScrollFade, { passive: true })
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(syncScrollFade)
+      : null
+    ro?.observe(scrollEl)
+    if (chipsEl) ro?.observe(chipsEl)
+
+    return () => {
+      scrollEl.removeEventListener('scroll', syncScrollFade)
+      ro?.disconnect()
+    }
+  }, [chipOrderKey, syncScrollFade])
 
   useLayoutEffect(() => {
     const root = chipsRef.current
@@ -286,7 +321,12 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
     >
       <div className="plane-chat-contexts-bar__stack">
         {chipThreads.length > 0 ? (
-          <div className="plane-chat-contexts-bar__chips-scroll">
+          <div
+            ref={scrollContainerRef}
+            className="plane-chat-contexts-bar__chips-scroll"
+            data-scroll-start={scrollFadeStart ? 'on' : 'off'}
+            data-scroll-end={scrollFadeEnd ? 'on' : 'off'}
+          >
             {showThreads ? (
               <div
                 ref={chipsRef}

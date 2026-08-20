@@ -732,6 +732,8 @@ const en = {
       pickParticipants: 'Choose who joins the room.',
       joinRound: 'Join any round to refine what the team proposes.',
       savedRooms: 'Your rooms stay saved here; come back anytime.',
+      newRoom: 'Create a new room to start the ceremony.',
+      openLiveRoom: 'Open the live room to join the round.',
       assignContext: 'Drag a context onto an agent so it knows what the project is about.',
       openTerminal: 'Open a terminal when you want to see or run something yourself.',
       dismiss: 'Got it',

@@ -11,6 +11,7 @@ export type OnboardingGuideAnchor =
   | 'brainstorm-goal'
   | 'brainstorm-participants'
   | 'brainstorm-module-tabs'
+  | 'brainstorm-rooms-list'
   | 'brainstorm-human-composer'
   | 'context-pool'
   | 'plane-terminal-fab'
@@ -105,27 +106,35 @@ export function resolveOnboardingGuideStep(
     if (!args.brainstormOverlayOpen || viewUnsetAndRoomIdle) {
       return guideStep('open_brainstorm', 'brainstorm-rail', 'openBrainstorm')
     }
-    if (args.brainstormView === 'setup' && !args.brainstormGoalFilled) {
-      return guideStep('write_goal', 'brainstorm-goal', 'writeGoal')
+    if (args.brainstormView === 'rooms') {
+      if (args.humanSpokeInRoom && !doneSteps.includes('saved_rooms')) {
+        return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms')
+      }
+      if (args.brainstormRoomLive) {
+        return guideStep('open_brainstorm', 'brainstorm-rooms-list', 'openLiveRoom')
+      }
+      return guideStep('open_brainstorm', 'brainstorm-module-tabs', 'newRoom')
     }
-    if (
-      args.brainstormView === 'setup'
-      && args.brainstormGoalFilled
-      && participantCount === 0
-    ) {
-      return guideStep('pick_participants', 'brainstorm-participants', 'pickParticipants')
-    }
-    if (
-      args.brainstormView === 'setup'
-      && args.brainstormGoalFilled
-      && participantCount > 0
-    ) {
+    if (args.brainstormView === 'setup' && !args.humanSpokeInRoom) {
+      if (!args.brainstormGoalFilled) {
+        return guideStep('write_goal', 'brainstorm-goal', 'writeGoal')
+      }
+      if (participantCount === 0) {
+        return guideStep('pick_participants', 'brainstorm-participants', 'pickParticipants')
+      }
       return guideStep('start_ceremony', 'brainstorm-start', 'startCeremony')
     }
     if (args.brainstormRoomLive && !args.humanSpokeInRoom) {
       return guideStep('join_round', 'brainstorm-human-composer', 'joinRound')
     }
-    if (args.humanSpokeInRoom && !doneSteps.includes('saved_rooms')) {
+    // En sala viva (brainstormView === roomId) tras hablar la escalera devuelve
+    // null a propósito: brainstorm-module-tabs no está montado ahí y un paso sin
+    // ancla es inescapable. saved_rooms solo se ofrece donde las pestañas existen.
+    if (
+      args.humanSpokeInRoom
+      && args.brainstormView === 'setup'
+      && !doneSteps.includes('saved_rooms')
+    ) {
       return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms')
     }
     return null

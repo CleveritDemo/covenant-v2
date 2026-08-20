@@ -734,6 +734,8 @@ const es = {
       pickParticipants: 'Elige quién entra a la sala.',
       joinRound: 'Interviene en cualquier ronda para refinar lo que propone el equipo.',
       savedRooms: 'Tus salas quedan guardadas aquí; vuelve a ellas cuando quieras.',
+      newRoom: 'Crea una sala nueva para empezar la ceremonia.',
+      openLiveRoom: 'Abre la sala en curso para intervenir en la ronda.',
       assignContext: 'Arrastra un contexto a un agente para que sepa de qué va el proyecto.',
       openTerminal: 'Abre una terminal cuando quieras ver o correr algo tú mismo.',
       dismiss: 'Entendido',

@@ -68,22 +68,6 @@ describe('onboardingGuideAutoSkip', () => {
     ).not.toBe('assign_context')
   })
 
-  it('business con saved_rooms dismissido no reaparece saved_rooms', () => {
-    expect(
-      resolveOnboardingGuideStep({
-        incomplete: true,
-        path: 'business',
-        hasFolder: true,
-        hasAgents: true,
-        openChatAgentId: null,
-        brainstormOverlayOpen: true,
-        brainstormView: 'rooms',
-        humanSpokeInRoom: true,
-        doneSteps: ['saved_rooms'],
-      }),
-    ).toBeNull()
-  })
-
   it('buildGuideResolveArgs deriva terminalOpen desde paneKinds', () => {
     const withTerminal = buildGuideResolveArgs({
       incomplete: true,

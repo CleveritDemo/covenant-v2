@@ -185,7 +185,66 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('business ladder is exhausted after saved_rooms is dismissed', () => {
+  it('rooms view without live room guides to create a new room', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        brainstormRoomLive: false,
+      }),
+    ).toEqual({
+      step: 'open_brainstorm',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.newRoom',
+    })
+  })
+
+  it('rooms view with live room guides to open it before speaking', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        brainstormRoomLive: true,
+        humanSpokeInRoom: false,
+      }),
+    ).toEqual({
+      step: 'open_brainstorm',
+      anchor: 'brainstorm-rooms-list',
+      messageKey: 'tabs.onboardingGuide.openLiveRoom',
+    })
+  })
+
+  it('live room view after speaking returns null (no tabs anchor)', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomLive: true,
+        humanSpokeInRoom: true,
+      }),
+    ).toBeNull()
+  })
+
+  it('setup view after speaking offers saved_rooms dismissible', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'setup',
+        humanSpokeInRoom: true,
+      }),
+    ).toEqual({
+      step: 'saved_rooms',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.savedRooms',
+      dismissible: true,
+    })
+  })
+
+  it('business ladder continues with newRoom after saved_rooms is dismissed in rooms', () => {
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,
@@ -194,7 +253,11 @@ describe('resolveOnboardingGuideStep', () => {
         humanSpokeInRoom: true,
         doneSteps: ['saved_rooms'],
       }),
-    ).toBeNull()
+    ).toEqual({
+      step: 'open_brainstorm',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.newRoom',
+    })
   })
 
   it('select_agent for engineer without open chat agent', () => {

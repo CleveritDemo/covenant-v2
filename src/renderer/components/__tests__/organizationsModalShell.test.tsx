@@ -70,6 +70,12 @@ const covenant = {
   workspaceRepoAdd: vi.fn(),
   workspaceRepoUpdate: vi.fn(),
   workspaceRepoDelete: vi.fn(),
+  workspaceAgentsList: vi.fn(),
+  workspaceAgentUpsert: vi.fn(),
+  workspaceAgentDelete: vi.fn(),
+  workspaceContextsList: vi.fn(),
+  workspaceContextUpsert: vi.fn(),
+  workspaceContextDelete: vi.fn(),
   orgAdminsList: vi.fn(),
   orgAdminAdd: vi.fn(),
   orgAdminRemove: vi.fn(),
@@ -91,6 +97,8 @@ beforeEach(() => {
     { id: 'w1', name: 'covenant', assignees: ['lenar'], admins: ['karluiz'], createdBy: 'karluiz' },
   ]))
   covenant.workspaceReposList.mockImplementation(() => ok([]))
+  covenant.workspaceAgentsList.mockImplementation(() => ok([]))
+  covenant.workspaceContextsList.mockImplementation(() => ok([]))
   githubAccountsList.mockReset()
   githubAccountsList.mockResolvedValue({ ok: true, accounts: [], defaultAccountId: '' })
   vi.stubGlobal('window', Object.assign(window, {
@@ -122,22 +130,67 @@ describe('OrganizationsView — shell de tres columnas', () => {
     expect(screen.queryByText('organizations.selectWorkspace')).toBeNull()
   })
 
-  it('seleccionar un workspace abre People y Repos en la tercera columna', async () => {
+  it('seleccionar un workspace abre Personas y Repos en pestañas del detalle', async () => {
     render(<OrganizationsView onClose={() => {}} />)
 
     fireEvent.click((await screen.findAllByText('covenant'))[0])
 
     await waitFor(() => {
-      expect(screen.getByText('organizations.peopleSection')).toBeTruthy()
+      expect(screen.getByRole('radiogroup', { name: 'organizations.workspaceTabsLabel' })).toBeTruthy()
     })
-    expect(screen.getByText('organizations.reposTab')).toBeTruthy()
+    expect(screen.getByText('organizations.peopleSection')).toBeTruthy()
     // Admin y assignee conviven en una sola lista de chips, con el rol como subtítulo.
     const chips = document.querySelectorAll('.orgs-chip')
     expect([...chips].map(chip => chip.querySelector('.orgs-chip__name')?.textContent))
       .toEqual(['karluiz', 'lenar'])
     expect([...chips].map(chip => chip.querySelector('.orgs-chip__role')?.textContent))
       .toEqual(['organizations.roleAdmin', 'organizations.assignee'])
-    expect(screen.getByText('organizations.reposEmpty')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'organizations.reposTab' }))
+    expect(await screen.findByText('organizations.reposEmpty')).toBeTruthy()
+    expect(covenant.workspaceReposList).toHaveBeenCalled()
+    expect(covenant.workspaceAgentsList).not.toHaveBeenCalled()
+  })
+
+  it('la pestaña Agentes lista los agentes del workspace', async () => {
+    covenant.workspaceAgentsList.mockImplementation(() => ok([
+      { agentId: 'tl', definition: { name: 'Noah', role: 'technical leader' } },
+      { agentId: 'sin-nombre', definition: {} },
+    ]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    fireEvent.click((await screen.findAllByText('covenant'))[0])
+    fireEvent.click(screen.getByRole('radio', { name: 'organizations.agentsTab' }))
+
+    expect(await screen.findByText('Noah')).toBeTruthy()
+    expect(screen.getByText('technical leader')).toBeTruthy()
+    expect(screen.getByText('sin-nombre')).toBeTruthy()
+    expect(screen.getByText('organizations.orgManagedFromWorkspaceHint')).toBeTruthy()
+    expect(covenant.workspaceAgentsList).toHaveBeenCalledTimes(1)
+    expect(covenant.workspaceContextsList).not.toHaveBeenCalled()
+  })
+
+  it('la pestaña Contextos lista nombre y kind, y el vacío tiene su texto', async () => {
+    covenant.workspaceContextsList.mockImplementation(() => ok([
+      { contextId: 'front-rules', kind: 'notes', name: 'Front Rules' },
+    ]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    fireEvent.click((await screen.findAllByText('covenant'))[0])
+    fireEvent.click(screen.getByRole('radio', { name: 'organizations.contextsTab' }))
+
+    expect(await screen.findByText('Front Rules')).toBeTruthy()
+    expect(screen.getByText('notes')).toBeTruthy()
+    expect(screen.queryByText('front-rules')).toBeNull()
+    expect(covenant.workspaceContextsList).toHaveBeenCalledTimes(1)
+    expect(covenant.workspaceAgentsList).not.toHaveBeenCalled()
+
+    cleanup()
+    covenant.workspaceContextsList.mockImplementation(() => ok([]))
+    render(<OrganizationsView onClose={() => {}} />)
+    fireEvent.click((await screen.findAllByText('covenant'))[0])
+    fireEvent.click(screen.getByRole('radio', { name: 'organizations.contextsTab' }))
+    expect(await screen.findByText('organizations.contextsEmpty')).toBeTruthy()
   })
 
   it('los ajustes de la org fusionan members y admins en una tabla con rol', async () => {

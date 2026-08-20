@@ -221,6 +221,7 @@ describe('WorkspaceReposSection — picker de alta', () => {
 
   it('elegir en el picker rellena la URL, enfoca la carpeta y no envía', async () => {
     renderPanel()
+    fireEvent.click(await screen.findByRole('radio', { name: 'organizations.reposTab' }))
     fireEvent.click(await screen.findByRole('button', { name: 'organizations.addRepo' }))
 
     fireEvent.click(await screen.findByRole('option', { name: 'acme/app' }))

@@ -2,8 +2,11 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { useT } from '@i18n/useT'
 import {
   getCovenantApi,
+  hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
   type CovenantWorkspace,
+  type CovenantWorkspaceAgentRecord,
+  type CovenantWorkspaceContextRecord,
   type CovenantWorkspaceRepoRecord,
 } from '../covenantApi'
 import { SettingsField } from './SettingsSection'
@@ -33,6 +36,7 @@ function WorkspacePeopleSection({
   onAssigneeRemove,
   onAdminAdd,
   onAdminRemove,
+  titled = true,
 }: {
   assignees: string[]
   admins: string[]
@@ -44,6 +48,7 @@ function WorkspacePeopleSection({
   onAssigneeRemove: (login: string) => void
   onAdminAdd: (login: string) => void
   onAdminRemove: (login: string) => void
+  titled?: boolean
 }): React.ReactElement {
   const { t } = useT()
   const [role, setRole] = useState<'user' | 'admin'>('user')
@@ -55,7 +60,7 @@ function WorkspacePeopleSection({
 
   return (
     <section className="orgs-section" aria-label={t('organizations.peopleSection')}>
-      <h3 className="orgs-section__title">{t('organizations.peopleSection')}</h3>
+      {titled ? <h3 className="orgs-section__title">{t('organizations.peopleSection')}</h3> : null}
       {rows.length === 0 ? (
         <p className="orgs-empty">{t('organizations.noWorkspacePeople')}</p>
       ) : (
@@ -239,12 +244,14 @@ function WorkspaceReposSection({
   canManage,
   parentBusy,
   accountId = '',
+  titled = true,
 }: {
   slug: string
   workspaceId: string
   canManage: boolean
   parentBusy: boolean
   accountId?: string
+  titled?: boolean
 }): React.ReactElement {
   const { t } = useT()
   const folderHintId = useId()
@@ -381,7 +388,7 @@ function WorkspaceReposSection({
   return (
     <section className="orgs-section" aria-label={t('organizations.reposTab')}>
       <div className="orgs-section__head">
-        <h3 className="orgs-section__title">{t('organizations.reposTab')}</h3>
+        {titled ? <h3 className="orgs-section__title">{t('organizations.reposTab')}</h3> : null}
         {available && canManage ? (
           <Button
             variant="secondary"
@@ -483,6 +490,153 @@ function WorkspaceReposSection({
   )
 }
 
+function WorkspaceAgentsSection({
+  slug,
+  workspaceId,
+  accountId = '',
+}: {
+  slug: string
+  workspaceId: string
+  accountId?: string
+}): React.ReactElement {
+  const { t } = useT()
+  const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
+  const available = hasCovenantWorkspaceContentApi(covenant)
+  const [agents, setAgents] = useState<CovenantWorkspaceAgentRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadAgents = useCallback(async (): Promise<void> => {
+    if (!covenant || !available || !slug || !workspaceId) {
+      setAgents([])
+      return
+    }
+    setLoading(true)
+    setError(null)
+    const result = await covenant.workspaceAgentsList(slug, workspaceId)
+    setLoading(false)
+    if (!result.ok) {
+      setAgents([])
+      setError(result.error)
+      return
+    }
+    setAgents(result.data)
+  }, [available, covenant, slug, workspaceId])
+
+  useEffect(() => {
+    void loadAgents()
+  }, [loadAgents])
+
+  return (
+    <section className="orgs-section" aria-label={t('organizations.agentsTab')}>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : (
+        <>
+          {agents.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.agentsEmpty')}</p>
+          ) : (
+            <ul className="orgs-rows">
+              {agents.map(agent => {
+                const definition = agent.definition
+                const name =
+                  typeof definition.name === 'string' && definition.name.trim()
+                    ? definition.name
+                    : agent.agentId
+                const role = typeof definition.role === 'string' ? definition.role : null
+                return (
+                  <li key={agent.agentId} className="orgs-row">
+                    <span className="orgs-row__icon" aria-hidden>
+                      <Icon name="bot" size={15} />
+                    </span>
+                    <div className="orgs-row__main">
+                      <p className="orgs-row__title">{name}</p>
+                      {role ? <p className="orgs-row__meta">{role}</p> : null}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <p className="orgs-section__hint">{t('organizations.orgManagedFromWorkspaceHint')}</p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function WorkspaceContextsSection({
+  slug,
+  workspaceId,
+  accountId = '',
+}: {
+  slug: string
+  workspaceId: string
+  accountId?: string
+}): React.ReactElement {
+  const { t } = useT()
+  const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
+  const available = hasCovenantWorkspaceContentApi(covenant)
+  const [contexts, setContexts] = useState<CovenantWorkspaceContextRecord[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadContexts = useCallback(async (): Promise<void> => {
+    if (!covenant || !available || !slug || !workspaceId) {
+      setContexts([])
+      return
+    }
+    setLoading(true)
+    setError(null)
+    const result = await covenant.workspaceContextsList(slug, workspaceId)
+    setLoading(false)
+    if (!result.ok) {
+      setContexts([])
+      setError(result.error)
+      return
+    }
+    setContexts(result.data)
+  }, [available, covenant, slug, workspaceId])
+
+  useEffect(() => {
+    void loadContexts()
+  }, [loadContexts])
+
+  return (
+    <section className="orgs-section" aria-label={t('organizations.contextsTab')}>
+      <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {!available ? (
+        <p className="orgs-empty">{t('organizations.unavailable')}</p>
+      ) : (
+        <>
+          {contexts.length === 0 && !loading ? (
+            <p className="orgs-empty">{t('organizations.contextsEmpty')}</p>
+          ) : (
+            <ul className="orgs-rows">
+              {contexts.map(context => {
+                const name = context.name?.trim() ? context.name : context.contextId
+                return (
+                  <li key={context.contextId} className="orgs-row">
+                    <span className="orgs-row__icon" aria-hidden>
+                      <Icon name="file" size={15} />
+                    </span>
+                    <div className="orgs-row__main">
+                      <p className="orgs-row__title">{name}</p>
+                      <p className="orgs-row__meta">{context.kind}</p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <p className="orgs-section__hint">{t('organizations.orgManagedFromWorkspaceHint')}</p>
+        </>
+      )}
+    </section>
+  )
+}
+
 export function WorkspaceDetailPanel({
   slug,
   workspace,
@@ -520,6 +674,11 @@ export function WorkspaceDetailPanel({
 }): React.ReactElement {
   const { t } = useT()
   const peopleCount = workspacePeopleRows(workspace.assignees, workspace.admins).length
+  const [tab, setTab] = useState<'people' | 'repos' | 'agents' | 'contexts'>('people')
+
+  useEffect(() => {
+    setTab('people')
+  }, [workspace.id])
 
   return (
     <section className="orgs-panel" aria-label={workspace.name}>
@@ -541,25 +700,50 @@ export function WorkspaceDetailPanel({
       </header>
       <div className="orgs-panel__body">
         <SectionStatus loading={false} error={openError} loadingLabel={t('organizations.loading')} />
-        <WorkspacePeopleSection
-          assignees={workspace.assignees}
-          admins={workspace.admins}
-          memberLogins={memberLogins}
-          canManageAssignees={canManageAssignees}
-          canManageProjectAdmins={canManageProjectAdmins}
-          parentBusy={busy}
-          onAssigneeAdd={onAssigneeAdd}
-          onAssigneeRemove={onAssigneeRemove}
-          onAdminAdd={onAdminAdd}
-          onAdminRemove={onAdminRemove}
+        <SegmentedControl
+          size="sm"
+          layout="scroll"
+          label={t('organizations.workspaceTabsLabel')}
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'people', label: t('organizations.peopleSection') },
+            { value: 'repos', label: t('organizations.reposTab') },
+            { value: 'agents', label: t('organizations.agentsTab') },
+            { value: 'contexts', label: t('organizations.contextsTab') },
+          ]}
         />
-        <WorkspaceReposSection
-          slug={slug}
-          workspaceId={workspace.id}
-          canManage={canManageAssignees}
-          parentBusy={busy}
-          accountId={accountId}
-        />
+        {tab === 'people' ? (
+          <WorkspacePeopleSection
+            assignees={workspace.assignees}
+            admins={workspace.admins}
+            memberLogins={memberLogins}
+            canManageAssignees={canManageAssignees}
+            canManageProjectAdmins={canManageProjectAdmins}
+            parentBusy={busy}
+            onAssigneeAdd={onAssigneeAdd}
+            onAssigneeRemove={onAssigneeRemove}
+            onAdminAdd={onAdminAdd}
+            onAdminRemove={onAdminRemove}
+            titled={false}
+          />
+        ) : null}
+        {tab === 'repos' ? (
+          <WorkspaceReposSection
+            slug={slug}
+            workspaceId={workspace.id}
+            canManage={canManageAssignees}
+            parentBusy={busy}
+            accountId={accountId}
+            titled={false}
+          />
+        ) : null}
+        {tab === 'agents' ? (
+          <WorkspaceAgentsSection slug={slug} workspaceId={workspace.id} accountId={accountId} />
+        ) : null}
+        {tab === 'contexts' ? (
+          <WorkspaceContextsSection slug={slug} workspaceId={workspace.id} accountId={accountId} />
+        ) : null}
       </div>
     </section>
   )

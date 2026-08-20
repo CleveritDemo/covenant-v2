@@ -18,6 +18,9 @@
     minmax(0, var(--brainstorm-col-w));
   grid-template-rows: var(--brainstorm-nav-gutter) minmax(0, 1fr);
   background: var(--pane-canvas);
+  /* El canto de arriba pinta su propio separador: el border-bottom del TabBar
+     va al 16% y no se lee contra --pane-canvas. Ver [[plane-chrome-over-overlays]]. */
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   font-family: var(--font-ui);
   color: var(--text);
   /* Canalón ambos rieles del plano: 28px + inset 8px + holgura; elevated no pisa columnas. */

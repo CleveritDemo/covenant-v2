@@ -15,3 +15,16 @@ describe('brainstorm reduce-motion CSS', () => {
     expect(css).not.toContain('prefers-reduced-motion');
   });
 });
+
+describe('brainstorm overlay top separator CSS', () => {
+  test('.brainstorm-overlay declara separador superior de 1px con --border', () => {
+    const css = readFileSync(
+      fileURLToPath(new URL('../BrainstormOverlay.css', import.meta.url)),
+      'utf8',
+    );
+    const block = css.match(/^\.brainstorm-overlay\s*\{[^}]+}/m)?.[0] ?? '';
+
+    expect(block).toContain('border-top: 1px solid');
+    expect(block).toContain('var(--border)');
+  });
+});

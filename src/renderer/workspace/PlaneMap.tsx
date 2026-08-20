@@ -51,6 +51,8 @@ export interface PlaneMapEntity {
   /** Trabajo reservado/activo por una delegación del orquestador. */
   delegationWorkActive?: boolean
   provider?: AgentCliProvider
+  /** Modelo del motor primario (chip junto al CLI en la mini). */
+  model?: string
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   orchestrationWorkStyle?: OrchestrationWorkStyle
   snippet?: string
@@ -892,6 +894,7 @@ export const PlaneMap: React.FC<PlaneMapProps> = ({
         busy={entity.busy}
         awaitingDelegations={entity.awaitingDelegations}
         provider={entity.provider}
+        model={entity.model}
         coordination={entity.coordination}
         orchestrationWorkStyle={entity.orchestrationWorkStyle}
         snippet={entity.snippet}

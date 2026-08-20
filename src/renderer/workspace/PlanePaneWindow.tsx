@@ -29,6 +29,8 @@ export interface PlanePaneWindowProps {
   /** Orquestador esperando resultados de especialistas. */
   awaitingDelegations?: boolean
   provider?: AgentCliProvider
+  /** Modelo del motor primario del agente. */
+  model?: string
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   orchestrationWorkStyle?: OrchestrationWorkStyle
   snippet?: string
@@ -105,6 +107,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
   busy = false,
   awaitingDelegations = false,
   provider,
+  model,
   coordination,
   orchestrationWorkStyle,
   snippet,
@@ -242,6 +245,7 @@ export const PlanePaneWindow: React.FC<PlanePaneWindowProps> = ({
             busy={miniFaceBusy}
             activityDot={null}
             provider={provider}
+            model={model}
             coordination={coordination}
             orchestrationWorkStyle={orchestrationWorkStyle}
             statusLabel={statusLabel}

@@ -37,6 +37,7 @@ export interface BrainstormInviteSeatCardProps extends BrainstormSeatCardProps {
    */
   contexts?: PlaneAgentContextChip[]
   provider?: AgentCliProvider
+  model?: string
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   onToggle: () => void
 }
@@ -45,6 +46,7 @@ export interface BrainstormLiveSeatCardProps extends BrainstormSeatCardProps {
   /** Contextos del agente, ya resueltos: lo que trae leído a la sala. */
   contexts?: PlaneAgentContextChip[]
   provider?: AgentCliProvider
+  model?: string
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   state: BrainstormSeatState
   /** Puesto en la cola de turnos, 1-based. Solo cuando espera. */
@@ -96,6 +98,7 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
   order,
   contexts = [],
   provider,
+  model,
   coordination,
   alsoInRooms = [],
   contextDrop,
@@ -133,6 +136,7 @@ export const BrainstormInviteSeatCard: React.FC<BrainstormInviteSeatCardProps> =
         name={name}
         monogram={monogram}
         provider={provider}
+        model={model}
         coordination={coordination}
         statusLabel={seated
           ? t('tabs.brainstormSeatTurn', { order: String(order) })
@@ -168,6 +172,7 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
   monogram,
   contexts = [],
   provider,
+  model,
   coordination,
   state,
   queuePosition,
@@ -217,6 +222,7 @@ export const BrainstormLiveSeatCard: React.FC<BrainstormLiveSeatCardProps> = ({
           name={name}
           monogram={monogram}
           provider={provider}
+          model={model}
           coordination={coordination}
           busy={state === 'speaking'}
           statusLabel={`${stateLabel} · ${turnsDone}/${rounds}`}

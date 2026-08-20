@@ -7265,6 +7265,7 @@ export const App: React.FC = () => {
                   busy: visuallyBusy,
                   awaitingDelegations,
                   provider: meta?.provider ?? 'claude',
+                  model: meta?.model,
                   coordination: (meta?.coordination === 'orchestrator'
                     || meta?.coordination === 'productOwner'
                     ? meta.coordination

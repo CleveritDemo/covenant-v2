@@ -371,6 +371,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
     role: string
     monogram: string
     provider?: AgentCliProvider
+    model?: string
     contexts: PlaneAgentContextChip[]
   } => {
     const agent = agents.find(item => item.id === agentId)
@@ -382,6 +383,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
       role,
       monogram: agent?.monogram?.trim() || agentMonogram(speakerLabel(agentId)),
       provider: agent?.provider,
+      model: agent?.model,
       contexts: resolveAssignedContextChips(
         agent?.contextIds ?? [],
         contexts,
@@ -795,6 +797,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 role={identity.role}
                 monogram={identity.monogram}
                 provider={identity.provider}
+                model={identity.model}
                 contexts={identity.contexts}
                 state={seat.state}
                 queuePosition={queuePositions.get(seat.agentId)}

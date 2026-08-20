@@ -3,6 +3,7 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { agentCliSpec } from '@shared/agentCliProviders'
+import { resolveModelLabel, resolveModelShort } from '@shared/agentCliModels'
 import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
@@ -26,6 +27,7 @@ import {
 } from './planeMiniCardOpen'
 import type { PlaneActivityDotKind } from '../agent/paneWorkActive'
 import { PlaneBusyDot } from '../components/ui/PlaneBusyDot'
+import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneMiniFace.css'
 
 export interface PlaneMiniFaceProps {
@@ -40,6 +42,8 @@ export interface PlaneMiniFaceProps {
   /** Dot en esquina: busy o delegating (prioridad sobre glow). */
   activityDot?: PlaneActivityDotKind | null
   provider?: AgentCliProvider
+  /** Modelo del motor primario; vacío = default del CLI. */
+  model?: string
   /** Muestra chip de orquestador / product owner junto al proveedor. */
   coordination?: 'none' | 'orchestrator' | 'productOwner'
   /** Solo orquestadores: lineal o turbo. */
@@ -75,6 +79,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   busy = false,
   activityDot = null,
   provider = 'claude',
+  model,
   coordination = 'none',
   orchestrationWorkStyle,
   statusLabel,
@@ -105,6 +110,13 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
   const resultsTitle = resultsDragLabel || resultsId
   const displayMonogram = (monogram?.trim() || agentMonogram(name)).toUpperCase()
   const skipClickRef = useRef(false)
+  const modelId = model?.trim() ?? ''
+  const modelFullLabel = modelId
+    ? resolveModelLabel(provider, modelId)
+    : t('agentPane.modelDefault')
+  const modelChipLabel = modelId
+    ? resolveModelShort(provider, modelId)
+    : t('agentPane.modelDefault')
   const showIntegratedActions = Boolean(
     (onConfigure && configLabel) || (onDelete && deleteLabel),
   )
@@ -215,13 +227,6 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
       </div>
       <div className="plane-mini-face__header-aside">
         <div className="plane-mini-face__meta-badges">
-          <span
-            className="plane-mini-face__provider"
-            style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
-            aria-label={agentCliSpec(provider).label}
-          >
-            <BrandIcon provider={provider} size={11} aria-hidden />
-          </span>
           <CoordinationBadge
             coordination={coordination}
             variant="inline"
@@ -246,6 +251,20 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
               )}
             />
           ) : null}
+          <span className="plane-mini-face__engine" aria-label={`${agentCliSpec(provider).label} · ${modelFullLabel}`}>
+            <Tooltip content={modelFullLabel}>
+              <span className="plane-mini-face__model">
+                {modelChipLabel}
+              </span>
+            </Tooltip>
+            <span
+              className="plane-mini-face__provider"
+              style={{ '--plane-mini-face-brand': agentCliSpec(provider).brand } as React.CSSProperties}
+              aria-hidden
+            >
+              <BrandIcon provider={provider} size={11} />
+            </span>
+          </span>
         </div>
       </div>
     </div>

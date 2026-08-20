@@ -64,6 +64,7 @@ export const BrainstormRosterColumn: React.FC<BrainstormRosterColumnProps> = ({
                   name={label}
                   monogram={agent.monogram?.trim() || agentMonogram(label)}
                   provider={agent.provider}
+                  model={agent.model}
                   coordination={agent.coordination}
                   statusLabel={t('tabs.planeIdleAgent')}
                 >

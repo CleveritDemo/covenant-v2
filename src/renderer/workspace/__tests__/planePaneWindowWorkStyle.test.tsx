@@ -63,4 +63,20 @@ describe('PlanePaneWindow — modo de orquestación', () => {
     expect(screen.queryByLabelText('agentPane.orchestrationWorkStyleTurbo')).toBeNull()
     expect(screen.queryByLabelText('agentPane.orchestrationWorkStyleLinear')).toBeNull()
   })
+
+  it('pone el CLI al final con chip del modelo', () => {
+    renderCard({
+      provider: 'cursor',
+      model: 'composer-2.5',
+      coordination: 'orchestrator',
+      orchestrationWorkStyle: 'linear',
+    })
+    const engine = document.querySelector('.plane-mini-face__engine')
+    expect(engine).toBeTruthy()
+    expect(engine?.textContent).toContain('C25')
+    expect(engine?.getAttribute('aria-label')).toContain('Composer 2.5')
+    expect(engine?.querySelector('.plane-mini-face__provider')).toBeTruthy()
+    const badges = document.querySelector('.plane-mini-face__meta-badges')
+    expect(badges?.lastElementChild).toBe(engine)
+  })
 })

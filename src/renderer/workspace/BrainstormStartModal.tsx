@@ -309,6 +309,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
                     || agentMonogram(brainstormCatalogAgentLabel(agent))}
                   order={at >= 0 ? at + 1 : null}
                   provider={agent.provider}
+                  model={agent.model}
                   coordination={agent.coordination}
                   /* Sin uso compartido: aquí no hay panes que compartan contexto,
                      así que ninguno se marca como tal. */

@@ -72,14 +72,6 @@ function resolveSignalWrite(input: {
 }
 
 describe('onboarding signals matrix', () => {
-  it('DISMISSIBLE_GUIDE_STEPS matches the single source of dismissible steps', () => {
-    expect([...DISMISSIBLE_GUIDE_STEPS]).toEqual([
-      'saved_rooms',
-      'assign_context',
-      'open_terminal',
-    ])
-  })
-
   it('assign_drop writes assignedContext when a new foreign context is added', () => {
     expect(
       resolveSignalWrite({

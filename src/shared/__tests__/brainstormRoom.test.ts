@@ -295,6 +295,28 @@ describe('buildBrainstormTurnPrompt', () => {
     )
     expect(prompt).toContain('Decision: <')
   })
+
+  it('detects spoken language from Spanish topic even when app language is en', () => {
+    const room = createBrainstormRoom(
+      'Necesito que revisen que tenemos implementado y que va faltando como características necesarias para un MVP',
+      ['qa', 'fe'],
+      3,
+    )!
+    const prompt = buildBrainstormTurnPrompt(
+      room, 'fe', 'Frontend', undefined, undefined, undefined, 'en',
+    )
+    expect(prompt).toContain('in Spanish')
+    expect(prompt).not.toContain('in English')
+  })
+
+  it('falls back to app language when topic detection is inconclusive', () => {
+    const room = createBrainstormRoom('server/src/pipeline.rs', ['qa', 'fe'], 3)!
+    const prompt = buildBrainstormTurnPrompt(
+      room, 'fe', 'Frontend', undefined, undefined, undefined, 'en',
+    )
+    expect(prompt).toContain('in English')
+    expect(prompt).not.toContain('in Spanish')
+  })
 })
 
 describe('nota humana dirigida', () => {

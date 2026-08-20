@@ -1,6 +1,7 @@
 /** Sala de brainstorm multi-agente secuencial (round-robin). */
 
 import type { Language } from './configSchema'
+import { detectTextLanguage } from './textLanguage'
 import type { ProjectAgentDefinition } from './projectAgentCatalog'
 import { normalizeAgentSlug } from './projectAgentCatalog'
 import {
@@ -720,6 +721,8 @@ export function buildBrainstormTurnPrompt(
   speakerCeremonyRoles?: readonly CeremonyRoleId[],
   language: Language = 'en',
 ): string {
+  // El objetivo manda sobre config.language; este último solo si la detección no concluye.
+  const effectiveLanguage = detectTextLanguage(room.topic) ?? language
   const name = speakerName.trim() || speakerAgentId
   const roleLine = speakerRole?.trim()
     ? `Your role: ${speakerRole.trim()}.`
@@ -795,7 +798,7 @@ export function buildBrainstormTurnPrompt(
     '',
     'Your turn:',
     '- As long as it needs to be, no longer. Plain language.',
-    spokenContributionLanguageLine(language),
+    spokenContributionLanguageLine(effectiveLanguage),
     ...(hasWorkingSet
       ? ['- Ground claims in the working set; say "not in the working set" instead of guessing.']
       : []),

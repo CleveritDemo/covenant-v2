@@ -1,1 +1,24 @@
 /* Titlebar styles are in app.css — this file handles only Titlebar-specific extensions */
+.titlebar__wordmark {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+/* win32 reserves ~146px on the right; shift visual center back */
+:root[data-platform="win32"] .titlebar__wordmark {
+  left: calc(50% - 73px);
+}
+
+/* Ambos van centrados en absoluto: si aparece la píldora de update, el wordmark
+   cede el sitio. ponytail: :has en vez de subir estado a Titlebar. */
+.titlebar:has(.update-banner) .titlebar__wordmark {
+  display: none;
+}

@@ -48,6 +48,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   return (
     <div className="titlebar">
       <div className="titlebar-drag" />
+      <div className="titlebar__wordmark" aria-hidden="true">Covenant</div>
       <UpdateBanner />
       <div className="titlebar-actions">
         <FontSizeControl

@@ -30,6 +30,7 @@ interface AiMarkdownProps {
   showCursor?: boolean
   /** Si true, solo re-parsea el sufijo live (último bloque en progreso). */
   live?: boolean
+  variant?: 'chat' | 'doc'
 }
 
 type MarkdownStableCache = {
@@ -147,7 +148,7 @@ function parseListLine(line: string): RawListEntry | null {
       checked: task[2].toLowerCase() === 'x',
     }
   }
-  const ul = line.match(/^(\s*)[-*+]\s+(.+)$/)
+  const ul = line.match(/^(\s*)(?:[-*+]|•|‣|·|–|—)\s+(.+)$/)
   if (ul) {
     return { indent: leadingIndent(line), ordered: false, text: ul[2] }
   }
@@ -555,7 +556,12 @@ export function parseAiMarkdownBlocksIncremental(
   return [...stableBlocks, ...liveBlocks]
 }
 
-export const AiMarkdown: React.FC<AiMarkdownProps> = ({ content, showCursor, live = false }) => {
+export const AiMarkdown: React.FC<AiMarkdownProps> = ({
+  content,
+  showCursor,
+  live = false,
+  variant = 'chat',
+}) => {
   const stableCacheRef = useRef<MarkdownStableCache>({ length: 0, content: '', blocks: [] })
 
   const blocks = useMemo(() => {
@@ -567,7 +573,7 @@ export const AiMarkdown: React.FC<AiMarkdownProps> = ({ content, showCursor, liv
   if (blocks.length === 0) return null
 
   return (
-    <div className="ai-md">
+    <div className={variant === 'doc' ? 'ai-md ai-md--doc' : 'ai-md'}>
       {blocks.map((b, i) => renderBlock(b, i))}
       {showCursor && <span className="ai-cursor">▌</span>}
     </div>

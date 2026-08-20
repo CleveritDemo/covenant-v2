@@ -432,3 +432,87 @@ html[data-reduce-motion="true"] {
     opacity: 1;
   }
 }
+
+/* ── Variante documento (reportes, notas largas) ─────────────────────── */
+.ai-md--doc {
+  font-size: 13.5px;
+  line-height: 1.65;
+  max-width: 72ch;
+}
+
+.ai-md--doc .ai-md__h--1 {
+  font-size: 20px;
+  font-weight: 650;
+  color: var(--text);
+  margin: 1.4em 0 0.5em;
+  letter-spacing: -0.015em;
+}
+
+.ai-md--doc .ai-md__h--2 {
+  font-size: 16px;
+  color: var(--text);
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  margin: 1.6em 0 0.6em;
+}
+
+.ai-md--doc .ai-md__h--3 {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.ai-md--doc .ai-md__h--4,
+.ai-md--doc .ai-md__h--5,
+.ai-md--doc .ai-md__h--6 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ai-md--doc .ai-md__p {
+  margin: 0 0 0.85em;
+}
+
+.ai-md--doc .ai-md__ul,
+.ai-md--doc .ai-md__ol {
+  padding-left: 1.5em;
+}
+
+.ai-md--doc .ai-md__ul li,
+.ai-md--doc .ai-md__ol li {
+  margin: 0.3em 0;
+}
+
+.ai-md--doc .ai-md__ul li::marker {
+  color: var(--text-muted);
+}
+
+.ai-md--doc .ai-md__quote {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  padding-left: 12px;
+  color: var(--text-muted);
+}
+
+.ai-md--doc .ai-md__hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  margin: 1.6em 0;
+}
+
+.ai-md--doc .ai-md__table {
+  width: 100%;
+}
+
+.ai-md--doc .ai-md__table th,
+.ai-md--doc .ai-md__table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+
+.ai-md--doc .ai-md__table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}

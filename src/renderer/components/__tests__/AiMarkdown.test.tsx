@@ -253,6 +253,35 @@ describe('parseAiMarkdownBlocks · tablas', () => {
   })
 })
 
+describe('AiMarkdown · variant', () => {
+  it('sin prop no lleva ai-md--doc', () => {
+    const { container } = render(<AiMarkdown content="Hola." />)
+    expect(container.querySelector('.ai-md')).toBeTruthy()
+    expect(container.querySelector('.ai-md--doc')).toBeNull()
+  })
+
+  it('con variant="doc" añade ai-md--doc', () => {
+    const { container } = render(<AiMarkdown content="Hola." variant="doc" />)
+    expect(container.querySelector('.ai-md.ai-md--doc')).toBeTruthy()
+  })
+})
+
+describe('AiMarkdown · bullet markers', () => {
+  it('parsea • como item de lista y - sigue igual', () => {
+    const { container: bulletContainer } = render(<AiMarkdown content="• API -> x" />)
+    const bulletUl = bulletContainer.querySelector('ul.ai-md__ul')
+    expect(bulletUl).toBeTruthy()
+    expect(bulletUl?.querySelectorAll('li')).toHaveLength(1)
+    expect(bulletUl?.textContent).toContain('API -> x')
+
+    const { container: dashContainer } = render(<AiMarkdown content="- a" />)
+    const dashUl = dashContainer.querySelector('ul.ai-md__ul')
+    expect(dashUl).toBeTruthy()
+    expect(dashUl?.querySelectorAll('li')).toHaveLength(1)
+    expect(dashUl?.textContent).toContain('a')
+  })
+})
+
 describe('AiMarkdown · inline', () => {
   it('renders bold and italic combined via ***', () => {
     const { container } = render(<AiMarkdown content="***ambos***" />)

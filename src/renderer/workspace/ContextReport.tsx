@@ -88,7 +88,7 @@ const GenericBody: React.FC<{ auto: string }> = ({ auto }) => {
           ? <JsonTree key={index} value={chunk.json} />
           : chunk.fence
             ? <pre key={index} className="context-report__code">{chunk.text}</pre>
-            : <AiMarkdown key={index} content={chunk.text} />
+            : <AiMarkdown key={index} content={chunk.text} variant="doc" />
       ))}
     </>
   )

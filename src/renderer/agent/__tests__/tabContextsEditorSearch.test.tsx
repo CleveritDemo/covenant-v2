@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { TabContext } from '@shared/tabContext'
 import { TabContextsEditor, type PreviewState } from '../TabContextsEditor'
 
@@ -18,6 +18,11 @@ const importContextFiles = vi.fn()
 const revealTabContext = vi.fn()
 
 const idlePreview: PreviewState = { status: 'idle' }
+const successPreview: PreviewState = {
+  status: 'success',
+  content: '# body\n\nfindme here',
+  filePath: '/repo/.gravity/context/test.md',
+}
 
 beforeEach(() => {
   selectProjectFiles.mockReset()
@@ -36,12 +41,12 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-function renderEditor(draft: TabContext) {
+function renderEditor(draft: TabContext, preview: PreviewState = idlePreview) {
   return render(
     <TabContextsEditor
       draft={draft}
       contexts={[]}
-      preview={idlePreview}
+      preview={preview}
       notesContent="# body"
       jiraKeyDraft=""
       resolvedCwdLabel=""
@@ -67,11 +72,11 @@ describe('TabContextsEditor — búsqueda en cuerpo markdown', () => {
       kind: 'skill',
     })
     expect(screen.getByText('tabContexts.skillBody')).toBeTruthy()
-    expect(screen.getByLabelText('tabContexts.bodySearchAria')).toBeTruthy()
+    expect(screen.queryByLabelText('tabContexts.bodySearchAria')).toBeNull()
     expect(screen.queryByText('tabContexts.rootPath')).toBeNull()
   })
 
-  it('notes: monta el campo de cuerpo markdown', () => {
+  it('notes: monta el campo de cuerpo markdown sin barra de búsqueda', () => {
     renderEditor({
       id: 'iaterminal:notes:My-notes',
       name: 'My notes',
@@ -79,7 +84,7 @@ describe('TabContextsEditor — búsqueda en cuerpo markdown', () => {
       kind: 'notes',
     })
     expect(screen.getByText('tabContexts.notes')).toBeTruthy()
-    expect(screen.getByLabelText('tabContexts.bodySearchAria')).toBeTruthy()
+    expect(screen.queryByLabelText('tabContexts.bodySearchAria')).toBeNull()
   })
 
   it('folderTree: no monta el campo de cuerpo markdown', () => {
@@ -92,5 +97,16 @@ describe('TabContextsEditor — búsqueda en cuerpo markdown', () => {
     expect(screen.queryByLabelText('tabContexts.bodySearchAria')).toBeNull()
     expect(screen.queryByText('tabContexts.notes')).toBeNull()
     expect(screen.queryByText('tabContexts.skillBody')).toBeNull()
+  })
+
+  it('vista Fuente: monta la barra de búsqueda', () => {
+    renderEditor({
+      id: 'iaterminal:notes:My-notes',
+      name: 'My notes',
+      fileName: 'context/My-notes.md',
+      kind: 'notes',
+    }, successPreview)
+    fireEvent.click(screen.getByText('tabContexts.previewSource'))
+    expect(screen.getByLabelText('tabContexts.bodySearchAria')).toBeTruthy()
   })
 })

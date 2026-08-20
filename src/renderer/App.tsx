@@ -339,6 +339,7 @@ import {
 } from '../shared/orgWorkspaceLocalSync'
 import {
   downloadOrgWorkspaceToLocal,
+  planOrgWorkspaceUpload,
   uploadOrgWorkspaceFromLocal,
   type OrgWorkspaceMaterializeDeps,
   type OrgWorkspaceSyncPhase,
@@ -357,7 +358,10 @@ import {
   OrgWorkspaceRequirementModal,
   type OrgWorkspaceRequirementState,
 } from './components/OrgWorkspaceRequirementModal'
-import { OrgSyncScopeModal } from './components/OrgSyncScopeModal'
+import {
+  OrgSyncScopeModal,
+  type OrgSyncScopePlan,
+} from './components/OrgSyncScopeModal'
 import {
   removeAgentFromLoopChains,
   planeLoopChainsForPersist,
@@ -623,6 +627,9 @@ export const App: React.FC = () => {
     contextsOk: false,
   }))
   const [orgSyncScopeTab, setOrgSyncScopeTab] = useState<TabSession | null>(null)
+  const [orgUploadScopeTab, setOrgUploadScopeTab] = useState<TabSession | null>(null)
+  const [orgUploadPlan, setOrgUploadPlan] = useState<OrgSyncScopePlan | null>(null)
+  const [orgUploadPlanLoading, setOrgUploadPlanLoading] = useState(false)
   const handleAgentMetaChangeRef = useRef<(
     tabId: string,
     paneId: string,
@@ -2815,15 +2822,101 @@ export const App: React.FC = () => {
   }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
-  const handleUploadOrgWorkspace = useCallback(async (tab: TabSession) => {
+  const buildOrgWorkspaceUploadDeps = useCallback((
+    covenant: NonNullable<ReturnType<typeof getCovenantApi>>,
+    orgSlug: string,
+    workspaceId: string,
+  ): OrgWorkspaceMaterializeDeps => ({
+    listRemoteAgents: () => retryCovenantResult(
+      () => covenant.workspaceAgentsList(orgSlug, workspaceId),
+    ),
+    listRemoteContexts: () => retryCovenantResult(
+      () => covenant.workspaceContextsList(orgSlug, workspaceId),
+    ),
+    listLocalAgents: root => window.api.listProjectAgents(root),
+    upsertLocalAgent: async (root, definition) => {
+      const written = await window.api.upsertProjectAgent(root, definition)
+      return written.ok
+        ? { ok: true, agent: written.agent }
+        : { ok: false, error: written.error }
+    },
+    deleteLocalAgent: (root, agentId) => window.api.deleteProjectAgent(root, agentId),
+    discoverLocalContexts: async root => {
+      const result = await window.api.discoverTabContexts({ cwd: root })
+      return result.ok
+        ? { ok: true, contexts: result.contexts }
+        : { ok: false, error: result.error }
+    },
+    deleteLocalContext: (context, root) => window.api.deleteTabContext({ context, cwd: root }),
+    materializeLocalContext: async args => {
+      const result = await window.api.materializeTabContext({
+        context: args.context,
+        cwd: args.cwd,
+        ...(args.content !== undefined ? { content: args.content } : {}),
+      })
+      return result.ok
+        ? { ok: true, notesContent: result.notesContent }
+        : { ok: false, error: result.error }
+    },
+    previewLocalContext: async args => {
+      const result = await window.api.previewTabContext({
+        context: args.context,
+        cwd: args.cwd,
+      })
+      return result.ok
+        ? { ok: true, notesContent: result.notesContent }
+        : { ok: false, error: result.error }
+    },
+    upsertRemoteAgent: (agentId, definition) => (
+      covenant.workspaceAgentUpsert(orgSlug, workspaceId, agentId, definition)
+    ),
+    deleteRemoteAgent: agentId => (
+      covenant.workspaceAgentDelete(orgSlug, workspaceId, agentId)
+    ),
+    upsertRemoteContext: (contextId, payload) => (
+      covenant.workspaceContextUpsert(orgSlug, workspaceId, contextId, payload)
+    ),
+    deleteRemoteContext: contextId => (
+      covenant.workspaceContextDelete(orgSlug, workspaceId, contextId)
+    ),
+  }), [])
+
+  const loadOrgUploadPlan = useCallback(async (
+    tab: TabSession,
+    includeAgents: boolean,
+  ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
-    const entry = findOrgWorkspaceCatalogEntry(
-      orgWorkspaceCatalogRef.current,
-      org.slug,
-      org.workspaceId,
-    )
-    if (!canUploadOrgWorkspaceChanges(entry?.canRename)) return
+    const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
+    if (!cwd) return
+    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
+
+    setOrgUploadPlanLoading(true)
+    try {
+      const deps = buildOrgWorkspaceUploadDeps(covenant, org.slug, org.workspaceId)
+      const result = await planOrgWorkspaceUpload(cwd, deps, { includeAgents })
+      if (result.ok) {
+        setOrgUploadPlan({
+          agentIdsToDelete: result.plan.agentIdsToDelete,
+          contextIdsToDelete: result.plan.contextIdsToDelete,
+        })
+      } else {
+        setOrgUploadPlan(null)
+      }
+    } catch {
+      setOrgUploadPlan(null)
+    } finally {
+      setOrgUploadPlanLoading(false)
+    }
+  }, [buildOrgWorkspaceUploadDeps])
+
+  const executeUploadOrgWorkspace = useCallback(async (
+    tab: TabSession,
+    options: { includeAgents: boolean } = { includeAgents: true },
+  ) => {
+    const org = tab.orgWorkspace
+    if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
     const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
     if (!cwd) {
       setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })
@@ -2843,63 +2936,11 @@ export const App: React.FC = () => {
     reportWorkspaceUploadProgress(tab.id, 0)
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
     try {
-      const deps: OrgWorkspaceMaterializeDeps = {
-        listRemoteAgents: () => retryCovenantResult(
-          () => covenant.workspaceAgentsList(org.slug, org.workspaceId),
-        ),
-        listRemoteContexts: () => retryCovenantResult(
-          () => covenant.workspaceContextsList(org.slug, org.workspaceId),
-        ),
-        listLocalAgents: root => window.api.listProjectAgents(root),
-        upsertLocalAgent: async (root, definition) => {
-          const written = await window.api.upsertProjectAgent(root, definition)
-          return written.ok
-            ? { ok: true, agent: written.agent }
-            : { ok: false, error: written.error }
-        },
-        deleteLocalAgent: (root, agentId) => window.api.deleteProjectAgent(root, agentId),
-        discoverLocalContexts: async root => {
-          const result = await window.api.discoverTabContexts({ cwd: root })
-          return result.ok
-            ? { ok: true, contexts: result.contexts }
-            : { ok: false, error: result.error }
-        },
-        deleteLocalContext: (context, root) => window.api.deleteTabContext({ context, cwd: root }),
-        materializeLocalContext: async args => {
-          const result = await window.api.materializeTabContext({
-            context: args.context,
-            cwd: args.cwd,
-            ...(args.content !== undefined ? { content: args.content } : {}),
-          })
-          return result.ok
-            ? { ok: true, notesContent: result.notesContent }
-            : { ok: false, error: result.error }
-        },
-        previewLocalContext: async args => {
-          const result = await window.api.previewTabContext({
-            context: args.context,
-            cwd: args.cwd,
-          })
-          return result.ok
-            ? { ok: true, notesContent: result.notesContent }
-            : { ok: false, error: result.error }
-        },
-        upsertRemoteAgent: (agentId, definition) => (
-          covenant.workspaceAgentUpsert(org.slug, org.workspaceId, agentId, definition)
-        ),
-        deleteRemoteAgent: agentId => (
-          covenant.workspaceAgentDelete(org.slug, org.workspaceId, agentId)
-        ),
-        upsertRemoteContext: (contextId, payload) => (
-          covenant.workspaceContextUpsert(org.slug, org.workspaceId, contextId, payload)
-        ),
-        deleteRemoteContext: contextId => (
-          covenant.workspaceContextDelete(org.slug, org.workspaceId, contextId)
-        ),
-      }
+      const deps = buildOrgWorkspaceUploadDeps(covenant, org.slug, org.workspaceId)
       const orderedAgentIds = orderedAgentIdsFromTab(tab)
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
+        includeAgents: options.includeAgents,
         onProgress: percent => reportWorkspaceUploadProgress(tab.id, percent),
         shouldCancel: () => opGen !== orgWorkspaceSyncUploadGenRef.current,
       })
@@ -2935,7 +2976,37 @@ export const App: React.FC = () => {
         })
       }
     }
-  }, [clearWorkspaceUploadProgress, pushOrgWikiForScope, reportWorkspaceUploadProgress])
+  }, [
+    buildOrgWorkspaceUploadDeps,
+    clearWorkspaceUploadProgress,
+    pushOrgWikiForScope,
+    reportWorkspaceUploadProgress,
+  ])
+
+  const handleUploadOrgWorkspace = useCallback((tab: TabSession) => {
+    const org = tab.orgWorkspace
+    if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
+    const entry = findOrgWorkspaceCatalogEntry(
+      orgWorkspaceCatalogRef.current,
+      org.slug,
+      org.workspaceId,
+    )
+    if (!canUploadOrgWorkspaceChanges(entry?.canRename)) return
+    const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
+    if (!cwd) {
+      setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })
+      return
+    }
+    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
+      setOrgWorkspaceRequirement({ uploadError: 'Covenant API unavailable' })
+      return
+    }
+
+    setOrgUploadPlan(null)
+    setOrgUploadScopeTab(tab)
+    void loadOrgUploadPlan(tab, true)
+  }, [loadOrgUploadPlan])
 
   useEffect(() => {
     if (!promoteWorkspaceTab) {
@@ -7714,7 +7785,7 @@ export const App: React.FC = () => {
                       : null
                   }
                   onCancelUploadWorkspace={cancelOrgWorkspaceSyncOrUpload}
-                  onUploadWorkspace={() => { void handleUploadOrgWorkspace(tab) }}
+                  onUploadWorkspace={() => { handleUploadOrgWorkspace(tab) }}
                   canPromoteWorkspace={Boolean(tab.projectFolder?.trim()) && !tab.orgWorkspace?.workspaceId?.trim()}
                   promoteWorkspaceLabel={t('tabs.promoteWorkspaceButton')}
                   promoteWorkspaceBusy={promoteWorkspaceBusy && promoteWorkspaceTab?.id === tab.id}
@@ -8038,6 +8109,29 @@ export const App: React.FC = () => {
           const tab = orgSyncScopeTab
           setOrgSyncScopeTab(null)
           if (tab) void handleResyncOrgWorkspace(tab, { includeAgents })
+        }}
+      />
+
+      <OrgSyncScopeModal
+        mode="upload"
+        open={orgUploadScopeTab !== null}
+        plan={orgUploadPlan}
+        planLoading={orgUploadPlanLoading}
+        onClose={() => {
+          setOrgUploadScopeTab(null)
+          setOrgUploadPlan(null)
+          setOrgUploadPlanLoading(false)
+        }}
+        onScopeChange={includeAgents => {
+          const tab = orgUploadScopeTab
+          if (tab) void loadOrgUploadPlan(tab, includeAgents)
+        }}
+        onConfirm={includeAgents => {
+          const tab = orgUploadScopeTab
+          setOrgUploadScopeTab(null)
+          setOrgUploadPlan(null)
+          setOrgUploadPlanLoading(false)
+          if (tab) void executeUploadOrgWorkspace(tab, { includeAgents })
         }}
       />
 

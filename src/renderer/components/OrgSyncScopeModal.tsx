@@ -2,18 +2,35 @@ import React, { useEffect, useRef, useState } from 'react'
 import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
-import { Button, ChoiceCard } from './ui'
+import { Button, ChoiceCard, Skeleton } from './ui'
 import './OrgSyncScopeModal.css'
 
 type SyncScope = 'all' | 'contexts'
+
+export type OrgSyncScopePlan = {
+  agentIdsToDelete: string[]
+  contextIdsToDelete: string[]
+}
 
 interface Props {
   open: boolean
   onClose: () => void
   onConfirm: (includeAgents: boolean) => void
+  mode?: 'download' | 'upload'
+  plan?: OrgSyncScopePlan | null
+  planLoading?: boolean
+  onScopeChange?: (includeAgents: boolean) => void
 }
 
-export const OrgSyncScopeModal: React.FC<Props> = ({ open, onClose, onConfirm }) => {
+export const OrgSyncScopeModal: React.FC<Props> = ({
+  open,
+  onClose,
+  onConfirm,
+  mode = 'download',
+  plan = null,
+  planLoading = false,
+  onScopeChange,
+}) => {
   const { t } = useT()
   const [scope, setScope] = useState<SyncScope>('all')
   const wasOpenRef = useRef(false)
@@ -25,11 +42,39 @@ export const OrgSyncScopeModal: React.FC<Props> = ({ open, onClose, onConfirm })
     wasOpenRef.current = open
   }, [open])
 
+  const titleKey = mode === 'upload'
+    ? 'organizations.uploadScopeTitle'
+    : 'organizations.syncScopeTitle'
+  const hintKey = mode === 'upload'
+    ? 'organizations.uploadScopeHint'
+    : 'organizations.syncScopeHint'
+  const allTitleKey = mode === 'upload'
+    ? 'organizations.uploadScopeAllTitle'
+    : 'organizations.syncScopeAllTitle'
+  const allHintKey = mode === 'upload'
+    ? 'organizations.uploadScopeAllHint'
+    : 'organizations.syncScopeAllHint'
+  const contextsTitleKey = mode === 'upload'
+    ? 'organizations.uploadScopeContextsTitle'
+    : 'organizations.syncScopeContextsTitle'
+  const contextsHintKey = mode === 'upload'
+    ? 'organizations.uploadScopeContextsHint'
+    : 'organizations.syncScopeContextsHint'
+
+  const pickScope = (next: SyncScope) => {
+    setScope(next)
+    onScopeChange?.(next === 'all')
+  }
+
+  const deleteContextCount = plan?.contextIdsToDelete.length ?? 0
+  const deleteAgentCount = scope === 'all' ? (plan?.agentIdsToDelete.length ?? 0) : 0
+  const hasDeletes = deleteContextCount > 0 || deleteAgentCount > 0
+
   return (
     <TerminalModal
       open={open}
       onClose={onClose}
-      title={t('organizations.syncScopeTitle')}
+      title={t(titleKey)}
       size="sm"
       zIndex={APP_CHROME_MODAL_Z}
       bodyLayout="spacious"
@@ -51,35 +96,55 @@ export const OrgSyncScopeModal: React.FC<Props> = ({ open, onClose, onConfirm })
       }
     >
       <div className="org-sync-scope">
-        <p className="org-sync-scope__hint">{t('organizations.syncScopeHint')}</p>
+        <p className="org-sync-scope__hint">{t(hintKey)}</p>
         <div
           className="org-sync-scope__options"
           role="radiogroup"
-          aria-label={t('organizations.syncScopeTitle')}
+          aria-label={t(titleKey)}
         >
           <ChoiceCard
             role="radio"
             selected={scope === 'all'}
             aria-checked={scope === 'all'}
-            onClick={() => setScope('all')}
+            onClick={() => pickScope('all')}
           >
-            <strong>{t('organizations.syncScopeAllTitle')}</strong>
+            <strong>{t(allTitleKey)}</strong>
             <span className="org-sync-scope__option-hint">
-              {t('organizations.syncScopeAllHint')}
+              {t(allHintKey)}
             </span>
           </ChoiceCard>
           <ChoiceCard
             role="radio"
             selected={scope === 'contexts'}
             aria-checked={scope === 'contexts'}
-            onClick={() => setScope('contexts')}
+            onClick={() => pickScope('contexts')}
           >
-            <strong>{t('organizations.syncScopeContextsTitle')}</strong>
+            <strong>{t(contextsTitleKey)}</strong>
             <span className="org-sync-scope__option-hint">
-              {t('organizations.syncScopeContextsHint')}
+              {t(contextsHintKey)}
             </span>
           </ChoiceCard>
         </div>
+        {mode === 'upload' && (
+          <div className="org-sync-scope__upload-notice" aria-live="polite">
+            {planLoading ? (
+              <Skeleton width="100%" height={14} radius="sm" />
+            ) : plan ? (
+              hasDeletes ? (
+                <p className="org-sync-scope__upload-warning">
+                  {t('organizations.uploadDeleteWarning', {
+                    contexts: deleteContextCount,
+                    agents: deleteAgentCount,
+                  })}
+                </p>
+              ) : (
+                <p className="org-sync-scope__upload-none">
+                  {t('organizations.uploadDeleteNone')}
+                </p>
+              )
+            ) : null}
+          </div>
+        )}
       </div>
     </TerminalModal>
   )

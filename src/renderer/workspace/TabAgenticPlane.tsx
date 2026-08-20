@@ -57,6 +57,7 @@ import {
   type PlaneContextPoolAgent,
   type PlaneContextPoolItem,
 } from './PlaneContextPool'
+import type { ContextTransferTarget } from '@shared/contextTransfer'
 import { PlaneToolsRail } from './PlaneToolsRail'
 import { PlaneContextAssignmentLinks } from './PlaneContextAssignmentLinks'
 import {
@@ -186,6 +187,11 @@ export interface TabAgenticPlaneProps {
   onOpenContext?: (contextId: string) => void
   /** Elimina un contexto del catálogo (org o local). */
   onDeleteContext?: (contextId: string) => void
+  transferLabel?: string
+  transferModalTitle?: string
+  transferEmptyHint?: string
+  transferTargets?: ContextTransferTarget[]
+  onTransferContext?: (contextId: string, target: ContextTransferTarget) => void
   /** Asigna un contexto arrastrado del pool a un agente. */
   onAssignContext: (paneId: string, contextId: string) => void
   /** Clic en icono results → vista previa del Markdown del contexto. */
@@ -451,6 +457,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onAddFileContext,
   onOpenContext,
   onDeleteContext,
+  transferLabel,
+  transferModalTitle,
+  transferEmptyHint,
+  transferTargets,
+  onTransferContext,
   onAssignContext,
   onOpenResultsPreview,
   onContextSaved,
@@ -1396,6 +1407,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           deleteLabel={contextPoolDeleteLabel}
           deleteConfirmMessage={contextPoolDeleteConfirmMessage}
           deleteConfirmDetail={contextPoolDeleteConfirmDetail}
+          transferLabel={transferLabel}
+          transferModalTitle={transferModalTitle}
+          transferEmptyHint={transferEmptyHint}
+          transferTargets={transferTargets}
           contexts={tabContexts}
           contextCatalog={contextCatalog}
           cwd={projectFolder}
@@ -1405,6 +1420,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           onAddFile={onAddFileContext}
           onOpenContext={onOpenContext}
           onDeleteContext={onDeleteContext}
+          onTransferContext={onTransferContext}
           onToggleAssign={onToggleAgentContext}
           elevated={brainstormOverlayOpen}
         />

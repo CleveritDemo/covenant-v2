@@ -12,6 +12,8 @@ import {
   type FileExplorerPersistedState,
 } from '@shared/fileExplorerPersistedState'
 import type { TabContext } from '@shared/tabContext'
+import { buildContextTransferTargets, type ContextTransferTarget } from '@shared/contextTransfer'
+import { executeContextTransfer } from './contextTransferWiring'
 import type { AgentCliImageAttachment } from '@shared/agentCliTypes'
 import { resolveContextColor } from '@shared/tabContextAppearance'
 import { addAgentContextId } from '@shared/tabContextAgentUsage'
@@ -4561,6 +4563,29 @@ export const App: React.FC = () => {
     await refreshTabContexts(tabId)
   }, [refreshTabContexts])
 
+  const handleTransferContextFromPlane = useCallback(async (
+    tabId: string,
+    contextId: string,
+    target: ContextTransferTarget,
+  ) => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    if (!tab) return
+    const contexts = tabContextsByTabRef.current[tabId] ?? []
+    const context = contexts.find(item => item.id === contextId)
+    if (!context) return
+
+    const cwd = tab.projectFolder?.trim() || ''
+    if (!cwd) return
+
+    await executeContextTransfer({
+      context,
+      sourceCwd: cwd,
+      target,
+      api: window.api,
+      refreshTabContexts,
+    })
+  }, [refreshTabContexts])
+
   const handleAgentPlaneStatusChange = useCallback((paneId: string, status: AgentPlaneStatus) => {
     setAgentPlaneStatus(prev => {
       const previous = prev[paneId]
@@ -7780,6 +7805,13 @@ export const App: React.FC = () => {
                   }}
                   onDeleteContext={contextId => {
                     void handleDeleteContextFromPlane(tab.id, contextId)
+                  }}
+                  transferLabel={t('tabContexts.transferAction')}
+                  transferModalTitle={t('tabContexts.transferTitle')}
+                  transferEmptyHint={t('tabContexts.transferEmpty')}
+                  transferTargets={buildContextTransferTargets(tabs, tab.projectFolder ?? '')}
+                  onTransferContext={(contextId, target) => {
+                    void handleTransferContextFromPlane(tab.id, contextId, target)
                   }}
                   onAssignContext={(paneId, contextId) => {
                     handleAssignContextToAgent(tab.id, paneId, contextId)

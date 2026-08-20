@@ -289,11 +289,28 @@ describe('canUploadOrgWorkspaceFromCatalog', () => {
     ],
   }
 
-  it('true solo cuando canRename del catálogo es true', () => {
-    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w1')).toBe(true)
-    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w2')).toBe(false)
-    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w3')).toBe(false)
+  it('false si el catálogo aún no cargó', () => {
     expect(canUploadOrgWorkspaceFromCatalog(null, 'acme', 'w1')).toBe(false)
+    expect(canUploadOrgWorkspaceFromCatalog(undefined, 'acme', 'w1')).toBe(false)
+  })
+
+  it('true si la entrada tiene canRename true', () => {
+    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w1')).toBe(true)
+  })
+
+  it('false si la entrada tiene canRename false', () => {
+    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w2')).toBe(false)
+  })
+
+  it('true si el catálogo no conoce ese workspace (segunda cuenta Covenant)', () => {
+    const otherOrgCatalog = {
+      login: 'cleverit',
+      fetchedAt: 1,
+      entries: [
+        { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true },
+      ],
+    }
+    expect(canUploadOrgWorkspaceFromCatalog(otherOrgCatalog, 'credicorp', 'ws-99')).toBe(true)
   })
 })
 

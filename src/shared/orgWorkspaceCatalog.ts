@@ -199,14 +199,16 @@ export function findOrgWorkspaceCatalogEntry(
   return catalog.entries.find(e => e.slug === s && e.workspaceId === id)
 }
 
-/** ¿Puede publicar cambios? Deriva de `canRename` del catálogo (manager/admin). */
+/** Sin catálogo → false; con entrada → `canRename`; sin entrada → true (el server decide). */
 export function canUploadOrgWorkspaceFromCatalog(
   catalog: OrgWorkspaceCatalog | null | undefined,
   slug: string,
   workspaceId: string,
 ): boolean {
+  if (catalog == null) return false
   const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
-  return entry?.canRename === true
+  if (entry) return entry.canRename === true
+  return true
 }
 
 /**

@@ -1798,7 +1798,7 @@ function registerIpc(): void {
           ...(folderName ? { folderName } : {}),
         }
       })
-      return cloneOrgWorkspace({
+      const result = await cloneOrgWorkspace({
         baseDir: baseDir || workspaceDir,
         orgSlug: String(p.orgSlug ?? ''),
         workspaceSlug: String(p.workspaceSlug ?? ''),
@@ -1806,6 +1806,10 @@ function registerIpc(): void {
         token,
         ...(workspaceDir ? { workspaceDir } : {}),
       })
+      if (result.ok && result.workspaceDir && resolved.accountId !== 'default') {
+        writeWorkspaceAccountId(result.workspaceDir, resolved.accountId)
+      }
+      return result
     },
   )
 

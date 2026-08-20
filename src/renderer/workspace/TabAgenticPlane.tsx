@@ -74,7 +74,11 @@ import {
   WIKI_MODAL_WIDTH,
 } from '@shared/wikiModalPositions'
 import { mergeWikiNodeModalsOpen } from '@shared/wikiNodeModalOpen'
-import type { OnboardingGuideStep, OnboardingGuideStepId } from '@shared/onboardingGuideFlow'
+import {
+  onboardingGuideTitleKey,
+  type OnboardingGuideStep,
+  type OnboardingGuideStepId,
+} from '@shared/onboardingGuideFlow'
 import { AiMarkdown } from '../components/AiMarkdown'
 import { isMacOS } from '../platform'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -1358,11 +1362,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {onboardingGuideStep ? (
         <OnboardingCoachMark
           anchor={onboardingGuideStep.anchor}
+          title={t(onboardingGuideTitleKey(onboardingGuideStep))}
           message={t(onboardingGuideStep.messageKey)}
           {...(onboardingGuideStep.dismissible && onOnboardingGuideDismiss
             ? {
               onDismiss: () => onOnboardingGuideDismiss(onboardingGuideStep.step),
               dismissLabel: onboardingGuideDismissLabel,
+              dismissDisabled: onboardingGuideStep.dismissDisabled === true,
             }
             : {})}
         />

@@ -241,6 +241,7 @@ export const TabContextsEditor: React.FC<Props> = ({
                       <TabContextKindCard
                         label={t(`tabContexts.kind_${kind}`)}
                         icon={KIND_ICONS[kind]}
+                        {...(kind === 'folderTree' ? { dataOnboarding: 'context-kind' } : {})}
                         selected={kind === 'files'
                           ? draft.kind === 'files' && !singleFileMode
                           : draft.kind === kind}
@@ -456,6 +457,7 @@ export const TabContextsEditor: React.FC<Props> = ({
           <span>{t('tabContexts.name')}</span>
           <Input
             value={draft.name}
+            data-onboarding="context-name"
             placeholder={draft.kind === 'changelog' ? 'AI Changelog' : t('tabContexts.namePlaceholder')}
             onChange={event => {
               const name = event.target.value

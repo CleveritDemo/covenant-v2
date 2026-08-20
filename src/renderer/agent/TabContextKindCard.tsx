@@ -7,6 +7,8 @@ export interface TabContextKindCardProps {
   icon: IconName
   selected: boolean
   disabled?: boolean
+  /** Ancla del coach mark (`data-onboarding`); sin className ni style. */
+  dataOnboarding?: string
   onSelect: () => void
 }
 
@@ -16,6 +18,7 @@ export const TabContextKindCard: React.FC<TabContextKindCardProps> = ({
   icon,
   selected,
   disabled = false,
+  dataOnboarding,
   onSelect,
 }) => (
   <button
@@ -28,6 +31,7 @@ export const TabContextKindCard: React.FC<TabContextKindCardProps> = ({
       'tab-contexts__kind-card',
       selected ? 'tab-contexts__kind-card--active' : '',
     ].filter(Boolean).join(' ')}
+    {...(dataOnboarding ? { 'data-onboarding': dataOnboarding } : {})}
     onClick={onSelect}
   >
     <Icon name={icon} size={16} />

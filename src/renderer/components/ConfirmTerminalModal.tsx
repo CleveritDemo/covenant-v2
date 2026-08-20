@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect } from 'react'
+import { PANE_CONFIRM_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
@@ -16,7 +17,15 @@ interface Props {
 }
 
 export const ConfirmTerminalModal: React.FC<Props> = ({
-  open, message, detail, zIndex = 600, active = true, onConfirm, onCancel,
+  open,
+  message,
+  detail,
+  // Por defecto encima del módulo de brainstorm: un confirm invisible es un
+  // pane que no se puede cerrar. Los llamadores dentro de un modal pasan el suyo.
+  zIndex = PANE_CONFIRM_MODAL_Z,
+  active = true,
+  onConfirm,
+  onCancel,
 }) => {
   const { t } = useT()
   const confirm = useCallback(() => { onConfirm() }, [onConfirm])

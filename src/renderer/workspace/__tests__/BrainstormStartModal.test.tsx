@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 
 vi.mock('@i18n/useT', () => ({
@@ -119,7 +119,7 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
     expect(document.querySelector('.brainstorm-start__cost')).not.toBeNull()
   })
 
-  it('onDraftChange emite goalFilled y participantCount al escribir y sentar', () => {
+  it('onDraftChange emite goalFilled al primer carácter y participantCount al sentar', () => {
     const onDraftChange = vi.fn()
     render(
       <BrainstormStartModal
@@ -131,11 +131,69 @@ describe('BrainstormStartModal — todo el arranque en una pantalla', () => {
         onDraftChange={onDraftChange}
       />,
     )
-    expect(onDraftChange).toHaveBeenCalledWith({ goalFilled: false, participantCount: 0 })
+    expect(onDraftChange).toHaveBeenCalledWith({
+      goalFilled: false,
+      participantCount: 0,
+      ceremonyPicked: false,
+    })
+    // Sin espera de tecleo: el coach write_goal se confirma con OK, así que
+    // goalFilled solo dice si ese OK puede pulsarse.
     typeGoal('tema')
-    expect(onDraftChange).toHaveBeenLastCalledWith({ goalFilled: true, participantCount: 0 })
+    expect(onDraftChange).toHaveBeenLastCalledWith({
+      goalFilled: true,
+      participantCount: 0,
+      ceremonyPicked: false,
+    })
     seat('rodrigo')
-    expect(onDraftChange).toHaveBeenLastCalledWith({ goalFilled: true, participantCount: 1 })
+    expect(onDraftChange).toHaveBeenLastCalledWith({
+      goalFilled: true,
+      participantCount: 1,
+      ceremonyPicked: false,
+    })
+  })
+
+  it('goalFilled vuelve a false si se borra el objetivo', () => {
+    const onDraftChange = vi.fn()
+    render(
+      <BrainstormStartModal
+        open
+        cwd="/repo"
+        agents={agents}
+        onClose={() => {}}
+        onStarted={() => {}}
+        onDraftChange={onDraftChange}
+      />,
+    )
+    typeGoal('tema')
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ goalFilled: true }),
+    )
+    typeGoal('   ')
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ goalFilled: false }),
+    )
+  })
+
+  it('abrir el cajón de formato no marca ceremonyPicked; elegir sí', () => {
+    const onDraftChange = vi.fn()
+    render(
+      <BrainstormStartModal
+        open
+        cwd="/repo"
+        agents={agents}
+        onClose={() => {}}
+        onStarted={() => {}}
+        onDraftChange={onDraftChange}
+      />,
+    )
+    openToken('outcome')
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ceremonyPicked: false }),
+    )
+    fireEvent.click(screen.getByText('Specification Workshop'))
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ceremonyPicked: true }),
+    )
   })
 
   // Tocar el toggle sin querer no puede costar lo que llevabas armado: el
@@ -207,9 +265,8 @@ describe('BrainstormStartModal — ajustes', () => {
     open(['rodrigo', 'ana'])
     typeGoal('tema')
     openToken('outcome')
-    fireEvent.click(screen.getByText('Example Mapping'))
-    // El cajón sigue abierto: elegir no lo cierra.
     fireEvent.click(screen.getByText('tabs.brainstormOutcomePlan'))
+    expect(screen.queryByText('Example Mapping')).toBeNull()
     fireEvent.click(screen.getByText('tabs.brainstormStart'))
     expect(startBrainstorm.mock.calls[0][0]).toMatchObject({
       ceremony: 'free',
@@ -231,12 +288,13 @@ describe('BrainstormStartModal — ajustes', () => {
 
   // Con ceremonia la salida ya está fijada: el token la nombra en vez de
   // ofrecer las cuatro opciones como si aún se pudiera elegir.
-  it('elegir una plantilla la pone en la frase', () => {
+  it('elegir una plantilla la pone en la frase y cierra el cajón', () => {
     open()
     expect(screen.getByText('tabs.brainstormOutcomeIdeasPhrase')).toBeTruthy()
     openToken('outcome')
     fireEvent.click(screen.getByText('Example Mapping'))
-    expect(screen.getAllByText('Example Mapping').length).toBeGreaterThan(1)
+    expect(screen.getByText('Example Mapping')).toBeTruthy()
+    expect(screen.queryByText('Sprint Planning')).toBeNull()
   })
 
   it('avisa de los roles que la ceremonia pide y nadie cubre', () => {

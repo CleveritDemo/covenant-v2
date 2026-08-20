@@ -366,6 +366,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
           type="button"
           className="plane-context-pool__create"
           aria-label={createLabel}
+          data-onboarding="context-new"
           onClick={onCreate}
           {...itemProps(visibleContexts.length + (onAddFile ? 2 : 1))}
         >

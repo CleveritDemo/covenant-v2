@@ -25,6 +25,8 @@ interface Props {
   onRefresh: () => void
   /** Un agente cambió sus `contextIds` desde el listado; el dueño del catálogo lo aplica. */
   onAgentSaved?: (agent: ProjectAgentDefinition) => void
+  /** Progreso del alta de contexto para el coach del onboarding. */
+  onFormDraftChange?: (draft: { kindPicked: boolean; nameFilled: boolean }) => void
   onClose: () => void
 }
 
@@ -42,6 +44,7 @@ export const TabContextsModal: React.FC<Props> = ({
   openCreate = false,
   onRefresh,
   onAgentSaved,
+  onFormDraftChange,
   onClose,
 }) => {
   const { t } = useT()
@@ -217,6 +220,7 @@ export const TabContextsModal: React.FC<Props> = ({
         contexts={contexts}
         cwd={cwd}
         onRefresh={onRefresh}
+        {...(onFormDraftChange ? { onDraftChange: onFormDraftChange } : {})}
         onClose={() => {
           if (formOpenedFromFocusRef.current) {
             formOpenedFromFocusRef.current = false

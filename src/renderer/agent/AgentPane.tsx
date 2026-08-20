@@ -3933,7 +3933,6 @@ export const AgentPane: React.FC<Props> = ({
         active={tabActive}
         message={t('agentPane.clearConversationMessage')}
         detail={t('agentPane.clearConversationDetail')}
-        zIndex={900}
         onConfirm={() => {
           setConfirmClear(false)
           deleteActiveThread()

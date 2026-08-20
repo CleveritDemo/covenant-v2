@@ -61,8 +61,12 @@ export interface BrainstormStartModalProps {
   onCreateAgent?: () => void
   /** Soltar un contexto del riel sobre una tarjeta de invitación. */
   onAssignContext?: (agentId: string, contextId: string) => void
-  /** Borrador de la guía: objetivo y cuántos asientos, también al vaciar. */
-  onDraftChange?: (draft: { goalFilled: boolean; participantCount: number }) => void
+  /** Borrador de la guía: objetivo, asientos y si ya eligió formato. */
+  onDraftChange?: (draft: {
+    goalFilled: boolean
+    participantCount: number
+    ceremonyPicked: boolean
+  }) => void
 }
 
 /**
@@ -100,6 +104,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   const topicRef = useRef<HTMLTextAreaElement>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [outcome, setOutcome] = useState<BrainstormOutcome>('ideas')
+  const [ceremonyPicked, setCeremonyPicked] = useState(false)
 
   const resetDraft = useCallback((): void => {
     setTopic('')
@@ -109,6 +114,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
     setContextIds([])
     setFilePaths([])
     setOutcome('ideas')
+    setCeremonyPicked(false)
   }, [])
 
   /**
@@ -121,12 +127,20 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
     resetDraft()
   }, [cwd, resetDraft])
 
+  // Sin espera de tecleo: el coach write_goal ya no avanza solo, se confirma con
+  // OK, y goalFilled solo decide si ese OK está habilitado.
   useEffect(() => {
     onDraftChange?.({
       goalFilled: topic.trim().length > 0,
       participantCount: participantIds.length,
+      ceremonyPicked,
     })
-  }, [topic, participantIds, onDraftChange])
+  }, [topic, participantIds, ceremonyPicked, onDraftChange])
+
+  const handleOutcomeChange = useCallback((value: BrainstormOutcome): void => {
+    setOutcome(value)
+    setCeremonyPicked(true)
+  }, [])
 
   const invitableAgents = useMemo(
     () => filterBrainstormInvitableAgents(agents),
@@ -169,6 +183,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
   const handleCeremonyChange = (next: CeremonyId): void => {
     setCeremony(next)
     setMaxRounds(ceremonyById(next).rounds)
+    setCeremonyPicked(true)
   }
 
   /**
@@ -275,9 +290,10 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
           onNew={() => {}}
         />
       )}
+      rightAnchor="brainstorm-participants"
       right={(
         <>
-          <div className="brainstorm-overlay__col-head" data-onboarding="brainstorm-participants">
+          <div className="brainstorm-overlay__col-head">
             <span className="brainstorm-overlay__col-title">
               {t('tabs.brainstormParticipantsLabel')}
             </span>
@@ -371,7 +387,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
           onToggleAgent={toggleAgent}
           onMoveSeat={moveSeat}
           outcome={outcome}
-          onOutcomeChange={setOutcome}
+          onOutcomeChange={handleOutcomeChange}
           maxRounds={maxRounds}
           onMaxRoundsChange={setMaxRounds}
           ceremony={ceremony}

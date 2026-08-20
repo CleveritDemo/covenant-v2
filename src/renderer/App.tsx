@@ -32,10 +32,11 @@ import { ONBOARDING_VERSION, type OrchestratorPath } from '@shared/onboarding'
 import {
   canCompleteOnboarding,
   isOnboardingActive,
+  isOnboardingGuideActive,
   isOnboardingIncomplete,
   onboardingChromeHidden,
   onboardingLockedSurface,
-  sessionHasOrchestrationPanes,
+  shouldAutoCompleteFromPanes,
   shouldWarnComposerMissingCli,
 } from '@shared/onboardingFlow'
 import {
@@ -44,6 +45,7 @@ import {
 } from '@shared/onboardingGuideFlow'
 import {
   buildGuideResolveArgs,
+  shouldAutoOpenCeremonyOverlay,
   shouldCompleteByGuideExhausted,
 } from './onboardingAppWiring'
 import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
@@ -542,15 +544,17 @@ export const App: React.FC = () => {
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
   const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
+  const [onboardingClisProbed, setOnboardingClisProbed] = useState(false)
   const [onboardingClisMissing, setOnboardingClisMissing] = useState(false)
   const [brainstormSetupDraftByTab, setBrainstormSetupDraftByTab] = useState<
-    Record<string, { goalFilled: boolean; participantCount: number }>
+    Record<string, { goalFilled: boolean; participantCount: number; ceremonyPicked?: boolean }>
   >({})
   const [brainstormHumanSpokeByRoom, setBrainstormHumanSpokeByRoom] = useState<
     Record<string, boolean>
   >({})
   const onboardingClisRefreshOnceRef = useRef(false)
   const onboardingClisMissingLockedRef = useRef(false)
+  const ceremonyAutoOpenedRef = useRef<Set<string>>(new Set())
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   const [promoteWorkspaceTab, setPromoteWorkspaceTab] = useState<TabSession | null>(null)
@@ -878,6 +882,11 @@ export const App: React.FC = () => {
   const [planeContextsModalTabId, setPlaneContextsModalTabId] = useState<string | null>(null)
   const [planeContextsFocusId, setPlaneContextsFocusId] = useState<string | null>(null)
   const [planeContextsCreate, setPlaneContextsCreate] = useState(false)
+  /** Progreso del alta de contexto: alimenta los pasos del coach dentro del modal. */
+  const [planeContextFormDraft, setPlaneContextFormDraft] = useState({
+    kindPicked: false,
+    nameFilled: false,
+  })
   const [resultsPreview, setResultsPreview] = useState<{
     tabId: string
     context: TabContext
@@ -3817,6 +3826,7 @@ export const App: React.FC = () => {
         onboardingClisMissingLockedRef.current = true
         setOnboardingClisMissing(clisAllMissing(rows))
       }
+      setOnboardingClisProbed(true)
     }
     return rows
   }, [])
@@ -3839,6 +3849,7 @@ export const App: React.FC = () => {
     setConfig(prev => ({ ...prev, ...reset }))
     onboardingClisMissingLockedRef.current = false
     onboardingClisRefreshOnceRef.current = false
+    setOnboardingClisProbed(false)
     void refreshOnboardingClis()
   }, [refreshOnboardingClis])
 
@@ -4258,7 +4269,13 @@ export const App: React.FC = () => {
     setPlaneContextsFocusId(null)
     setPlaneContextsCreate(true)
     setPlaneContextsModalTabId(tabId)
-  }, [])
+    // El coach new_context espera el «+» y no tiene OK: al abrirlo se marca
+    // hecho, así que al volver del modal no reaparece ni tras recargar.
+    const done = config.onboardingGuideDone ?? []
+    if (!done.includes('new_context')) {
+      persistOnboardingSignals({ onboardingGuideDone: [...done, 'new_context'] })
+    }
+  }, [config.onboardingGuideDone, persistOnboardingSignals])
 
   const handleAddFileContextFromPlane = useCallback(async (tabId: string) => {
     const tab = tabsRef.current.find(item => item.id === tabId)
@@ -6922,7 +6939,8 @@ export const App: React.FC = () => {
   const ready = configReady && sessionReady.loaded
   const incomplete = isOnboardingIncomplete(config.onboardingCompletedVersion)
   const onboardingActive = isOnboardingActive({ incomplete, tabs })
-  const locked = onboardingActive && ready
+  const chromeLocked = onboardingActive && ready
+  const guideLocked = isOnboardingGuideActive({ incomplete }) && ready
   const chrome = onboardingChromeHidden(onboardingActive)
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
@@ -6937,7 +6955,7 @@ export const App: React.FC = () => {
     const draft = brainstormSetupDraftByTab[tab.id]
     const rooms = brainstormRoomsByTab[tab.id] ?? []
     return buildGuideResolveArgs({
-      incomplete: locked,
+      incomplete: guideLocked,
       path: config.orchestratorPath,
       projectFolder: tab.projectFolder,
       paneKinds: tab.paneKinds,
@@ -6951,6 +6969,9 @@ export const App: React.FC = () => {
         ))
         .map(room => room.id),
       humanSpokeByRoom: brainstormHumanSpokeByRoom,
+      contextsModalOpen: planeContextsModalTabId === tab.id,
+      contextKindPicked: planeContextFormDraft.kindPicked,
+      contextNameFilled: planeContextFormDraft.nameFilled,
       sentFirstMessage: Boolean(config.onboardingSentFirstMessage),
       assignedAnyContext: Boolean(config.onboardingAssignedContext),
       doneSteps: config.onboardingGuideDone ?? [],
@@ -6958,19 +6979,22 @@ export const App: React.FC = () => {
   }
 
   const resolveGuideStepForTab = (tab: TabSession): OnboardingGuideStep | null => {
-    if (!locked) return null
+    if (!guideLocked) return null
     return resolveOnboardingGuideStep(guideArgsForTab(tab))
   }
 
   useEffect(() => {
     if (!ready) return
-    if (!incomplete) return
-    if (!sessionHasOrchestrationPanes(tabs)) return
+    if (!shouldAutoCompleteFromPanes({
+      incomplete,
+      path: config.orchestratorPath,
+      tabs,
+    })) return
     persistOnboardingCompleted(ONBOARDING_VERSION)
-  }, [ready, incomplete, tabs, persistOnboardingCompleted])
+  }, [ready, incomplete, config.orchestratorPath, tabs, persistOnboardingCompleted])
 
   useEffect(() => {
-    if (!locked || !activeTab) return
+    if (!guideLocked || !activeTab) return
     if (shouldCompleteByGuideExhausted({
       resolveArgs: guideArgsForTab(activeTab),
       cliAllMissing: clisAllMissing(onboardingClis),
@@ -6978,7 +7002,7 @@ export const App: React.FC = () => {
       persistOnboardingCompleted(ONBOARDING_VERSION)
     }
   }, [
-    locked,
+    guideLocked,
     activeTab,
     config.orchestratorPath,
     config.onboardingSentFirstMessage,
@@ -6991,6 +7015,36 @@ export const App: React.FC = () => {
     brainstormRoomsByTab,
     brainstormLiveByRoomId,
     brainstormHumanSpokeByRoom,
+  ])
+
+  useEffect(() => {
+    if (!guideLocked || !activeTab) return
+    const rooms = brainstormRoomsByTab[activeTab.id] ?? []
+    const roomLive = rooms.some(room => isBrainstormLive(
+      (brainstormLiveByRoomId[room.id] ?? createBrainstormLiveSummary(room)).status,
+    ))
+    if (!shouldAutoOpenCeremonyOverlay({
+      incomplete: guideLocked,
+      path: config.orchestratorPath,
+      hasFolder: Boolean(activeTab.projectFolder?.trim()),
+      hasAgents: Object.values(activeTab.paneKinds ?? {}).some(kind => kind === 'agent'),
+      cliAllMissing: clisAllMissing(onboardingClis),
+      brainstormView: brainstormViewByTab[activeTab.id] ?? null,
+      brainstormRoomLive: roomLive,
+      alreadyAutoOpened: ceremonyAutoOpenedRef.current.has(activeTab.id),
+      clisProbed: onboardingClisProbed,
+    })) return
+    ceremonyAutoOpenedRef.current.add(activeTab.id)
+    setBrainstormViewByTab(prev => ({ ...prev, [activeTab.id]: 'setup' }))
+  }, [
+    guideLocked,
+    activeTab,
+    config.orchestratorPath,
+    onboardingClis,
+    onboardingClisProbed,
+    brainstormViewByTab,
+    brainstormRoomsByTab,
+    brainstormLiveByRoomId,
   ])
 
   /**
@@ -7438,24 +7492,7 @@ export const App: React.FC = () => {
                   bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
                   showBootstrapAgents={showBootstrapAgents}
                   canBootstrapAgents={canBootstrapAgents}
-                  onBootstrapAgents={() => {
-                    void bootstrapProjectAgents(tab.id).then(bootstrapped => {
-                      if (!bootstrapped) return
-                      const tabNow = tabsRef.current.find(item => item.id === tab.id)
-                      const hasAgents = tabNow
-                        ? Object.values(tabNow.paneKinds ?? {}).some(kind => kind === 'agent')
-                        : false
-                      if (onboardingLockedSurface({
-                        incomplete: onboardingActive,
-                        path: config.orchestratorPath,
-                        hasFolder: Boolean(tab.projectFolder?.trim()),
-                        hasAgents,
-                        cliAllMissing: clisAllMissing(onboardingClis),
-                      }).autoOpenCeremonyOverlay) {
-                        setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: 'setup' }))
-                      }
-                    })
-                  }}
+                  onBootstrapAgents={() => { void bootstrapProjectAgents(tab.id) }}
                   activePaneId={tab.activePaneId}
                   entities={planeEntities}
                   onAddAgent={() => {
@@ -7883,7 +7920,7 @@ export const App: React.FC = () => {
                     if (handle) tabExplorerHostByTabRef.current.set(tab.id, handle)
                     else tabExplorerHostByTabRef.current.delete(tab.id)
                   }}
-                  onboardingLocked={locked}
+                  onboardingLocked={chromeLocked}
                   onboardingGuideStep={resolveGuideStepForTab(tab)}
                   onboardingGuideDismissLabel={t('tabs.onboardingGuide.dismiss')}
                   onOnboardingGuideDismiss={step => {
@@ -7894,7 +7931,7 @@ export const App: React.FC = () => {
                   orchestratorPath={config.orchestratorPath}
                   onSelectOrchestratorPath={handleOnboardingSelectPath}
                   onInviteToOrg={() => { setOrgModalOpen(true) }}
-                  hideComposer={!s.showComposer && locked}
+                  hideComposer={!s.showComposer && chromeLocked}
                   hidePulse={chrome.hidePulse}
                   hideWiki={chrome.hideWiki}
                   hideLoops={chrome.hideLoops}
@@ -7936,10 +7973,12 @@ export const App: React.FC = () => {
             openCreate={planeContextsCreate}
             onRefresh={() => { void refreshTabContexts(modalTab.id) }}
             onAgentSaved={agent => rememberProjectAgent(catalogKey, agent)}
+            onFormDraftChange={setPlaneContextFormDraft}
             onClose={() => {
               setPlaneContextsModalTabId(null)
               setPlaneContextsFocusId(null)
               setPlaneContextsCreate(false)
+              setPlaneContextFormDraft({ kindPicked: false, nameFilled: false })
               void refreshTabContexts(modalTab.id)
             }}
           />

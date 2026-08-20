@@ -688,6 +688,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 type="button"
                 className="brainstorm-overlay__icon brainstorm-overlay__icon--danger"
                 aria-label={t('tabs.brainstormStopRun')}
+                data-onboarding="brainstorm-stop"
                 onClick={handleStop}
               >
                 <Icon name="stop" size={12} />
@@ -1055,6 +1056,7 @@ export const BrainstormRoomView: React.FC<BrainstormRoomViewProps> = ({
                 <Button
                   variant={finishIsPrimary ? 'primary' : 'secondary'}
                   size="sm"
+                  data-onboarding="brainstorm-finish"
                   onClick={onFinish}
                 >
                   {t('tabs.brainstormFinish')}

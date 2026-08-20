@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOnboardingGuideStep } from '../onboardingGuideFlow'
+import {
+  onboardingGuideTitleKey,
+  resolveOnboardingGuideStep,
+} from '../onboardingGuideFlow'
 
 const baseReady = {
   incomplete: true,
@@ -96,6 +99,16 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
+  it('does not reopen open_brainstorm after human spoke with overlay closed', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: false,
+        humanSpokeInRoom: true,
+      }),
+    ).toBeNull()
+  })
+
   it('open_brainstorm when overlay is open but view is unset and room is idle', () => {
     expect(
       resolveOnboardingGuideStep({
@@ -109,7 +122,7 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('write_goal in setup before the goal is filled', () => {
+  it('write_goal con OK apagado mientras el objetivo está vacío', () => {
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,
@@ -120,16 +133,47 @@ describe('resolveOnboardingGuideStep', () => {
       step: 'write_goal',
       anchor: 'brainstorm-goal',
       messageKey: 'tabs.onboardingGuide.writeGoal',
+      dismissible: true,
+      dismissDisabled: true,
     })
   })
 
-  it('pick_participants in setup after goal with no seats', () => {
+  it('write_goal habilita el OK al haber texto, pero no avanza solo', () => {
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,
         brainstormOverlayOpen: true,
         brainstormView: 'setup',
         brainstormGoalFilled: true,
+      }),
+    ).toEqual({
+      step: 'write_goal',
+      anchor: 'brainstorm-goal',
+      messageKey: 'tabs.onboardingGuide.writeGoal',
+      dismissible: true,
+    })
+  })
+
+  it('pick_participants in setup after the goal OK until two seats', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'setup',
+        doneSteps: ['write_goal'],
+      }),
+    ).toEqual({
+      step: 'pick_participants',
+      anchor: 'brainstorm-participants',
+      messageKey: 'tabs.onboardingGuide.pickParticipants',
+    })
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'setup',
+        doneSteps: ['write_goal'],
+        brainstormParticipantCount: 1,
       }),
     ).toEqual({
       step: 'pick_participants',
@@ -138,14 +182,28 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('start_ceremony in setup after goal and at least one participant', () => {
+  it('start_ceremony in setup after the goal OK, two seats and ceremony picked', () => {
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,
         brainstormOverlayOpen: true,
         brainstormView: 'setup',
-        brainstormGoalFilled: true,
-        brainstormParticipantCount: 1,
+        doneSteps: ['write_goal'],
+        brainstormParticipantCount: 2,
+      }),
+    ).toEqual({
+      step: 'pick_ceremony',
+      anchor: 'brainstorm-ceremony',
+      messageKey: 'tabs.onboardingGuide.pickCeremony',
+    })
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'setup',
+        doneSteps: ['write_goal'],
+        brainstormParticipantCount: 2,
+        brainstormCeremonyPicked: true,
       }),
     ).toEqual({
       step: 'start_ceremony',
@@ -154,7 +212,7 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('join_round when the room is live and the human has not spoken', () => {
+  it('join_round is dismissible while the room is live (sending optional)', () => {
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,
@@ -166,6 +224,117 @@ describe('resolveOnboardingGuideStep', () => {
       step: 'join_round',
       anchor: 'brainstorm-human-composer',
       messageKey: 'tabs.onboardingGuide.joinRound',
+      dismissible: true,
+    })
+  })
+
+  it('after join_round and stop_room OK, stays quiet while the room still runs', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomLive: true,
+        brainstormRoomStoppable: true,
+        doneSteps: ['join_round', 'stop_room'],
+      }),
+    ).toBeNull()
+  })
+
+  it('stop_room after join_round OK while the room is still running', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomLive: true,
+        brainstormRoomStoppable: true,
+        doneSteps: ['join_round'],
+      }),
+    ).toEqual({
+      step: 'stop_room',
+      anchor: 'brainstorm-stop',
+      messageKey: 'tabs.onboardingGuide.stopRoom',
+      dismissible: true,
+    })
+  })
+
+  it('after stop_room OK the room stopping brings finish_room', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomFinishable: true,
+        doneSteps: ['join_round', 'stop_room'],
+      })?.step,
+    ).toBe('finish_room')
+  })
+
+  it('finish_room after join_round OK when the room stopped running', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomFinishable: true,
+        doneSteps: ['join_round'],
+      }),
+    ).toEqual({
+      step: 'finish_room',
+      anchor: 'brainstorm-finish',
+      messageKey: 'tabs.onboardingGuide.finishRoom',
+      dismissible: true,
+    })
+  })
+
+  it('finish_room also comes after the human spoke', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomFinishable: true,
+        humanSpokeInRoom: true,
+      })?.step,
+    ).toBe('finish_room')
+  })
+
+  it('no finish_room before join_round OK or speaking', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomFinishable: true,
+      }),
+    ).toBeNull()
+  })
+
+  it('after finish_room OK the ladder moves on to saved_rooms', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        doneSteps: ['join_round', 'finish_room'],
+      })?.step,
+    ).toBe('saved_rooms')
+  })
+
+  it('saved_rooms is dismissible after join_round OK on rooms view', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        doneSteps: ['join_round'],
+      }),
+    ).toEqual({
+      step: 'saved_rooms',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.savedRooms',
+      dismissible: true,
     })
   })
 
@@ -197,6 +366,16 @@ describe('resolveOnboardingGuideStep', () => {
     ).toBeNull()
   })
 
+  it('closing the module after join_round OK does not reopen open_brainstorm', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: false,
+        doneSteps: ['join_round'],
+      }),
+    ).toBeNull()
+  })
+
   it('select_agent for engineer without open chat agent', () => {
     expect(
       resolveOnboardingGuideStep({
@@ -210,7 +389,7 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('send_message for engineer with open chat agent before first send', () => {
+  it('send_message espera el envío real: sin OK', () => {
     expect(
       resolveOnboardingGuideStep({
         ...baseReady,
@@ -223,33 +402,82 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('engineer never returns send_message without openChatAgentId', () => {
-    const withoutAgent = resolveOnboardingGuideStep({
+  it('dentro del modal: tipo, nombre y guardar, en ese orden', () => {
+    const inModal = {
       ...baseReady,
-      openChatAgentId: null,
+      openChatAgentId: 'agent-1',
+      sentFirstMessage: true,
+      contextsModalOpen: true,
+    }
+    expect(resolveOnboardingGuideStep(inModal)).toEqual({
+      step: 'pick_context_kind',
+      anchor: 'context-kind',
+      messageKey: 'tabs.onboardingGuide.pickContextKind',
     })
-    expect(withoutAgent?.step).not.toBe('send_message')
-
-    const emptyAgent = resolveOnboardingGuideStep({
-      ...baseReady,
-      openChatAgentId: '',
+    expect(
+      resolveOnboardingGuideStep({ ...inModal, contextKindPicked: true }),
+    ).toEqual({
+      step: 'name_context',
+      anchor: 'context-name',
+      messageKey: 'tabs.onboardingGuide.nameContext',
     })
-    expect(emptyAgent?.step).not.toBe('send_message')
-    expect(emptyAgent?.step).toBe('select_agent')
+    expect(
+      resolveOnboardingGuideStep({
+        ...inModal,
+        contextKindPicked: true,
+        contextNameFilled: true,
+      }),
+    ).toEqual({
+      step: 'create_context',
+      anchor: 'context-save',
+      messageKey: 'tabs.onboardingGuide.createContext',
+    })
   })
 
-  it('assign_context is dismissible after the first send', () => {
+  it('new_context espera el «+»: sin OK y muere al abrirse el modal', () => {
+    const afterSend = {
+      ...baseReady,
+      openChatAgentId: 'agent-1',
+      sentFirstMessage: true,
+    }
+    expect(resolveOnboardingGuideStep(afterSend)).toEqual({
+      step: 'new_context',
+      anchor: 'context-new',
+      messageKey: 'tabs.onboardingGuide.newContext',
+    })
+    // Con el modal abierto manda el paso del formulario: el «+» queda detrás.
+    expect(
+      resolveOnboardingGuideStep({ ...afterSend, contextsModalOpen: true })?.step,
+    ).toBe('pick_context_kind')
+  })
+
+  it('al cerrar el modal, con el «+» ya pulsado, toca arrastrar (sin OK)', () => {
     expect(
       resolveOnboardingGuideStep({
         ...baseReady,
         openChatAgentId: 'agent-1',
         sentFirstMessage: true,
+        doneSteps: ['new_context'],
       }),
     ).toEqual({
       step: 'assign_context',
       anchor: 'context-pool',
       messageKey: 'tabs.onboardingGuide.assignContext',
-      dismissible: true,
+    })
+  })
+
+  it('assign_context espera la asignación real, sin OK', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...baseReady,
+        openChatAgentId: 'agent-1',
+        sentFirstMessage: true,
+        doneSteps: ['new_context'],
+      }),
+    ).toEqual({
+      step: 'assign_context',
+      anchor: 'context-pool',
+      messageKey: 'tabs.onboardingGuide.assignContext',
     })
   })
 
@@ -260,6 +488,7 @@ describe('resolveOnboardingGuideStep', () => {
         openChatAgentId: 'agent-1',
         sentFirstMessage: true,
         assignedAnyContext: true,
+        doneSteps: ['new_context'],
       }),
     ).toEqual({
       step: 'open_terminal',
@@ -276,20 +505,20 @@ describe('resolveOnboardingGuideStep', () => {
         openChatAgentId: 'agent-1',
         sentFirstMessage: true,
         assignedAnyContext: true,
-        doneSteps: ['open_terminal'],
+        doneSteps: ['new_context', 'open_terminal'],
       }),
     ).toBeNull()
   })
 
-  it('dismissing assign_context skips it even without an assigned context', () => {
+  it('sin asignación real no se pasa a la terminal, aunque esté en doneSteps', () => {
     expect(
       resolveOnboardingGuideStep({
         ...baseReady,
         openChatAgentId: 'agent-1',
         sentFirstMessage: true,
-        doneSteps: ['assign_context'],
+        doneSteps: ['new_context', 'assign_context'],
       })?.step,
-    ).toBe('open_terminal')
+    ).toBe('assign_context')
   })
 
   it('earlier rules win over later engineer steps', () => {
@@ -334,8 +563,9 @@ describe('resolveOnboardingGuideStep', () => {
         openChatAgentId: 'agent-1',
         brainstormOverlayOpen: true,
         brainstormView: 'setup',
-        brainstormGoalFilled: true,
+        doneSteps: ['write_goal'],
         brainstormParticipantCount: 2,
+        brainstormCeremonyPicked: true,
       })?.step,
     ).toBe('start_ceremony')
   })
@@ -347,5 +577,13 @@ describe('resolveOnboardingGuideStep', () => {
         path: 'unknown' as 'engineer',
       }),
     ).toBeNull()
+  })
+})
+
+describe('onboardingGuideTitleKey', () => {
+  it('deriva el título del mensaje con sufijo Title', () => {
+    const step = resolveOnboardingGuideStep({ ...baseReady, path: '' })
+    expect(step?.messageKey).toBe('tabs.onboardingGuide.choosePath')
+    expect(onboardingGuideTitleKey(step!)).toBe('tabs.onboardingGuide.choosePathTitle')
   })
 })

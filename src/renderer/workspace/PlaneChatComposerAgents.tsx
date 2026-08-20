@@ -56,10 +56,12 @@ export const PlaneChatComposerAgents: React.FC<PlaneChatComposerAgentsProps> = (
     }
   }, [agents.length, syncFade])
 
+  // El ancla del coach vive en el primer chip (abajo): en el riel completo el aro
+  // encerraba una banda de ancho total casi vacía. Sin chips, cae en el wrap.
   return (
     <div
       className="plane-chat-composer__agents-wrap"
-      data-onboarding="composer-agents"
+      {...(agents.length === 0 ? { 'data-onboarding': 'composer-agents' } : {})}
       data-fade-start={fadeStart ? '' : undefined}
       data-fade-end={fadeEnd ? '' : undefined}
     >
@@ -77,6 +79,7 @@ export const PlaneChatComposerAgents: React.FC<PlaneChatComposerAgentsProps> = (
               key={agent.paneId}
               className="plane-chat-composer__agent-slot"
               style={{ '--agent-stagger': index } as React.CSSProperties}
+              {...(index === 0 ? { 'data-onboarding': 'composer-agents' } : {})}
             >
               <PlaneAgentBadge
                 name={agent.title}

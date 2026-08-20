@@ -106,7 +106,6 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
           'plane-chat-composer__input-shell',
           recalling ? 'plane-chat-composer__input-shell--recalling' : '',
         ].filter(Boolean).join(' ')}
-        data-onboarding="composer-input"
       >
         <textarea
           ref={textareaRef as React.Ref<HTMLTextAreaElement>}
@@ -141,8 +140,15 @@ export const PlaneChatComposerShell: React.FC<PlaneChatComposerShellProps> = ({
     </span>
   )
 
+  /* El coach de «habla con un agente» señala la fila entera, no el input suelto:
+     dentro viven el riel de agentes, el sketch y el mic. Con el ancla en el
+     input, el velo apagaba esos botones y el globo caía sobre el riel. */
   return (
-    <div className="plane-chat-composer__row" data-plane-composer-shell="">
+    <div
+      className="plane-chat-composer__row"
+      data-plane-composer-shell=""
+      data-onboarding="composer-input"
+    >
       {leading}
       {disabled && disabledHint ? (
         <Tooltip content={disabledHint}>{field}</Tooltip>

@@ -4,89 +4,336 @@
   pointer-events: none;
 }
 
-.onboarding-coach-mark__block {
+/* Velo alrededor del control: cuatro rectángulos con hueco en el ancla. Baja el
+   resto de la vista sin apagarla y NO captura clics, para no sellar acciones
+   que el propio paso necesita. */
+.onboarding-coach-mark__veil {
   position: fixed;
-  pointer-events: auto;
-  background: color-mix(in srgb, var(--bg) 48%, transparent);
-}
-
-.onboarding-coach-mark__highlight {
-  position: fixed;
-  box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: 12px;
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
+  background: color-mix(in srgb, #000 34%, transparent);
+  animation: onboarding-coach-veil-in 0.28s cubic-bezier(0.33, 1, 0.68, 1) both;
 }
 
-.onboarding-coach-mark__highlight--pulse {
-  animation: onboarding-coach-pulse 2s ease-in-out infinite;
+@keyframes onboarding-coach-veil-in {
+  from {
+    opacity: 0;
+  }
 }
 
-@keyframes onboarding-coach-pulse {
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-mark__veil {
+    animation: none;
+  }
+}
+
+:root[data-reduce-motion='true'] .onboarding-coach-mark__veil {
+  animation: none;
+}
+
+/* Radar sobre el control real: no hay div de highlight, el propio ancla late
+   dentro del hueco del velo. El aro va en `outline` porque `outline-offset` da el aire sin
+   tocar el layout, y con la clase doblada (0,2,0) gana a `.btn { outline: none }`
+   sin `!important`. El halo animado va en box-shadow, que arranca en el mismo
+   aire para no pegarse al texto. */
+.onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: 8px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 85%, transparent);
+  outline-offset: var(--onboarding-coach-air);
+  /* Dos animaciones: el aro se cierra una vez sobre el control y después late.
+     La entrada solo toca `outline`; el radar solo `box-shadow`: no se pisan. */
+  animation:
+    onboarding-coach-target-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both,
+    onboarding-coach-radar 1.7s ease-out infinite;
+}
+
+@keyframes onboarding-coach-target-in {
+  from {
+    outline-color: color-mix(in srgb, var(--accent) 0%, transparent);
+    outline-offset: calc(var(--onboarding-coach-air) + 10px);
+  }
+}
+
+@keyframes onboarding-coach-radar {
+  0% {
+    box-shadow:
+      0 0 0 calc(var(--onboarding-coach-air) + 2px)
+        color-mix(in srgb, var(--accent) 34%, transparent),
+      0 0 0 calc(var(--onboarding-coach-air) + 2px)
+        color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  55% {
+    box-shadow:
+      0 0 0 calc(var(--onboarding-coach-air) + 16px)
+        color-mix(in srgb, var(--accent) 0%, transparent),
+      0 0 0 calc(var(--onboarding-coach-air) + 8px)
+        color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 calc(var(--onboarding-coach-air) + 16px)
+        color-mix(in srgb, var(--accent) 0%, transparent),
+      0 0 0 calc(var(--onboarding-coach-air) + 22px)
+        color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+/* Aire por ancla. El aro es outline, así que nunca desplaza contenido, pero sí
+   lo recorta un ancestro con overflow: aquí se ajusta caso por caso. */
+
+/* Rail de 28px con 2px entre botones: más aire pisaría a los vecinos. */
+.plane-tools-rail .onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: 4px;
+}
+
+/* El «+» del pool es un botón de 20px con 6px de gap: mismo caso que el rail. */
+.plane-context-pool__create.onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: 4px;
+}
+
+/* La barra top-left recorta en Y y el botón de carpeta la llena, así que el aro
+   se cortaba. Mientras la barra lleve el control señalado deja de recortar y el
+   aro respira por fuera; al salir el coach vuelve a su scroll horizontal. */
+.plane-top-left-bar:has(.onboarding-coach-target) {
+  overflow: visible;
+}
+
+.plane-project-folder__btn.onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: 6px;
+}
+
+/* La fila del composer trae padding propio (4px arriba, 2 abajo): con el aire
+   normal el aro se despegaba del riel de agentes y del mic que abraza. */
+.plane-chat-composer__row.onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: 4px;
+}
+
+/* Controles dentro de barras que recortan en Y: el aro va por DENTRO y late en
+   color, no en aros que crecen. Con el aro fuera, la barra corta arriba y abajo
+   y el control queda «iluminado solo por los lados».
+   Recortan: .plane-top-left-bar (overflow-y hidden), .brainstorm-overlay__bar
+   (overflow-y hidden) y .plane-chat-composer__agents (overflow-x auto obliga a
+   la Y a recortar). */
+.brainstorm-overlay__tabs.onboarding-coach-target.onboarding-coach-target,
+.brainstorm-overlay__icon.onboarding-coach-target.onboarding-coach-target,
+.plane-chat-composer__agents .onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: -2px;
+  animation: onboarding-coach-radar-inset 1.7s ease-out infinite;
+}
+
+@keyframes onboarding-coach-radar-inset {
   0%,
   100% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 10%, transparent);
+    outline-color: color-mix(in srgb, var(--accent) 95%, transparent);
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   }
-
   50% {
-    box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 4%, transparent);
+    outline-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 
-.onboarding-coach-mark__tooltip {
+/* La columna derecha toca el borde del overlay, que recorta: aro por dentro. */
+.brainstorm-overlay__col--right.onboarding-coach-target.onboarding-coach-target {
+  --onboarding-coach-air: -8px;
+  animation: onboarding-coach-radar-inset 1.7s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-target.onboarding-coach-target {
+    animation: none;
+    box-shadow: 0 0 0 calc(var(--onboarding-coach-air) + 8px)
+      color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  /* Aro por dentro: el halo también, o la barra lo recorta. */
+  .brainstorm-overlay__tabs.onboarding-coach-target.onboarding-coach-target,
+  .brainstorm-overlay__icon.onboarding-coach-target.onboarding-coach-target,
+  .brainstorm-overlay__col--right.onboarding-coach-target.onboarding-coach-target,
+  .plane-chat-composer__agents .onboarding-coach-target.onboarding-coach-target {
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+
+:root[data-reduce-motion='true'] .onboarding-coach-target.onboarding-coach-target {
+  animation: none;
+  box-shadow: 0 0 0 calc(var(--onboarding-coach-air) + 8px)
+    color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+:root[data-reduce-motion='true'] .brainstorm-overlay__tabs.onboarding-coach-target,
+:root[data-reduce-motion='true'] .brainstorm-overlay__icon.onboarding-coach-target,
+:root[data-reduce-motion='true'] .brainstorm-overlay__col--right.onboarding-coach-target,
+:root[data-reduce-motion='true'] .plane-chat-composer__agents .onboarding-coach-target {
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Globo: tarjeta compacta al lado del control, con punta que lo señala. */
+.onboarding-coach-mark__callout {
   position: fixed;
-  transform: translateX(-50%);
-  max-width: min(300px, calc(100vw - 32px));
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 24px));
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow:
+    0 12px 30px color-mix(in srgb, #000 42%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
   pointer-events: none;
+  /* Nace en el control y se despliega: la curva frena sin rebote (el rebote
+     leería como alerta, y esto es una explicación). */
+  animation: onboarding-coach-callout-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.onboarding-coach-mark__tooltip--above {
-  transform: translate(-50%, -100%);
-}
-
-.onboarding-coach-mark__tooltip--actionable {
+.onboarding-coach-mark__callout--actionable {
   pointer-events: auto;
+}
+
+/* El globo crece desde el lado donde está la punta, no desde su centro: así el
+   ojo sale del control señalado y llega al texto. */
+.onboarding-coach-mark__callout--top {
+  transform-origin: 50% 100%;
+  --onboarding-coach-in-y: 10px;
+}
+
+.onboarding-coach-mark__callout--bottom {
+  transform-origin: 50% 0;
+  --onboarding-coach-in-y: -10px;
+}
+
+.onboarding-coach-mark__callout--right {
+  transform-origin: 0 50%;
+  --onboarding-coach-in-x: -10px;
+}
+
+.onboarding-coach-mark__callout--left {
+  transform-origin: 100% 50%;
+  --onboarding-coach-in-x: 10px;
+}
+
+@keyframes onboarding-coach-callout-in {
+  from {
+    opacity: 0;
+    transform: translate(
+        var(--onboarding-coach-in-x, 0px),
+        var(--onboarding-coach-in-y, 0px)
+      )
+      scale(0.94);
+  }
+}
+
+/* La punta llega cuando la tarjeta ya frenó: primero aparece el globo, después
+   se engancha al control. Solo opacidad, que el transform es distinto por lado. */
+.onboarding-coach-mark__caret {
+  animation: onboarding-coach-caret-in 0.2s ease-out 0.14s both;
+}
+
+@keyframes onboarding-coach-caret-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Escalonado del contenido: acción, para qué sirve, y por último el botón. */
+.onboarding-coach-mark__title {
+  animation: onboarding-coach-line-in 0.3s ease-out 0.06s both;
+}
+
+.onboarding-coach-mark__message {
+  animation: onboarding-coach-line-in 0.3s ease-out 0.12s both;
+}
+
+.onboarding-coach-mark__actions {
+  animation: onboarding-coach-line-in 0.3s ease-out 0.18s both;
+}
+
+@keyframes onboarding-coach-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-coach-mark__callout,
+  .onboarding-coach-mark__caret,
+  .onboarding-coach-mark__title,
+  .onboarding-coach-mark__message,
+  .onboarding-coach-mark__actions {
+    animation: none;
+  }
+}
+
+:root[data-reduce-motion='true'] .onboarding-coach-mark__callout,
+:root[data-reduce-motion='true'] .onboarding-coach-mark__caret,
+:root[data-reduce-motion='true'] .onboarding-coach-mark__title,
+:root[data-reduce-motion='true'] .onboarding-coach-mark__message,
+:root[data-reduce-motion='true'] .onboarding-coach-mark__actions {
+  animation: none;
+}
+
+.onboarding-coach-mark__caret {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: var(--surface);
+}
+
+.onboarding-coach-mark__callout--right .onboarding-coach-mark__caret {
+  left: -6px;
+  border-top: 0;
+  border-right: 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.onboarding-coach-mark__callout--left .onboarding-coach-mark__caret {
+  right: -6px;
+  border-bottom: 0;
+  border-left: 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.onboarding-coach-mark__callout--bottom .onboarding-coach-mark__caret {
+  top: -6px;
+  border-bottom: 0;
+  border-right: 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.onboarding-coach-mark__callout--top .onboarding-coach-mark__caret {
+  bottom: -6px;
+  border-top: 0;
+  border-left: 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* Título = la acción; descripción = para qué sirve, más discreta. */
+.onboarding-coach-mark__title {
+  margin: 0 0 4px;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.onboarding-coach-mark__message {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.5;
+  text-wrap: pretty;
 }
 
 .onboarding-coach-mark__actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.onboarding-coach-mark__step {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
-.onboarding-coach-mark__message {
-  margin: 0;
-  color: var(--text);
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  line-height: 1.45;
-}
-
-html[data-reduce-motion="true"] .onboarding-coach-mark__highlight--pulse {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .onboarding-coach-mark__highlight--pulse {
-    animation: none;
-  }
+  margin-top: 10px;
 }

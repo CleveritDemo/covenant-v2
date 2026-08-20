@@ -148,12 +148,19 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
     current === drawer ? null : drawer
   ))
 
-  const token = (drawer: Drawer, text: string, empty = false): React.ReactNode => (
+  const token = (
+    drawer: Drawer,
+    text: string,
+    empty = false,
+    /** Ancla del coach mark: va en el token, no en la frase entera. */
+    anchor?: string,
+  ): React.ReactNode => (
     <button
       type="button"
       className={['brainstorm-sentence__tok', empty ? 'brainstorm-sentence__tok--todo' : '']
         .filter(Boolean).join(' ')}
       aria-expanded={open === drawer}
+      {...(anchor ? { 'data-onboarding': anchor } : {})}
       onClick={() => toggle(drawer)}
     >
       {text}
@@ -171,7 +178,7 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
         {' '}
         {t('tabs.brainstormSentenceGive')}
         {' '}
-        {token('outcome', outcomeText)}
+        {token('outcome', outcomeText, false, 'brainstorm-ceremony')}
         {' '}
         {t('tabs.brainstormSentenceIn')}
         {' '}
@@ -352,6 +359,7 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
                           // usuario ya movió.
                           if (!isFree) onCeremonyChange(DEFAULT_CEREMONY_ID)
                           onOutcomeChange(value)
+                          setOpen(null)
                         }}
                       >
                         <span className="brainstorm-sentence__template-name">
@@ -371,7 +379,10 @@ export const BrainstormSentence: React.FC<BrainstormSentenceProps> = ({
                         type="button"
                         className="brainstorm-sentence__template"
                         aria-pressed={item.id === ceremony}
-                        onClick={() => onCeremonyChange(item.id)}
+                        onClick={() => {
+                          onCeremonyChange(item.id)
+                          setOpen(null)
+                        }}
                       >
                         <span className="brainstorm-sentence__template-name">{item.name}</span>
                         <span className="brainstorm-sentence__template-meta">

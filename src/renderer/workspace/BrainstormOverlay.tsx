@@ -32,6 +32,8 @@ export interface BrainstormOverlayProps {
   left?: React.ReactNode
   /** Columna derecha: los asientos. */
   right?: React.ReactNode
+  /** `data-onboarding` en el aside derecho (p. ej. brainstorm-participants). */
+  rightAnchor?: string
   /** Cuántas tarjetas hay en la columna derecha: fija el alto de celda. */
   seatCount?: number
   /**
@@ -70,6 +72,7 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
   busy = false,
   left,
   right,
+  rightAnchor,
   seatCount = 0,
   variant = 'live',
   pane,
@@ -159,7 +162,10 @@ export const BrainstormOverlay: React.FC<BrainstormOverlayProps> = ({
       <div className="brainstorm-overlay__center">{children}</div>
 
       {right ? (
-        <aside className="brainstorm-overlay__col brainstorm-overlay__col--right">
+        <aside
+          className="brainstorm-overlay__col brainstorm-overlay__col--right"
+          {...(rightAnchor ? { 'data-onboarding': rightAnchor } : {})}
+        >
           {right}
         </aside>
       ) : null}

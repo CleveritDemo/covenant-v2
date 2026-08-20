@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resolveOnboardingGuideStep } from '@shared/onboardingGuideFlow'
 import {
   buildGuideResolveArgs,
   shouldCompleteByGuideExhausted,
@@ -14,7 +15,7 @@ const engineerReady: OnboardingGuideTabSnapshot = {
   brainstormView: null,
   sentFirstMessage: true,
   assignedAnyContext: true,
-  doneSteps: ['open_terminal'],
+  doneSteps: ['new_context', 'open_terminal'],
 }
 
 describe('buildGuideResolveArgs', () => {
@@ -26,7 +27,7 @@ describe('buildGuideResolveArgs', () => {
       paneKinds: { a: 'agent', t: 'terminal' },
       planeOpenChatAgentId: 'pane-9',
       brainstormView: 'setup',
-      brainstormDraft: { goalFilled: true, participantCount: 2 },
+      brainstormDraft: { goalFilled: true, participantCount: 2, ceremonyPicked: true },
       brainstormRooms: [{ id: 'room-1' }, { id: 'room-2' }],
       liveRoomIds: ['room-2'],
       humanSpokeByRoom: { 'room-1': true },
@@ -44,12 +45,43 @@ describe('buildGuideResolveArgs', () => {
       brainstormView: 'setup',
       brainstormGoalFilled: true,
       brainstormParticipantCount: 2,
+      brainstormCeremonyPicked: true,
       brainstormRoomLive: true,
+      brainstormRoomStoppable: false,
+      brainstormRoomFinishable: false,
       humanSpokeInRoom: true,
+      contextsModalOpen: false,
+      contextKindPicked: false,
+      contextNameFilled: false,
       sentFirstMessage: true,
       assignedAnyContext: true,
       doneSteps: ['saved_rooms'],
     })
+  })
+
+  it('marks the viewed room finishable only when it stopped running', () => {
+    const viewing = (view: string, liveRoomIds: string[]) => buildGuideResolveArgs({
+      incomplete: true,
+      path: 'business',
+      projectFolder: '/tmp/ws',
+      paneKinds: { a: 'agent' },
+      planeOpenChatAgentId: null,
+      brainstormView: view,
+      brainstormRooms: [{ id: 'room-1' }],
+      liveRoomIds,
+      sentFirstMessage: false,
+      assignedAnyContext: false,
+      doneSteps: [],
+    })
+
+    expect(viewing('room-1', []).brainstormRoomFinishable).toBe(true)
+    expect(viewing('room-1', ['room-1']).brainstormRoomFinishable).toBe(false)
+    expect(viewing('room-1', ['room-1']).brainstormRoomStoppable).toBe(true)
+    expect(viewing('room-1', []).brainstormRoomStoppable).toBe(false)
+    expect(viewing('rooms', ['room-1']).brainstormRoomStoppable).toBe(false)
+    expect(viewing('rooms', []).brainstormRoomFinishable).toBe(false)
+    expect(viewing('setup', []).brainstormRoomFinishable).toBe(false)
+    expect(viewing('room-9', []).brainstormRoomFinishable).toBe(false)
   })
 
   it('treats blank folder, missing agents and empty view as unset', () => {
@@ -70,6 +102,22 @@ describe('buildGuideResolveArgs', () => {
     expect(args.brainstormOverlayOpen).toBe(false)
     expect(args.brainstormRoomLive).toBe(false)
     expect(args.humanSpokeInRoom).toBe(false)
+  })
+
+  it('keeps humanSpokeInRoom after the room left the tab list', () => {
+    const args = buildGuideResolveArgs({
+      incomplete: true,
+      path: 'business',
+      projectFolder: '/tmp/ws',
+      paneKinds: { a: 'agent' },
+      brainstormView: null,
+      brainstormRooms: [],
+      humanSpokeByRoom: { 'room-finished': true },
+      sentFirstMessage: false,
+      assignedAnyContext: false,
+      doneSteps: [],
+    })
+    expect(args.humanSpokeInRoom).toBe(true)
   })
 })
 
@@ -99,6 +147,45 @@ describe('shouldCompleteByGuideExhausted', () => {
         cliAllMissing: true,
       }),
     ).toBe(false)
+  })
+
+  it('does not close Planear inside the room before saved_rooms', () => {
+    const resolveArgs = buildGuideResolveArgs({
+      incomplete: true,
+      path: 'business',
+      projectFolder: '/tmp/ws',
+      paneKinds: { a: 'agent' },
+      planeOpenChatAgentId: null,
+      brainstormView: 'room-1',
+      brainstormRooms: [{ id: 'room-1' }],
+      liveRoomIds: [],
+      humanSpokeByRoom: { 'room-1': true },
+      sentFirstMessage: false,
+      assignedAnyContext: false,
+      doneSteps: ['join_round', 'finish_room'],
+    })
+
+    expect(resolveOnboardingGuideStep(resolveArgs)).toBeNull()
+    expect(shouldCompleteByGuideExhausted({ resolveArgs, cliAllMissing: false })).toBe(false)
+  })
+
+  it('closes Planear once saved_rooms is dismissed', () => {
+    const resolveArgs = buildGuideResolveArgs({
+      incomplete: true,
+      path: 'business',
+      projectFolder: '/tmp/ws',
+      paneKinds: { a: 'agent' },
+      planeOpenChatAgentId: null,
+      brainstormView: 'rooms',
+      brainstormRooms: [],
+      liveRoomIds: [],
+      humanSpokeByRoom: { 'room-1': true },
+      sentFirstMessage: false,
+      assignedAnyContext: false,
+      doneSteps: ['join_round', 'finish_room', 'saved_rooms'],
+    })
+
+    expect(shouldCompleteByGuideExhausted({ resolveArgs, cliAllMissing: false })).toBe(true)
   })
 
   it('returns false when a guide step is still pending', () => {

@@ -3,7 +3,11 @@ import type { AgentCliProvider } from '@shared/tabSession'
 import { agentResultContextIdForSlug } from '@shared/projectAgentCatalog'
 import { useT } from '@i18n/useT'
 import { agentCliSpec } from '@shared/agentCliProviders'
-import { resolveModelLabel, resolveModelShort } from '@shared/agentCliModels'
+import {
+  MODEL_DEFAULT_SHORT,
+  resolveModelLabel,
+  resolveModelShort,
+} from '@shared/agentCliModels'
 import { agentMonogram } from '@shared/tabContextAppearance'
 import { Icon } from '../components/ui/Icon'
 import { BrandIcon } from '../components/ui/BrandIcon'
@@ -116,7 +120,7 @@ export const PlaneMiniFace: React.FC<PlaneMiniFaceProps> = ({
     : t('agentPane.modelDefault')
   const modelChipLabel = modelId
     ? resolveModelShort(provider, modelId)
-    : t('agentPane.modelDefault')
+    : MODEL_DEFAULT_SHORT
   const showIntegratedActions = Boolean(
     (onConfigure && configLabel) || (onDelete && deleteLabel),
   )

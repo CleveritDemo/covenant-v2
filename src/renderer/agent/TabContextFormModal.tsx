@@ -30,6 +30,8 @@ interface Props {
   contexts: TabContext[]
   cwd: string
   onRefresh: () => void
+  /** Progreso del alta para el coach del onboarding (tipo elegido, nombre puesto). */
+  onDraftChange?: (draft: { kindPicked: boolean; nameFilled: boolean }) => void
   onClose: () => void
 }
 
@@ -111,6 +113,7 @@ export const TabContextFormModal: React.FC<Props> = ({
   contexts,
   cwd,
   onRefresh,
+  onDraftChange,
   onClose,
 }) => {
   const { t } = useT()
@@ -129,6 +132,8 @@ export const TabContextFormModal: React.FC<Props> = ({
   // es este estado — no el draft — el que debe bloquear Guardar.
   const [jiraKeyDraft, setJiraKeyDraft] = useState('')
   const [resolvedCwdLabel, setResolvedCwdLabel] = useState('')
+  /** true solo al elegir tipo a mano: abrir el alta ya trae un kind por defecto. */
+  const [kindPicked, setKindPicked] = useState(false)
   // Refs para dismiss/backdrop: evita estado stale en el handler async.
   const draftRef = useRef(draft)
   const notesContentRef = useRef(notesContent)
@@ -210,6 +215,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       originalIdRef.current = ''
       originalFileNameRef.current = ''
       setResolvedCwdLabel('')
+      setKindPicked(false)
       return
     }
     const initial = mode === 'edit' && context ? { ...context } : emptyContext()
@@ -350,6 +356,13 @@ export const TabContextFormModal: React.FC<Props> = ({
     }
     return ''
   }
+
+  useEffect(() => {
+    onDraftChange?.({
+      kindPicked,
+      nameFilled: (draft?.name ?? '').trim().length > 0,
+    })
+  }, [kindPicked, draft?.name, onDraftChange])
 
   /** Persiste el draft actual. En éxito llama onClose; en fallo deja el modal abierto con error. */
   const save = async (): Promise<boolean> => {
@@ -516,6 +529,7 @@ export const TabContextFormModal: React.FC<Props> = ({
   }
 
   const selectKind = (kind: TabContextKind): void => {
+    setKindPicked(true)
     if (!draft) return
     if (draft.kind === kind) return
     // Nuevo tipo, nueva clave: no arrastrar la de un `jira` anterior en la
@@ -577,6 +591,7 @@ export const TabContextFormModal: React.FC<Props> = ({
               variant="primary"
               size="sm"
               disabled={saveDisabled}
+              data-onboarding="context-save"
               onClick={() => { void save() }}
             >
               {t('tabContexts.saveContext')}

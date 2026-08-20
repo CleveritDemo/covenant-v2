@@ -14,6 +14,7 @@ import { AiMarkdown } from '../components/AiMarkdown'
 import { Button } from '../components/ui'
 import { AI_READY_FIELD_KEY } from './ceremonyLabels'
 import { BrainstormSaveContextModal } from './BrainstormSaveContextModal'
+import { JiraBacklogModal } from './JiraBacklogModal'
 import './BrainstormClosingCard.css'
 
 export interface BrainstormClosingCardProps {
@@ -44,6 +45,7 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
   const { t } = useT()
   const [feedback, setFeedback] = useState<Feedback>(null)
   const [saveOpen, setSaveOpen] = useState(false)
+  const [jiraOpen, setJiraOpen] = useState(false)
 
   const markdown = ceremonyClosing
     ? formatCeremonyClosing(topic, ceremonyClosing)
@@ -116,6 +118,14 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
     : null
   const checklist = gaps ? aiReadyChecklist(gaps) : null
 
+  const jiraFields = ceremonyClosing?.fields ?? {
+    decision: closing?.decision ?? '',
+    why: closing?.why ?? '',
+    agreed: closing?.agreed ?? '',
+    open: closing?.open ?? '',
+    next: closing?.next ?? '',
+  }
+
   return (
     <section className="brainstorm-closing" aria-label={t('tabs.brainstormClosingTitle')}>
       <header className="brainstorm-closing__head">
@@ -134,6 +144,9 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setSaveOpen(true)}>
             {t('tabs.brainstormClosingSaveContext')}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setJiraOpen(true)}>
+            {t('tabs.brainstormClosingJira')}
           </Button>
         </span>
       </header>
@@ -220,6 +233,14 @@ export const BrainstormClosingCard: React.FC<BrainstormClosingCardProps> = ({
         defaultName={brainstormContextNameSuggestion(topic)}
         onCancel={() => setSaveOpen(false)}
         onConfirm={draft => { void handleSaveConfirm(draft) }}
+      />
+      <JiraBacklogModal
+        open={jiraOpen}
+        cwd={cwd}
+        topic={topic}
+        ceremony={ceremonyClosing?.ceremony ?? 'free'}
+        fields={jiraFields}
+        onClose={() => setJiraOpen(false)}
       />
     </section>
   )

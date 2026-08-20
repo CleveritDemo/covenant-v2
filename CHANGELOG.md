@@ -5,6 +5,33 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.99.4
+La guía de primeros pasos ya no se corta al montar tu primer agente: sigue contigo hasta el final, aunque ya tengas equipo en el plano.
+
+Si un agente no tiene motor elegido, el envío queda bloqueado con un aviso que explica qué falta — distinto del aviso cuando falta instalar un CLI.
+
+El recorrido recuerda lo que ya hiciste: el primer mensaje enviado, los contextos asignados (incluso si ese contexto ya estaba en la pestaña) y los pasos que cerraste no vuelven a pedirse.
+
+Pulse, Wiki, Loops, la pestaña nueva y las organizaciones solo se ocultan mientras eliges rol; después vuelven aunque no hayas terminado el recorrido.
+
+Los avisos informativos ya no bloquean el plano: puedes seguir usándolo mientras están abiertos. Si ya tienes una terminal, el paso de abrir otra se salta automáticamente.
+
+Los avisos de la guía se colocan midiendo su alto real: ya no se salen por arriba ni tapan lo que señalan.
+
+El aviso de la guía se pinta por encima de la sala de brainstorm y de los haces de asignación de contexto.
+
+En el camino Planear ya puedes elegir participantes: el aviso dejó de sellar la columna de asientos.
+
+La guía no se muere al entrar a tus salas guardadas: te ofrece crear una sala nueva o volver a la que está en curso.
+
+El aviso de la guía solo aparece en la pestaña que estás mirando.
+
+La barra de contextos de la conversación avisa con un degradado lateral cuando hay más chips de los que caben.
+
+El aviso de la guía busca su ancla dentro del plano de la pestaña activa: ya no se engancha a una pestaña oculta.
+
+Si el modelo es el del CLI, el chip de la mini muestra DEF (tres letras); el nombre «Predeterminado» sigue en el tooltip y en la config.
+
 ## v0.99.3
 En la mini del agente, el motor queda a la derecha con un chip corto del modelo (FB5, O48, C25…). El nombre completo sigue en el tooltip; en la config no cambia.
 

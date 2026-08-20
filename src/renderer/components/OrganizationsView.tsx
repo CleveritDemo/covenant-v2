@@ -4,11 +4,11 @@ import {
   getCovenantApi,
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
+  hasCovenantOrgDeleteApi,
   hasCovenantWorkspacesApi,
   hasCovenantWorkspaceContentApi,
   slugifyOrgName,
   type CovenantAuthStatus,
-  type CovenantDefault,
   type CovenantMember,
   type CovenantOrg,
   type CovenantWorkspace,
@@ -571,13 +571,6 @@ export const OrganizationsView: React.FC<Props> = ({
   const [membersBusy, setMembersBusy] = useState(false)
   const [memberLogin, setMemberLogin] = useState('')
 
-  const [defaults, setDefaults] = useState<CovenantDefault[]>([])
-  const [defaultsLoading, setDefaultsLoading] = useState(false)
-  const [defaultsError, setDefaultsError] = useState<string | null>(null)
-  const [defaultsBusy, setDefaultsBusy] = useState(false)
-  const [defaultKind, setDefaultKind] = useState('')
-  const [defaultName, setDefaultName] = useState('')
-
   const [workspaces, setWorkspaces] = useState<CovenantWorkspace[]>([])
   const [workspacesLoading, setWorkspacesLoading] = useState(false)
   const [workspacesError, setWorkspacesError] = useState<string | null>(null)
@@ -597,6 +590,8 @@ export const OrganizationsView: React.FC<Props> = ({
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [leaveBusy, setLeaveBusy] = useState(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const [detailView, setDetailView] = useState<OrgDetailView>('workspace')
   const [composing, setComposing] = useState<ComposeTarget>(null)
   const [openBusy, setOpenBusy] = useState(false)
@@ -621,6 +616,10 @@ export const OrganizationsView: React.FC<Props> = ({
   const orgAdminsAvailable = hasCovenantOrgAdminsApi(covenant)
   const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId) ?? null
   const settingsOpen = detailView === 'settings'
+  const canDeleteOrg = isOwner
+    && !!detailOrg
+    && !detailOrg.personal
+    && hasCovenantOrgDeleteApi(covenant)
 
   const loadAuthAndOrgs = useCallback(async (): Promise<void> => {
     const runId = ++authRunRef.current
@@ -658,7 +657,6 @@ export const OrganizationsView: React.FC<Props> = ({
       setActiveSlug('')
       setDetailSlug(null)
       setMembers([])
-      setDefaults([])
       setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
@@ -693,13 +691,11 @@ export const OrganizationsView: React.FC<Props> = ({
     if (!covenant || !slug) {
       detailsRunRef.current += 1
       setMembers([])
-      setDefaults([])
       setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
       setMembersError(null)
       setMembersForbidden(false)
-      setDefaultsError(null)
       setWorkspacesError(null)
       setOrgAdminsError(null)
       return
@@ -710,12 +706,10 @@ export const OrganizationsView: React.FC<Props> = ({
     const isOrgAdminHint = orgRole === 'owner' || orgRole === 'admin'
 
     setMembersLoading(isOrgAdminHint)
-    setDefaultsLoading(true)
     setWorkspacesLoading(true)
     setOrgAdminsLoading(isOrgAdminHint)
     setMembersError(null)
     setMembersForbidden(false)
-    setDefaultsError(null)
     setWorkspacesError(null)
     setOrgAdminsError(null)
 
@@ -735,10 +729,9 @@ export const OrganizationsView: React.FC<Props> = ({
       ? settleCovenantResult(covenant.orgAdminsList(slug), 'orgAdminsList failed')
       : Promise.resolve({ ok: true as const, data: [] as string[] })
 
-    const [membersResult, defaultsResult, workspacesResult, orgAdminsResult, memberLoginsResult] =
+    const [membersResult, workspacesResult, orgAdminsResult, memberLoginsResult] =
       await Promise.all([
         membersPromise,
-        settleCovenantResult(covenant.defaultsList(slug), 'defaultsList failed'),
         settleCovenantResult(workspacesPromise, 'workspacesList failed'),
         orgAdminsPromise,
         settleCovenantResult(memberLoginsPromise, 'memberLoginsList failed'),
@@ -746,7 +739,6 @@ export const OrganizationsView: React.FC<Props> = ({
 
     if (detailsRunRef.current !== runId) return
     setMembersLoading(false)
-    setDefaultsLoading(false)
     setWorkspacesLoading(false)
     setOrgAdminsLoading(false)
 
@@ -768,14 +760,6 @@ export const OrganizationsView: React.FC<Props> = ({
       setMembers([])
       setMembersError(membersResult.error)
       setMembersForbidden(false)
-    }
-
-    if (defaultsResult.ok) {
-      setDefaults(defaultsResult.data)
-      setDefaultsError(null)
-    } else {
-      setDefaults([])
-      setDefaultsError(defaultsResult.error)
     }
 
     if (!hasCovenantWorkspacesApi(covenant)) {
@@ -836,11 +820,11 @@ export const OrganizationsView: React.FC<Props> = ({
     // Al cambiar de cuenta, el detalle de la cuenta anterior no puede seguir pintado ni consultado.
     detailsRunRef.current += 1
     setDetailSlug(null); setActiveSlug(''); setOrgs([])
-    setWorkspaces([]); setMembers([]); setDefaults([]); setOrgAdmins([]); setMemberLogins([])
+    setWorkspaces([]); setMembers([]); setOrgAdmins([]); setMemberLogins([])
     setSelectedWorkspaceId(''); setDetailView('workspace'); setComposing(null); setDeleteWorkspace(null)
     setOrgQuery(''); setWorkspaceQuery('')
     setOrgsError(null); setAuthError(null); setMembersError(null); setMembersForbidden(false)
-    setDefaultsError(null); setWorkspacesError(null); setOrgAdminsError(null); setLeaveError(null)
+    setWorkspacesError(null); setOrgAdminsError(null); setLeaveError(null)
     setOpenError(null); setOpenBusy(false)
   }, [activeAccountId])
 
@@ -853,13 +837,11 @@ export const OrganizationsView: React.FC<Props> = ({
     if (!open) return
     if (!detailSlug) {
       setMembers([])
-      setDefaults([])
       setWorkspaces([])
       setOrgAdmins([])
       setMemberLogins([])
       setMembersError(null)
       setMembersForbidden(false)
-      setDefaultsError(null)
       setWorkspacesError(null)
       setOrgAdminsError(null)
       setDeleteWorkspace(null)
@@ -941,7 +923,6 @@ export const OrganizationsView: React.FC<Props> = ({
     setActiveSlug('')
     setDetailSlug(null)
     setMembers([])
-    setDefaults([])
     setWorkspaces([])
     setOrgAdmins([])
     setMemberLogins([])
@@ -995,37 +976,6 @@ export const OrganizationsView: React.FC<Props> = ({
     setMembersBusy(false)
     if (!result.ok) {
       setMembersError(result.error)
-      return
-    }
-    await loadOrgDetails(detailSlug)
-  }
-
-  async function handleSetDefault(): Promise<void> {
-    if (!covenant || !detailSlug) return
-    const kind = defaultKind.trim()
-    const name = defaultName.trim()
-    if (!kind || !name) return
-    setDefaultsBusy(true)
-    setDefaultsError(null)
-    const result = await covenant.defaultSet(detailSlug, kind, name)
-    setDefaultsBusy(false)
-    if (!result.ok) {
-      setDefaultsError(result.error)
-      return
-    }
-    setDefaultKind('')
-    setDefaultName('')
-    await loadOrgDetails(detailSlug)
-  }
-
-  async function handleUnsetDefault(kind: string, name: string): Promise<void> {
-    if (!covenant || !detailSlug) return
-    setDefaultsBusy(true)
-    setDefaultsError(null)
-    const result = await covenant.defaultUnset(detailSlug, kind, name)
-    setDefaultsBusy(false)
-    if (!result.ok) {
-      setDefaultsError(result.error)
       return
     }
     await loadOrgDetails(detailSlug)
@@ -1187,6 +1137,25 @@ export const OrganizationsView: React.FC<Props> = ({
     await loadAuthAndOrgs()
   }
 
+  async function handleDeleteOrg(slug: string): Promise<void> {
+    if (!covenant) return
+    setDeleteBusy(true)
+    setLeaveError(null)
+    const result = await covenant.orgDelete(slug)
+    setDeleteBusy(false)
+    if (!result.ok) {
+      setLeaveError(result.error)
+      return
+    }
+    setDeleteOpen(false)
+    setDetailView('workspace')
+    setDetailSlug(null)
+    setActiveSlug('')
+    setSelectedWorkspaceId('')
+    await loadAuthAndOrgs()
+    onOrgWorkspacesMutated?.()
+  }
+
   const leaveName = detailOrg?.name ?? t('organizations.orgDetailTitle')
   const canManageSelected = selectedWorkspace
     ? isOrgAdmin
@@ -1259,13 +1228,19 @@ export const OrganizationsView: React.FC<Props> = ({
           // El backend responde 403 al owner: no se sale de la propia
           // organización, se transfiere.
           canLeave={!!currentLogin && !isOwner}
+          canDelete={canDeleteOrg}
           leaveError={leaveError}
           leaveBusy={leaveBusy}
+          deleteBusy={deleteBusy}
           onBack={() => setDetailView('workspace')}
           onLeaveClick={() => {
             if (!currentLogin) return
             setLeaveError(null)
             setLeaveOpen(true)
+          }}
+          onDeleteClick={() => {
+            setLeaveError(null)
+            setDeleteOpen(true)
           }}
           peopleProps={{
             members,
@@ -1281,26 +1256,6 @@ export const OrganizationsView: React.FC<Props> = ({
             onAdd: () => void handleAddMember(),
             onRemove: (login: string) => void handleRemoveMember(login),
             onRoleChange: handleOrgRoleChange,
-          }}
-          contextsProps={{
-            canCreate: isOrgAdmin,
-            canDeleteItem: (item: CovenantDefault) => canDeleteOwnedItem({
-              isOwner,
-              currentLogin,
-              currentGithubId,
-              createdBy: item.createdBy,
-              createdById: item.createdById,
-            }),
-            defaults,
-            loading: defaultsLoading,
-            error: defaultsError,
-            busy: defaultsBusy,
-            kindDraft: defaultKind,
-            nameDraft: defaultName,
-            onKindDraftChange: setDefaultKind,
-            onNameDraftChange: setDefaultName,
-            onSet: () => void handleSetDefault(),
-            onUnset: (kind: string, name: string) => void handleUnsetDefault(kind, name),
           }}
         />
       )
@@ -1489,6 +1444,21 @@ export const OrganizationsView: React.FC<Props> = ({
         onCancel={() => {
           if (leaveBusy) return
           setLeaveOpen(false)
+        }}
+      />
+
+      <ConfirmTerminalModal
+        open={deleteOpen}
+        zIndex={760}
+        message={t('organizations.deleteOrgConfirm', { name: detailOrg?.name ?? '' })}
+        detail={t('organizations.deleteOrgConfirmDetail')}
+        onConfirm={() => {
+          if (!detailSlug) return
+          void handleDeleteOrg(detailSlug)
+        }}
+        onCancel={() => {
+          if (deleteBusy) return
+          setDeleteOpen(false)
         }}
       />
 

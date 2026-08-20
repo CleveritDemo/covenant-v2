@@ -79,6 +79,7 @@ const covenant = {
   orgAdminsList: vi.fn(),
   orgAdminAdd: vi.fn(),
   orgAdminRemove: vi.fn(),
+  orgDelete: vi.fn(),
 }
 
 beforeEach(() => {
@@ -99,6 +100,7 @@ beforeEach(() => {
   covenant.workspaceReposList.mockImplementation(() => ok([]))
   covenant.workspaceAgentsList.mockImplementation(() => ok([]))
   covenant.workspaceContextsList.mockImplementation(() => ok([]))
+  covenant.orgDelete.mockImplementation(() => ok(null))
   githubAccountsList.mockReset()
   githubAccountsList.mockResolvedValue({ ok: true, accounts: [], defaultAccountId: '' })
   vi.stubGlobal('window', Object.assign(window, {
@@ -238,6 +240,99 @@ describe('OrganizationsView — shell de tres columnas', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('los ajustes de org ya no muestran contextos globales', async () => {
+    render(<OrganizationsView onClose={() => {}} />)
+
+    await waitFor(() => {
+      expect(covenant.orgsList).toHaveBeenCalled()
+    })
+    covenant.defaultsList.mockClear()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('organizations.membersSection')).toBeTruthy()
+    })
+    expect(screen.queryByText('organizations.globalContexts')).toBeNull()
+    expect(covenant.defaultsList).not.toHaveBeenCalled()
+  })
+
+  it('el owner de una org no personal puede eliminarla', async () => {
+    covenant.orgsList.mockImplementation(() => ok([
+      { slug: 'rodrigoanti', name: 'rodrigoanti', role: 'owner' },
+      { slug: 'team-co', name: 'Team Co', role: 'owner', personal: false },
+    ]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Team Co/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'organizations.deleteOrg' })).toBeTruthy()
+    })
+
+    const orgsListCallsBeforeDelete = covenant.orgsList.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'organizations.deleteOrg' }))
+    expect(await screen.findByText('organizations.deleteOrgConfirm:Team Co')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'ui.confirmOk' }))
+
+    await waitFor(() => {
+      expect(covenant.orgDelete).toHaveBeenCalledTimes(1)
+      expect(covenant.orgDelete).toHaveBeenCalledWith('', 'team-co')
+      expect(covenant.orgsList.mock.calls.length).toBeGreaterThan(orgsListCallsBeforeDelete)
+    })
+  })
+
+  it('sin permiso o en la org personal no hay borrado', async () => {
+    covenant.orgsList.mockImplementation(() => ok([
+      { slug: 'rodrigoanti', name: 'rodrigoanti', role: 'owner' },
+      { slug: 'acme', name: 'Acme', role: 'member' },
+      { slug: 'me', name: 'My space', role: 'owner', personal: true },
+    ]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Acme/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
+    await waitFor(() => {
+      expect(screen.getByText('organizations.membersSection')).toBeTruthy()
+    })
+    expect(screen.queryByRole('button', { name: 'organizations.deleteOrg' })).toBeNull()
+
+    cleanup()
+    covenant.orgsList.mockImplementation(() => ok([
+      { slug: 'rodrigoanti', name: 'rodrigoanti', role: 'owner' },
+      { slug: 'acme', name: 'Acme', role: 'member' },
+      { slug: 'me', name: 'My space', role: 'owner', personal: true },
+    ]))
+    render(<OrganizationsView onClose={() => {}} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /My space/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
+    await waitFor(() => {
+      expect(screen.getByText('organizations.membersSection')).toBeTruthy()
+    })
+    expect(screen.queryByRole('button', { name: 'organizations.deleteOrg' })).toBeNull()
+  })
+
+  it('si el preload no expone orgDelete, el botón no existe', async () => {
+    const covenantNoDelete = { ...covenant }
+    delete (covenantNoDelete as Record<string, unknown>).orgDelete
+    vi.stubGlobal('window', Object.assign(window, {
+      api: {
+        covenant: covenantNoDelete,
+        githubAccountsList,
+        githubReposList: vi.fn().mockResolvedValue({ repos: [], truncated: false }),
+      },
+    }))
+
+    render(<OrganizationsView onClose={() => {}} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'organizations.orgSettings' }))
+    await waitFor(() => {
+      expect(screen.getByText('organizations.membersSection')).toBeTruthy()
+    })
+    expect(screen.queryByRole('button', { name: 'organizations.deleteOrg' })).toBeNull()
   })
 })
 

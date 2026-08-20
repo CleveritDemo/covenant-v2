@@ -433,6 +433,18 @@ export const IPC = {
   JIRA_ISSUE_TYPES: 'jira:issueTypes',
   /** Renderer → main (invoke): crear issues en lote (padre → subtarea) */
   JIRA_CREATE_ISSUES: 'jira:createIssues',
+  /** Renderer → main (invoke): lista de cuentas del llavero + default */
+  JIRA_ACCOUNTS_LIST: 'jira:accounts:list',
+  /** Renderer → main (invoke): crear/actualizar cuenta (token opcional) */
+  JIRA_ACCOUNT_UPSERT: 'jira:accounts:upsert',
+  /** Renderer → main (invoke): borrar cuenta del llavero y su token */
+  JIRA_ACCOUNT_DELETE: 'jira:accounts:delete',
+  /** Renderer → main (invoke): marcar cuenta por defecto */
+  JIRA_ACCOUNT_SET_DEFAULT: 'jira:accounts:setDefault',
+  /** Renderer → main (invoke): cuenta ligada al workspace (cwd) */
+  JIRA_WORKSPACE_ACCOUNT_GET: 'jira:workspaceAccount:get',
+  /** Renderer → main (invoke): ligar/desligar cuenta al workspace */
+  JIRA_WORKSPACE_ACCOUNT_SET: 'jira:workspaceAccount:set',
 
   // ─── GitHub issues ──────────────────────────────────────────────────────────
   /** Renderer → main (invoke): ¿hay repo GitHub + token para este cwd? */

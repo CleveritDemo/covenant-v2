@@ -23,8 +23,11 @@ vi.mock('../jiraClient', async importOriginal => {
   return { ...actual, jiraIssueTypes, jiraCreateIssue }
 })
 
-const { createJiraIssues, listJiraIssueTypes } = await import('../jiraIpcOps')
+import type { AppConfig } from '../../src/shared/configSchema'
+
+const { createJiraIssues, listJiraIssueTypes, bindJiraConfigAccess } = await import('../jiraIpcOps')
 const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
+const { CONFIG_DEFAULTS } = await import('../../src/shared/configSchema')
 
 const cred = { site: 'https://x.atlassian.net', email: 'a@b.c', apiToken: 'tok' }
 
@@ -43,6 +46,8 @@ function project(): string {
 
 beforeEach(() => {
   mockState.userDataDir = mkdtempSync(join(tmpdir(), 'gravity-jira-userdata-'))
+  let config: AppConfig = { ...CONFIG_DEFAULTS }
+  bindJiraConfigAccess({ read: () => config, write: next => { config = next } })
   jiraIssueTypes.mockReset().mockResolvedValue([
     { id: '1', name: 'Story', subtask: false },
     { id: '2', name: 'Sub-task', subtask: true },

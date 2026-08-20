@@ -125,6 +125,8 @@ import {
   searchJiraQuick,
   listJiraIssueTypes,
   createJiraIssues,
+  bindJiraConfigAccess,
+  seedJiraAccountsFromLegacyCredentials,
   DISCONNECTED as JIRA_DISCONNECTED,
 } from './jiraIpcOps'
 import {
@@ -221,9 +223,16 @@ import { fetchGitHubIdentity } from './githubApi'
 import type { GitHubRunJobsResult, GitHubTokenCheck } from '../src/shared/githubActionsTypes'
 import { resolveGithubToken, resolveGithubTokenWithSource } from './githubToken'
 import { sanitizeAccountLabel, type GithubAccount } from '@shared/githubAccounts'
+import { sanitizeJiraAccountLabel, type JiraAccount } from '@shared/jiraAccounts'
+import { normalizeJiraSite } from '@shared/jiraConfig'
 import { adoptOrphanAccounts } from './githubAccountRecovery'
 import { deleteAccountToken, listAccountTokenIds, readAccountToken, writeAccountToken } from './githubAccountStore'
 import { resolveWorkspaceAccountId, writeWorkspaceAccountId } from './githubWorkspaceAccount'
+import {
+  deleteJiraToken,
+  writeJiraToken,
+} from './jiraAccountStore'
+import { resolveJiraWorkspaceAccountId, writeJiraWorkspaceAccountId } from './jiraWorkspaceAccount'
 import { describeCovenantSignInError } from '../src/shared/covenantAuthError'
 import {
   cloneOrgWorkspace,
@@ -463,7 +472,7 @@ function readConfig(): AppConfig {
   } catch {
     /* store ilegible: seguir sin recuperar */
   }
-  return seedGithubAccountsFromLegacyToken(withDefaults)
+  return seedJiraAccountsFromLegacyCredentials(seedGithubAccountsFromLegacyToken(withDefaults), writeConfig)
 }
 
 /** Una sola cuenta «Cuenta 1» desde githubToken. Idempotente: si ya hay cuentas, no hace nada. */
@@ -697,6 +706,8 @@ function applyAppBranding(): void {
 }
 
 function registerIpc(): void {
+  bindJiraConfigAccess({ read: readConfig, write: writeConfig })
+
   const dictation = getDictationRuntime()
   dictation.setEmit((channel, ...args) => {
     for (const w of BrowserWindow.getAllWindows()) {
@@ -1207,6 +1218,99 @@ function registerIpc(): void {
       return { ok: false, error: 'Solicitud inválida.', results: [] }
     }
     return createJiraIssues(cwd, { projectKey, nodes: parsed })
+  })
+
+  ipcMain.handle(IPC.JIRA_ACCOUNTS_LIST, () => {
+    try {
+      const config = readConfig()
+      return { ok: true as const, accounts: config.jiraAccounts, defaultAccountId: config.jiraDefaultAccountId }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.JIRA_ACCOUNT_UPSERT, (_e, raw: unknown) => {
+    try {
+      const input = (raw && typeof raw === 'object' ? raw : {}) as {
+        id?: unknown
+        label?: unknown
+        site?: unknown
+        email?: unknown
+        apiToken?: unknown
+      }
+      const label = sanitizeJiraAccountLabel(input.label)
+      if (!label) return { ok: false as const, error: 'label vacío' }
+      const site = normalizeJiraSite(input.site)
+      if (!site) return { ok: false as const, error: 'sitio inválido' }
+      const email = typeof input.email === 'string' ? input.email.trim() : ''
+      if (!email) return { ok: false as const, error: 'email vacío' }
+      const incomingId = typeof input.id === 'string' ? input.id.trim() : ''
+      const id = incomingId || crypto.randomUUID()
+      const account: JiraAccount = { id, label, site, email }
+      const config = readConfig()
+      const accounts = [...config.jiraAccounts]
+      const idx = accounts.findIndex(entry => entry.id === id)
+      if (idx >= 0) accounts[idx] = account
+      else accounts.push(account)
+      const token = typeof input.apiToken === 'string' ? input.apiToken.trim() : ''
+      if (token) writeJiraToken(id, token)
+      writeConfig({ ...config, jiraAccounts: accounts })
+      return { ok: true as const, account }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.JIRA_ACCOUNT_DELETE, (_e, rawId: unknown) => {
+    try {
+      const id = typeof rawId === 'string' ? rawId.trim() : ''
+      if (!id) return { ok: false as const, error: 'id inválido' }
+      const config = readConfig()
+      const jiraAccounts = config.jiraAccounts.filter(account => account.id !== id)
+      const jiraDefaultAccountId = config.jiraDefaultAccountId === id ? '' : config.jiraDefaultAccountId
+      deleteJiraToken(id)
+      writeConfig({ ...config, jiraAccounts, jiraDefaultAccountId })
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.JIRA_ACCOUNT_SET_DEFAULT, (_e, rawId: unknown) => {
+    try {
+      const id = typeof rawId === 'string' ? rawId.trim() : ''
+      const config = readConfig()
+      if (!config.jiraAccounts.some(account => account.id === id)) {
+        return { ok: false as const, error: 'cuenta inexistente' }
+      }
+      writeConfig({ ...config, jiraDefaultAccountId: id })
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.JIRA_WORKSPACE_ACCOUNT_GET, (_e, cwd: unknown) => {
+    try {
+      if (typeof cwd !== 'string') return { ok: false as const, error: 'cwd inválido' }
+      const knownIds = readConfig().jiraAccounts.map(account => account.id)
+      return { ok: true as const, accountId: resolveJiraWorkspaceAccountId(cwd, knownIds) }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle(IPC.JIRA_WORKSPACE_ACCOUNT_SET, (_e, cwd: unknown, accountId: unknown) => {
+    try {
+      if (typeof cwd !== 'string') return { ok: false as const, error: 'cwd inválido' }
+      if (accountId !== null && typeof accountId !== 'string') {
+        return { ok: false as const, error: 'accountId inválido' }
+      }
+      writeJiraWorkspaceAccountId(cwd, accountId)
+      return { ok: true as const }
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
+    }
   })
 
   // ─── GitHub issues ──────────────────────────────────────────────────────

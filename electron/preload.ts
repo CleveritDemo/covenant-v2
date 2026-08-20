@@ -44,6 +44,7 @@ import type {
 } from '../src/shared/githubActionsTypes'
 import type { GithubTokenSource } from './githubToken'
 import type { GithubAccount } from '../src/shared/githubAccounts'
+import type { JiraAccount } from '../src/shared/jiraAccounts'
 import type { GithubRepoListResult } from '../src/shared/githubRepoPicker'
 import type {
   CovenantDefault,
@@ -1274,6 +1275,8 @@ const api = {
     configured: boolean
     site: string
     email: string
+    accountId: string
+    accountLabel: string
     projectKeys: string[]
     connected: boolean
   }> {
@@ -1333,6 +1336,37 @@ const api = {
     results: Array<{ tempId: string; ok: boolean; key?: string; error?: string }>
   }> {
     return ipcRenderer.invoke(IPC.JIRA_CREATE_ISSUES, cwd, input)
+  },
+  jiraAccountsList(): Promise<
+    { ok: true; accounts: JiraAccount[]; defaultAccountId: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNTS_LIST)
+  },
+  jiraAccountUpsert(input: {
+    id?: string
+    label: string
+    site: string
+    email: string
+    apiToken?: string
+  }): Promise<{ ok: true; account: JiraAccount } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_UPSERT, input)
+  },
+  jiraAccountDelete(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_DELETE, id)
+  },
+  jiraAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_SET_DEFAULT, id)
+  },
+  jiraWorkspaceAccountGet(
+    cwd: string,
+  ): Promise<{ ok: true; accountId: string | null } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_WORKSPACE_ACCOUNT_GET, cwd)
+  },
+  jiraWorkspaceAccountSet(
+    cwd: string,
+    accountId: string | null,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_WORKSPACE_ACCOUNT_SET, cwd, accountId)
   },
 
   githubIssueStatus(

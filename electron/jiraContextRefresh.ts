@@ -18,7 +18,8 @@ import {
   withJiraAutoBlock,
 } from '../src/shared/jiraIssueDoc'
 import { normalizeContextFileName, type TabContext } from '../src/shared/tabContext'
-import { readJiraConfig, readJiraCredentials } from './jiraConfig'
+import { readJiraConfig } from './jiraConfig'
+import { resolveJiraAccount } from './jiraIpcOps'
 import { jiraGetIssue } from './jiraClient'
 import { projectDirPath } from './projectDir'
 
@@ -117,8 +118,9 @@ export async function refreshStaleJiraContexts(
 
   const config = readJiraConfig(cwd)
   if (!config) return
-  const credentials = readJiraCredentials(config.site)
-  if (!credentials) return
+  const account = resolveJiraAccount(cwd)
+  if (!account) return
+  const credentials = { site: account.site, email: account.email, apiToken: account.apiToken }
 
   const fetchIssue = deps.fetchIssue ?? jiraGetIssue
   const cooldownMs = deps.failureCooldownMs ?? FAILURE_COOLDOWN_MS

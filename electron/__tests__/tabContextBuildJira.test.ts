@@ -4,6 +4,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { discoverTabContexts, materializeTabContext } from '../tabContextBuild'
 import type { TabContext } from '../../src/shared/tabContext'
+import type { AppConfig } from '../../src/shared/configSchema'
 import type { JiraIssueSnapshot } from '../../src/shared/jiraIssue'
 
 // Estado mutable compartido con el factory de vi.mock (que se hoistea por
@@ -28,6 +29,8 @@ vi.mock('electron', () => ({
 
 const { writeJiraConfig, writeJiraCredentials } = await import('../jiraConfig')
 const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
+const { bindJiraConfigAccess } = await import('../jiraIpcOps')
+const { CONFIG_DEFAULTS } = await import('../../src/shared/configSchema')
 
 const context: TabContext = {
   id: 'iaterminal:jira:grav-412',
@@ -117,6 +120,8 @@ function configuredProject(): string {
   // Credenciales en su propio temp dir, no en el `dir` del proyecto (que es
   // `.gravity/`, no userData) ni en el `tmpdir()` real compartido entre tests.
   mockState.userDataDir = mkdtempSync(join(tmpdir(), 'gravity-jira-userdata-'))
+  let config: AppConfig = { ...CONFIG_DEFAULTS }
+  bindJiraConfigAccess({ read: () => config, write: next => { config = next } })
   writeJiraConfig(dir, {
     site: 'https://x.atlassian.net',
     projectKeys: ['GRAV'],

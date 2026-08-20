@@ -20,6 +20,8 @@ vi.mock('electron', () => ({
   },
 }))
 
+import { CONFIG_DEFAULTS, type AppConfig } from '../../src/shared/configSchema'
+
 const jiraMyself = vi.fn()
 const jiraSearch = vi.fn()
 // `jiraGetIssue` va en el mock aunque estos tests no lo llamen: el refresher lo
@@ -27,11 +29,28 @@ const jiraSearch = vi.fn()
 const jiraGetIssue = vi.fn()
 vi.mock('../jiraClient', () => ({ jiraMyself, jiraSearch, jiraGetIssue }))
 
-const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick, previewJiraIssue } =
+const { jiraStatusFor, connectJira, disconnectJira, searchJiraQuick, previewJiraIssue, bindJiraConfigAccess } =
   await import('../jiraIpcOps')
 const { refreshStaleJiraContexts, clearJiraRefreshFailures } = await import('../jiraContextRefresh')
 const { readJiraConfig, writeJiraConfig, readJiraCredentials, writeJiraCredentials } =
   await import('../jiraConfig')
+const { readJiraToken, writeJiraToken } = await import('../jiraAccountStore')
+
+function bindTestConfig(initial: Partial<AppConfig> = {}) {
+  let config: AppConfig = { ...CONFIG_DEFAULTS, ...initial }
+  bindJiraConfigAccess({
+    read: () => config,
+    write: next => {
+      config = next
+    },
+  })
+  return { getConfig: () => config }
+}
+
+function setupLegacyCredentials(dir: string): void {
+  bindTestConfig({ jiraAccounts: [], jiraDefaultAccountId: '' })
+  writeJiraCredentials({ site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' })
+}
 
 function tmp(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix))
@@ -39,6 +58,7 @@ function tmp(prefix: string): string {
 
 beforeEach(() => {
   mockState.userDataDir = tmp('gravity-jira-userdata-')
+  bindTestConfig()
   jiraMyself.mockReset().mockResolvedValue({ ok: true, displayName: 'Ana' })
   jiraSearch.mockReset().mockResolvedValue([])
   // La memoria de fallos del refresher es de módulo: sin limpiarla, un test
@@ -56,6 +76,8 @@ describe('jiraStatusFor', () => {
       configured: false,
       site: '',
       email: '',
+      accountId: '',
+      accountLabel: '',
       projectKeys: [],
       connected: false,
     })
@@ -74,6 +96,8 @@ describe('jiraStatusFor', () => {
       configured: true,
       site: 'https://x.atlassian.net',
       email: '',
+      accountId: '',
+      accountLabel: '',
       projectKeys: ['GRAV'],
       connected: false,
     })
@@ -116,6 +140,8 @@ describe('jiraStatusFor', () => {
       configured: false,
       site: '',
       email: '',
+      accountId: '',
+      accountLabel: '',
       projectKeys: [],
       connected: false,
     })
@@ -123,6 +149,8 @@ describe('jiraStatusFor', () => {
       configured: false,
       site: '',
       email: '',
+      accountId: '',
+      accountLabel: '',
       projectKeys: [],
       connected: false,
     })
@@ -130,8 +158,9 @@ describe('jiraStatusFor', () => {
 })
 
 describe('connectJira', () => {
-  it('probe ok: persiste config y credenciales, no filtra el token en la respuesta', async () => {
+  it('probe ok: persiste config y cuenta del llavero, no filtra el token en la respuesta', async () => {
     const dir = tmp('gravity-jira-proj-')
+    const state = bindTestConfig()
     const result = await connectJira(dir, {
       site: 'https://x.atlassian.net',
       email: 'a@x.com',
@@ -142,11 +171,10 @@ describe('connectJira', () => {
     expect(result).toMatchObject({ ok: true, displayName: 'Ana' })
     expect(JSON.stringify(result)).not.toContain('tok-secreto')
     expect(readJiraConfig(dir)?.projectKeys).toEqual(['GRAV'])
-    expect(readJiraCredentials('https://x.atlassian.net')).toEqual({
-      site: 'https://x.atlassian.net',
-      email: 'a@x.com',
-      apiToken: 'tok-secreto',
-    })
+    const config = state.getConfig()
+    expect(config.jiraAccounts).toHaveLength(1)
+    expect(config.jiraAccounts[0]?.email).toBe('a@x.com')
+    expect(readJiraToken(config.jiraAccounts[0]!.id)).toBe('tok-secreto')
   })
 
   it('sitio no https: rechaza antes de probar credenciales, no persiste nada', async () => {
@@ -419,7 +447,11 @@ describe('searchJiraQuick', () => {
     expect(out.issues).toBe(issues)
     expect(out.error).toBeUndefined()
     expect(jiraSearch).toHaveBeenCalledWith(
-      { site: 'https://x.atlassian.net', email: 'a@x.com', apiToken: 'tok' },
+      expect.objectContaining({
+        site: 'https://x.atlassian.net',
+        email: 'a@x.com',
+        apiToken: 'tok',
+      }),
       'project in (GRAV) AND (summary ~ "login roto*" OR text ~ "login roto*") ORDER BY updated DESC',
       8,
     )

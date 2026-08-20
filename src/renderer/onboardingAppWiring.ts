@@ -61,6 +61,11 @@ export function shouldCompleteByGuideExhausted(args: {
   cliAllMissing: boolean
 }): boolean {
   if (resolveOnboardingGuideStep(args.resolveArgs) !== null) return false
+  // El null dentro del módulo (sala terminada, o sala viva tras hablar) es transitorio y no significa escalera agotada;
+  // matar la guía ahí deja al usuario sin ningún coach mark al reabrir brainstorm y saved_rooms inalcanzable.
+  const a = args.resolveArgs
+  const savedRoomsDone = (a.doneSteps ?? []).includes('saved_rooms')
+  if (a.path === 'business' && !savedRoomsDone && (a.brainstormView != null || a.brainstormRoomLive === true)) return false
   return canCompleteOnboarding({
     incomplete: args.resolveArgs.incomplete !== false,
     path: args.resolveArgs.path,

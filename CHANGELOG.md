@@ -5,6 +5,22 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.100.0
+### Cuentas y organizaciones
+- Cada cuenta Covenant tiene su propio catálogo de workspaces de organización. Crear un workspace ya no falla con un error de permisos: la app usa la cuenta del tab en el que estás, no la primera que encuentra. Lo mismo al sincronizar, renombrar, elegir carpeta y en el clon de arranque.
+- «New tab» ofrece los workspaces de todas tus cuentas, no solo de una.
+- Al clonar un workspace de organización se recuerda con qué cuenta lo hiciste.
+- Subir un workspace ya no se corta en silencio: si no se puede publicar te dice por qué, y si el catálogo simplemente no lo conocía, la subida sigue.
+
+### Contextos
+- El editor de contextos tiene buscador: busca en el cuerpo y en la fuente, y salta al primer resultado sin robarte el foco mientras escribes.
+- Los contextos de tipo skill se guardan como `SKILL.md`, con vista previa mientras escribes, y la app puede listarlos. Borrar el contexto no toca la carpeta de la skill.
+
+### Agentes
+- Cuando un agente delega, el especialista recibe una tarjeta en lugar de un volcado de texto: quién le encargó el trabajo, en qué oleada va, el objetivo formateado, y los contextos y el worktree del encargo.
+- Si no se pueden listar los modelos del motor de respaldo, aparece el mismo aviso que en el primario en lugar de un desplegable vacío sin explicación.
+- Con el motor pi, los errores de asdf dejan de aparecer como si fueran modelos disponibles.
+
 ## v0.99.5
 La guía de primeros pasos ya no se apaga al entrar a un brainstorm en Planear: si terminás una sala o ya hablaste en ella, los avisos siguen ahí al volver a las salas o al setup, y el paso de salas guardadas queda alcanzable.
 

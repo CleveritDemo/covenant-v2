@@ -1360,12 +1360,12 @@ html[data-reduce-motion="true"] {
 .tab-contexts__preview-pane {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  --context-preview-gutter: 14px;
-  padding: 14px;
+  --context-preview-gutter: 20px;
+  padding: 18px 20px;
   /* Scrollea ContextPreviewBody, no el panel. */
   overflow: hidden;
   background: var(--bg-secondary);
@@ -1374,14 +1374,16 @@ html[data-reduce-motion="true"] {
 .tab-contexts__preview-header {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .tab-contexts__preview-header strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1389,8 +1391,10 @@ html[data-reduce-motion="true"] {
 .tab-contexts__preview-header > span {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 

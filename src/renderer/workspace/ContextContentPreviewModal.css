@@ -42,7 +42,7 @@
   /* Margin negativo + padding: el divisor llega a los bordes con el canalón de cada host. */
   padding: 12px var(--context-preview-gutter, 0px);
   margin-inline: calc(-1 * var(--context-preview-gutter, 0px));
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   /* Alto lo fija el SegmentedControl (~35px); un mínimo de 34px nunca se aplicaba. */
   border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   font-size: 11px;
@@ -55,7 +55,9 @@
 
 /* La ruta: siempre el segundo small, con o sin toggle detrás. */
 .context-content-preview .tab-contexts__preview-meta > small:nth-of-type(2) {
-  font-family: var(--font-ui);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

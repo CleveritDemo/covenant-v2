@@ -157,14 +157,19 @@ export const TabContextFormModal: React.FC<Props> = ({
   }
 
   const loadHostOwnedContent = async (target: TabContext): Promise<void> => {
-    if (target.kind !== 'notes' && target.kind !== 'changelog' && target.kind !== 'agentResult') {
+    if (
+      target.kind !== 'notes'
+      && target.kind !== 'skill'
+      && target.kind !== 'changelog'
+      && target.kind !== 'agentResult'
+    ) {
       return
     }
     const workingCwd = await resolveCwd()
     if (!workingCwd) return
     try {
       const result = await window.api.previewTabContext({ context: target, cwd: workingCwd })
-      if (target.kind === 'notes' && result.ok) {
+      if ((target.kind === 'notes' || target.kind === 'skill') && result.ok) {
         const body = result.notesContent ?? result.content
         // No pisar lo que el usuario ya haya tecleado entre abrir el modal y
         // que resuelva el IPC.
@@ -378,7 +383,9 @@ export const TabContextFormModal: React.FC<Props> = ({
       const result = await window.api.materializeTabContext({
         context: normalized,
         cwd: workingCwd,
-        ...(normalized.kind === 'notes' ? { content: notesContentRef.current ?? '' } : {}),
+        ...(normalized.kind === 'notes' || normalized.kind === 'skill'
+          ? { content: notesContentRef.current ?? '' }
+          : {}),
         /*
          * El `.md` nace con la issue dentro. La vista previa acaba de traerla
          * de Jira y la tiene en pantalla; sin pasarla aquí se escribía un
@@ -467,7 +474,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       const result = await window.api.previewTabContext({
         context: draft,
         cwd: workingCwd,
-        ...(draft.kind === 'notes' ? { content: notesContent ?? '' } : {}),
+        ...(draft.kind === 'notes' || draft.kind === 'skill' ? { content: notesContent ?? '' } : {}),
       })
       if (stale()) return
       if (!result.ok) {
@@ -528,7 +535,10 @@ export const TabContextFormModal: React.FC<Props> = ({
       const keepRoot = draft.rootPath
       const base = emptyContext(kind)
       const name = suggestNameForKind(kind, keepRoot, keepRoot, keepName, draft.kind)
-      const fileName = normalizeContextFileName(name, kind === 'notes' ? 'notes' : 'context')
+      const fileName = normalizeContextFileName(
+        name,
+        kind === 'notes' ? 'notes' : kind === 'skill' ? 'skill' : 'context',
+      )
       setDraft(applyCanonicalContextIdentity({
         ...base,
         name,

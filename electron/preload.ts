@@ -714,6 +714,9 @@ const api = {
   githubAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.GITHUB_ACCOUNT_SET_DEFAULT, id)
   },
+  githubAccountCheck(accountId: string): Promise<GitHubTokenCheck> {
+    return ipcRenderer.invoke(IPC.GITHUB_ACCOUNT_CHECK, accountId)
+  },
   githubWorkspaceAccountGet(
     cwd: string,
   ): Promise<{ ok: true; accountId: string | null } | { ok: false; error: string }> {

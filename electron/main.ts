@@ -1903,6 +1903,19 @@ function registerIpc(): void {
     }
   })
 
+  ipcMain.handle(IPC.GITHUB_ACCOUNT_CHECK, async (_e, rawId: unknown): Promise<GitHubTokenCheck> => {
+    const accountId = typeof rawId === 'string' ? rawId.trim() : ''
+    if (!accountId) return { ok: false, error: 'missing' }
+    const token = readAccountToken(accountId)?.trim()
+    if (!token) return { ok: false, error: 'missing' }
+    try {
+      const { login, scopes } = await fetchGitHubIdentity(token)
+      return { ok: true, login, scopes }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
+
   ipcMain.handle(IPC.GITHUB_WORKSPACE_ACCOUNT_GET, (_e, cwd: unknown) => {
     try {
       if (typeof cwd !== 'string') return { ok: false as const, error: 'cwd inválido' }

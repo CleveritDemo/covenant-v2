@@ -206,6 +206,8 @@ export const IPC = {
   GITHUB_ACCOUNT_DELETE: 'github:accounts:delete',
   /** Renderer → main (invoke): marcar cuenta por defecto */
   GITHUB_ACCOUNT_SET_DEFAULT: 'github:accounts:setDefault',
+  /** Renderer → main (invoke): comprobar el PAT guardado de una cuenta (sin fallback global) */
+  GITHUB_ACCOUNT_CHECK: 'github:account:check',
   /** Renderer → main (invoke): cuenta ligada al workspace (cwd) */
   GITHUB_WORKSPACE_ACCOUNT_GET: 'github:workspaceAccount:get',
   /** Renderer → main (invoke): ligar/desligar cuenta al workspace */

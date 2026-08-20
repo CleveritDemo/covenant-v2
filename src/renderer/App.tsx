@@ -63,6 +63,7 @@ import {
   catalogForLogin,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
+  type OrgWorkspaceCatalogEntry,
   isCatalogFresh,
   orgWorkspaceTokenMissing,
   patchOrgWorkspaceCatalogName,
@@ -339,10 +340,7 @@ import {
 } from './orgWikiSync'
 import { retryCovenantResult } from '../shared/covenantRetry'
 import { sanitizeSlugSegment } from '../shared/orgWorkspaceContent'
-import {
-  canUploadOrgWorkspaceChanges,
-  orderedAgentIdsFromTab,
-} from '../shared/orgWorkspaceLocalSync'
+import { orderedAgentIdsFromTab } from '../shared/orgWorkspaceLocalSync'
 import {
   downloadOrgWorkspaceToLocal,
   planOrgWorkspaceUpload,
@@ -436,6 +434,20 @@ function liveLaneThreadIdsForPane(
     }
   }
   return ids
+}
+
+export type OrgWorkspaceUploadGateResult =
+  | { proceed: true }
+  | { proceed: false; uploadError: string }
+
+/** Gate de subida org: entrada que deniega → error; sin entrada → el server decide. */
+export function resolveOrgWorkspaceUploadGate(
+  entry: OrgWorkspaceCatalogEntry | undefined,
+): OrgWorkspaceUploadGateResult {
+  if (entry && entry.canRename !== true) {
+    return { proceed: false, uploadError: 'not allowed to publish this workspace' }
+  }
+  return { proceed: true }
 }
 
 export function findPendingDelegationForThread(
@@ -3042,7 +3054,11 @@ export const App: React.FC = () => {
       org.slug,
       org.workspaceId,
     )
-    if (!canUploadOrgWorkspaceChanges(entry?.canRename)) return
+    const uploadGate = resolveOrgWorkspaceUploadGate(entry)
+    if (!uploadGate.proceed) {
+      setOrgWorkspaceRequirement({ uploadError: uploadGate.uploadError })
+      return
+    }
     const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
     if (!cwd) {
       setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })

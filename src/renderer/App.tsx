@@ -1960,7 +1960,7 @@ export const App: React.FC = () => {
               let firstCloneError: string | null = null
               let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
               await Promise.all([...reposByWorkspace.values()].map(async ws => {
-                const covenant = getCovenantApi(accountIdForCwd(ws.localDir))
+                const covenant = getCovenantApi(resolveOrgAccountIdForCwd(ws.localDir))
                 if (
                   !covenant
                   || !hasCovenantWorkspaceReposApi(covenant)
@@ -2937,7 +2937,7 @@ export const App: React.FC = () => {
   ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
-    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder ?? org.localDir))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant) return
 
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
@@ -3002,7 +3002,7 @@ export const App: React.FC = () => {
         return next
       })
     }
-  }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
+  }, [accountIdForCwd, reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   const buildOrgWorkspaceUploadDeps = useCallback((
@@ -3723,7 +3723,10 @@ export const App: React.FC = () => {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
       const opGen = ++orgWorkspaceSyncUploadGenRef.current
       setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
-      const covenant = getCovenantApi(accountIdForCwd(tab?.projectFolder) || accountIdForCwd(path))
+      const covenant = getCovenantApi(
+        (tab ? orgAccountIdForTab(tab, accountIdForCwd) : '')
+          || resolveOrgAccountIdForCwd(path),
+      )
       try {
         let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
         if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
@@ -3832,7 +3835,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [accountIdForCwd, refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, resolveOrgAccountIdForCwd, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -6667,7 +6670,7 @@ export const App: React.FC = () => {
     }
     if (next === tab.title.trim()) return
 
-    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspacesApi(covenant)) {
       setOrgWorkspaceRequirement({
         workspaceRenameError: t('organizations.unavailable'),

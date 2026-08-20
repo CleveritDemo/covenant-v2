@@ -58,6 +58,28 @@ describe('orgAccountIdForCwd', () => {
     const tabs = [tab({ projectFolder: '/other' })]
     expect(orgAccountIdForCwd(tabs, '/proj', resolve)).toBe('acc-folder')
   })
+
+  it('dos pestañas org de cuentas distintas devuelven cada una su accountId', () => {
+    const resolveByFolder = (cwd: string | undefined | null) => {
+      if (cwd === '/ws-a') return 'acc-a-folder'
+      if (cwd === '/ws-b') return 'acc-b-folder'
+      return ''
+    }
+    const tabs = [
+      tab({
+        id: 't-a',
+        projectFolder: '/ws-a',
+        orgWorkspace: { slug: 'o1', workspaceId: 'w1', localDir: '/ws-a', accountId: 'acc-a' },
+      }),
+      tab({
+        id: 't-b',
+        projectFolder: '/ws-b',
+        orgWorkspace: { slug: 'o2', workspaceId: 'w2', localDir: '/ws-b', accountId: 'acc-b' },
+      }),
+    ]
+    expect(orgAccountIdForCwd(tabs, '/ws-a', resolveByFolder)).toBe('acc-a')
+    expect(orgAccountIdForCwd(tabs, '/ws-b', resolveByFolder)).toBe('acc-b')
+  })
 })
 
 describe('orgCatalogForTab', () => {

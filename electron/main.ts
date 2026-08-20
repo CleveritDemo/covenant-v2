@@ -235,6 +235,7 @@ import {
   addOrgAdmin as covenantAddOrgAdmin,
   addWorkspaceAdmin as covenantAddWorkspaceAdmin,
   createOrg as covenantCreateOrg,
+  deleteOrg as covenantDeleteOrg,
   createWorkspace as covenantCreateWorkspace,
   CovenantApiError,
   deleteWorkspace as covenantDeleteWorkspace,
@@ -1400,6 +1401,13 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.COVENANT_ORG_CREATE, async (_e, rawAccountId: unknown, slug: unknown, name: unknown) =>
     covenantAccountInvoke(rawAccountId, id => covenantCreateOrg(id, String(slug ?? ''), String(name ?? ''))),
+  )
+
+  ipcMain.handle(IPC.COVENANT_ORG_DELETE, async (_e, rawAccountId: unknown, slug: unknown) =>
+    covenantAccountInvoke(rawAccountId, async id => {
+      await covenantDeleteOrg(id, String(slug ?? ''))
+      return null
+    }),
   )
 
   ipcMain.handle(IPC.COVENANT_MEMBERS_LIST, async (_e, rawAccountId: unknown, slug: unknown) =>

@@ -75,6 +75,7 @@ export interface CovenantApi {
   signOut(): Promise<CovenantResult<unknown>>
   orgsList(): Promise<CovenantResult<CovenantOrg[]>>
   orgCreate(slug: string, name: string): Promise<CovenantResult<CovenantOrg>>
+  orgDelete(slug: string): Promise<CovenantResult<unknown>>
   membersList(slug: string): Promise<CovenantResult<CovenantMember[]>>
   memberLoginsList(slug: string): Promise<CovenantResult<string[]>>
   memberAdd(slug: string, login: string): Promise<CovenantResult<unknown>>
@@ -256,6 +257,11 @@ export function hasCovenantStatusAllApi(api: CovenantApi | undefined): boolean {
 /** True si el preload expone listado de logins de miembros. */
 export function hasCovenantMemberLoginsApi(api: CovenantApi | undefined): boolean {
   return !!api && typeof api.memberLoginsList === 'function'
+}
+
+/** True si el preload expone borrado de organización. */
+export function hasCovenantOrgDeleteApi(api: CovenantApi | undefined): boolean {
+  return !!api && typeof api.orgDelete === 'function'
 }
 
 /** True si el preload expone admins de organización. */

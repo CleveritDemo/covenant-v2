@@ -315,6 +315,10 @@ export async function createOrg(accountId: string, slug: string, name: string): 
   return (await response.json()) as CovenantOrg
 }
 
+export async function deleteOrg(accountId: string, slug: string): Promise<void> {
+  await authedFetch(accountId, `/orgs/${encodeURIComponent(slug)}`, { method: 'DELETE' })
+}
+
 export async function listMembers(accountId: string, slug: string): Promise<CovenantMember[]> {
   const response = await authedFetch(accountId, `/orgs/${encodeURIComponent(slug)}/members`)
   return (await response.json()) as CovenantMember[]

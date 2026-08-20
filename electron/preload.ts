@@ -750,6 +750,9 @@ const api = {
     orgCreate(accountId: string, slug: string, name: string): Promise<CovenantResult<CovenantOrg>> {
       return ipcRenderer.invoke(IPC.COVENANT_ORG_CREATE, accountId, slug, name)
     },
+    orgDelete(accountId: string, slug: string): Promise<CovenantResult<null>> {
+      return ipcRenderer.invoke(IPC.COVENANT_ORG_DELETE, accountId, slug)
+    },
     membersList(accountId: string, slug: string): Promise<CovenantResult<CovenantMember[]>> {
       return ipcRenderer.invoke(IPC.COVENANT_MEMBERS_LIST, accountId, slug)
     },

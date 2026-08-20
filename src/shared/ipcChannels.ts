@@ -225,6 +225,8 @@ export const IPC = {
   COVENANT_ORGS_LIST: 'covenant:orgs:list',
   /** Renderer → main (invoke): crear organización */
   COVENANT_ORG_CREATE: 'covenant:org:create',
+  /** Renderer → main (invoke): borrar organización */
+  COVENANT_ORG_DELETE: 'covenant:org:delete',
   /** Renderer → main (invoke): listar miembros de org */
   COVENANT_MEMBERS_LIST: 'covenant:members:list',
   /** Renderer → main (invoke): listar solo logins de miembros (cualquier miembro) */

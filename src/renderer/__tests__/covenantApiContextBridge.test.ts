@@ -9,6 +9,7 @@ import {
   getCovenantApi,
   hasCovenantMemberLoginsApi,
   hasCovenantOrgAdminsApi,
+  hasCovenantOrgDeleteApi,
   hasCovenantStatusAllApi,
   hasCovenantWorkspacesApi,
   type CovenantApi,
@@ -81,5 +82,15 @@ describe('getCovenantApi sobre un target estilo contextBridge', () => {
 
     expect(getCovenantApi('a')).not.toBe(getCovenantApi('b'))
     expect(getCovenantApi('a')).toBe(getCovenantApi('a'))
+  })
+})
+
+describe('hasCovenantOrgDeleteApi', () => {
+  it('es false sin orgDelete y true cuando el preload lo expone', () => {
+    expect(hasCovenantOrgDeleteApi(undefined)).toBe(false)
+    expect(hasCovenantOrgDeleteApi({} as CovenantApi)).toBe(false)
+
+    const api = { orgDelete: vi.fn() } as unknown as CovenantApi
+    expect(hasCovenantOrgDeleteApi(api)).toBe(true)
   })
 })

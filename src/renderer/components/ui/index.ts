@@ -36,6 +36,9 @@ export type { IssueSourceBadgeProps } from './IssueSourceBadge'
 export { Spinner } from './Spinner'
 export type { SpinnerProps } from './Spinner'
 
+export { Skeleton } from './Skeleton'
+export type { SkeletonProps } from './Skeleton'
+
 export { Select } from './Select'
 export type { SelectProps, SelectSize } from './Select'
 

@@ -1,0 +1,51 @@
+.skeleton {
+  display: block;
+  background: color-mix(in srgb, var(--border) 26%, transparent);
+}
+
+.skeleton--sm {
+  border-radius: 4px;
+}
+
+.skeleton--md {
+  border-radius: 8px;
+}
+
+.skeleton--pill {
+  border-radius: 999px;
+}
+
+.skeleton--circle {
+  border-radius: 50%;
+}
+
+.skeleton::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--border) 18%, transparent) 45%,
+    transparent 90%
+  );
+  animation: skeleton-sweep 1.35s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+html[data-reduce-motion="true"] {
+  .skeleton::after {
+    animation: none;
+    opacity: 0;
+  }
+}

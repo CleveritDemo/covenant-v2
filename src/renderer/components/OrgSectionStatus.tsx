@@ -8,12 +8,17 @@ export function SectionStatus({
   loading,
   error,
   loadingLabel,
+  skeleton,
 }: {
   loading: boolean
   error: string | null
   loadingLabel: string
+  skeleton?: React.ReactNode
 }): React.ReactElement | null {
   if (loading) {
+    if (skeleton) {
+      return <>{skeleton}</>
+    }
     return (
       <p className="orgs-section-status" role="status" aria-live="polite">
         <Spinner aria-label={loadingLabel} />

@@ -22,6 +22,7 @@ import { Select } from './ui/Select'
 import { Tooltip } from './ui/Tooltip'
 import { PersonAvatarStack } from './ui/PersonAvatarStack'
 import { SectionStatus } from './OrgSectionStatus'
+import { OrgsDetailSkeleton, OrgsNavSkeleton } from './OrgsSkeleton'
 import { WorkspaceDetailPanel } from './WorkspaceDetailPanel'
 import { OrgSettingsPanel } from './OrgSettingsPanel'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
@@ -249,6 +250,7 @@ function OrgsColumn({
   const canCreate = slug.length > 0 && !busy
   const login = status?.login?.trim() || ''
   const visibleOrgs = filterOrgsByQuery(orgs, query)
+  const firstLoad = loading && orgs.length === 0
 
   return (
     <aside className="orgs-col orgs-col--rail" aria-label={t('organizations.orgRailHeading')}>
@@ -276,7 +278,12 @@ function OrgsColumn({
             placeholder={t('organizations.filterOrgs')}
           />
         ) : null}
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+        <SectionStatus
+          loading={firstLoad}
+          error={error}
+          loadingLabel={t('organizations.loading')}
+          skeleton={<OrgsNavSkeleton rows={5} withAvatar label={t('organizations.loading')} />}
+        />
         {composing ? (
           <div className="orgs-compose">
             <Input
@@ -417,6 +424,7 @@ function WorkspacesColumn({
   const { t } = useT()
   const canSubmit = !busy && nameDraft.trim().length > 0
   const visibleWorkspaces = filterWorkspacesByQuery(workspaces, query)
+  const firstLoad = loading && workspaces.length === 0
 
   return (
     <div className="orgs-col orgs-col--mid" aria-label={t('organizations.workspacesSection')}>
@@ -457,7 +465,12 @@ function WorkspacesColumn({
             placeholder={t('organizations.filterWorkspaces')}
           />
         ) : null}
-        <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+        <SectionStatus
+          loading={firstLoad}
+          error={error}
+          loadingLabel={t('organizations.loading')}
+          skeleton={<OrgsNavSkeleton rows={4} label={t('organizations.loading')} />}
+        />
         {composing ? (
           <div className="orgs-compose">
             <Input
@@ -592,6 +605,7 @@ export const OrganizationsView: React.FC<Props> = ({
   const detailsRunRef = useRef(0)
 
   const signedIn = auth?.signedIn === true
+  const bootstrapping = orgs.length === 0 && (authLoading || orgsLoading)
   const currentLogin = auth?.login?.trim() || ''
   const currentGithubId = auth?.githubId
   const detailOrg = orgs.find(org => org.slug === detailSlug) ?? null
@@ -1227,6 +1241,9 @@ export const OrganizationsView: React.FC<Props> = ({
 
   function renderDetail(): React.ReactElement {
     if (!detailOrg) {
+      if (bootstrapping) {
+        return <OrgsDetailSkeleton label={t('organizations.loading')} />
+      }
       return (
         <OrgsPanelEmpty
           label={t('organizations.orgDetailTitle')}
@@ -1289,7 +1306,10 @@ export const OrganizationsView: React.FC<Props> = ({
       )
     }
     if (!selectedWorkspace) {
-      if (!workspacesLoading && workspaces.length === 0) {
+      if (workspacesLoading) {
+        return <OrgsDetailSkeleton label={t('organizations.loading')} />
+      }
+      if (workspaces.length === 0) {
         const canCreateWorkspace = isOrgAdmin && workspacesAvailable
         return (
           <OrgsPanelEmpty
@@ -1383,7 +1403,7 @@ export const OrganizationsView: React.FC<Props> = ({
         <div className="organizations-view__body">
           {!available ? (
             <p className="orgs-disabled">{t('organizations.unavailable')}</p>
-          ) : !signedIn ? (
+          ) : !signedIn && !bootstrapping ? (
             <SignInPanel
               status={auth}
               loading={authLoading || orgsLoading}
@@ -1442,7 +1462,14 @@ export const OrganizationsView: React.FC<Props> = ({
                     setDetailView(prev => (prev === 'settings' ? 'workspace' : 'settings'))
                   }}
                 />
-              ) : null}
+              ) : (
+                <div className="orgs-col">
+                  <div className="orgs-col__head" />
+                  <div className="orgs-col__body">
+                    <OrgsNavSkeleton rows={4} label={t('organizations.loading')} />
+                  </div>
+                </div>
+              )}
               {renderDetail()}
             </div>
           )}

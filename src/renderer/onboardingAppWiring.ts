@@ -1,5 +1,6 @@
 import {
   canCompleteOnboarding,
+  onboardingLockedSurface,
 } from '@shared/onboardingFlow'
 import type { OrchestratorPath } from '@shared/onboarding'
 import {
@@ -72,6 +73,31 @@ export function shouldCompleteByGuideExhausted(args: {
     trigger: 'guide_exhausted',
     cliAllMissing: args.cliAllMissing,
   })
+}
+
+export type CeremonyAutoOpenArgs = {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+  hasFolder: boolean
+  hasAgents: boolean
+  cliAllMissing: boolean
+  brainstormView?: string | null
+  brainstormRoomLive?: boolean
+  alreadyAutoOpened: boolean
+}
+
+/** Se abre una sola vez por pestaña, venga del CTA o de cualquier otra vía. */
+export function shouldAutoOpenCeremonyOverlay(args: CeremonyAutoOpenArgs): boolean {
+  if (args.alreadyAutoOpened) return false
+  if (args.brainstormView != null) return false
+  if (args.brainstormRoomLive === true) return false
+  return onboardingLockedSurface({
+    incomplete: args.incomplete,
+    path: args.path,
+    hasFolder: args.hasFolder,
+    hasAgents: args.hasAgents,
+    cliAllMissing: args.cliAllMissing,
+  }).autoOpenCeremonyOverlay
 }
 
 export type ComposerEngineTabSnapshot = {

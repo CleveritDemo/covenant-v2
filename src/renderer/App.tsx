@@ -52,6 +52,7 @@ import {
 import {
   buildGuideResolveArgs,
   composerEngineMissingForTab,
+  shouldAutoOpenCeremonyOverlay,
   shouldCompleteByGuideExhausted,
 } from './onboardingAppWiring'
 import type { OrgWorkspaceCatalogMap } from '../shared/orgWorkspaceCatalog'
@@ -704,6 +705,7 @@ export const App: React.FC = () => {
   const onboardingClisRefreshOnceRef = useRef(false)
   const onboardingClisMissingLockedRef = useRef(false)
   const onboardingCompletedVersionRef = useRef<string>(config.onboardingCompletedVersion ?? '')
+  const ceremonyAutoOpenedRef = useRef<Set<string>>(new Set())
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
   const [promoteWorkspaceTab, setPromoteWorkspaceTab] = useState<TabSession | null>(null)
@@ -7266,6 +7268,34 @@ export const App: React.FC = () => {
     brainstormHumanSpokeByRoom,
   ])
 
+  useEffect(() => {
+    if (!guideLocked || !activeTab) return
+    const rooms = brainstormRoomsByTab[activeTab.id] ?? []
+    const roomLive = rooms.some(room => isBrainstormLive(
+      (brainstormLiveByRoomId[room.id] ?? createBrainstormLiveSummary(room)).status,
+    ))
+    if (!shouldAutoOpenCeremonyOverlay({
+      incomplete: guideLocked,
+      path: config.orchestratorPath,
+      hasFolder: Boolean(activeTab.projectFolder?.trim()),
+      hasAgents: Object.values(activeTab.paneKinds ?? {}).some(kind => kind === 'agent'),
+      cliAllMissing: clisAllMissing(onboardingClis),
+      brainstormView: brainstormViewByTab[activeTab.id] ?? null,
+      brainstormRoomLive: roomLive,
+      alreadyAutoOpened: ceremonyAutoOpenedRef.current.has(activeTab.id),
+    })) return
+    ceremonyAutoOpenedRef.current.add(activeTab.id)
+    setBrainstormViewByTab(prev => ({ ...prev, [activeTab.id]: 'setup' }))
+  }, [
+    guideLocked,
+    activeTab,
+    config.orchestratorPath,
+    onboardingClis,
+    brainstormViewByTab,
+    brainstormRoomsByTab,
+    brainstormLiveByRoomId,
+  ])
+
   /**
    * Salas de una pestaña sobre su plano. Van montadas dentro de
    * `.tab-agentic-plane` —igual que el mapa de la wiki— porque se posicionan
@@ -7712,24 +7742,7 @@ export const App: React.FC = () => {
                   bootstrapAgentsDisabledTitle={t('tabs.bootstrapAgentsNeedFolder')}
                   showBootstrapAgents={showBootstrapAgents}
                   canBootstrapAgents={canBootstrapAgents}
-                  onBootstrapAgents={() => {
-                    void bootstrapProjectAgents(tab.id).then(bootstrapped => {
-                      if (!bootstrapped) return
-                      const tabNow = tabsRef.current.find(item => item.id === tab.id)
-                      const hasAgents = tabNow
-                        ? Object.values(tabNow.paneKinds ?? {}).some(kind => kind === 'agent')
-                        : false
-                      if (onboardingLockedSurface({
-                        incomplete: onboardingActive,
-                        path: config.orchestratorPath,
-                        hasFolder: Boolean(tab.projectFolder?.trim()),
-                        hasAgents,
-                        cliAllMissing: clisAllMissing(onboardingClis),
-                      }).autoOpenCeremonyOverlay) {
-                        setBrainstormViewByTab(prev => ({ ...prev, [tab.id]: 'setup' }))
-                      }
-                    })
-                  }}
+                  onBootstrapAgents={() => { void bootstrapProjectAgents(tab.id) }}
                   activePaneId={tab.activePaneId}
                   entities={planeEntities}
                   onAddAgent={() => {

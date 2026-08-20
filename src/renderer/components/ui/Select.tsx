@@ -78,7 +78,6 @@ export const Select: React.FC<SelectProps> = ({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const [box, setBox] = useState<React.CSSProperties>({})
   const [active, setActive] = useState(0)
 
   const selectedIndex = options.findIndex(option => option.value === value)
@@ -87,35 +86,45 @@ export const Select: React.FC<SelectProps> = ({
   const selectedIndexRef = useRef(selectedIndex)
   selectedIndexRef.current = selectedIndex
 
-  // `toggle` del popover por listener nativo: React 18 aún no lo tipa para un div.
+  // Geometría en beforetoggle (síncrono, antes del primer frame visible); toggle solo estado/foco.
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
+    const onBeforeToggle = (event: Event): void => {
+      const { newState } = event as ToggleEvent
+      if (newState === 'open') {
+        const trigger = triggerRef.current?.getBoundingClientRect()
+        if (trigger) {
+          const { top, bottom, maxHeight } = panelPlacement(trigger)
+          // Ancho del disparador como mínimo, pero el panel crece con su contenido
+          // (un disparador estrecho no debe recortar cada opción a puntos suspensivos).
+          panel.style.top = top === 'auto' ? 'auto' : `${top}px`
+          panel.style.bottom = bottom === 'auto' ? 'auto' : `${bottom}px`
+          panel.style.left = `${trigger.left}px`
+          panel.style.right = 'auto'
+          panel.style.minWidth = `${trigger.width}px`
+          panel.style.maxWidth = `${Math.max(trigger.width, Math.min(460, window.innerWidth - trigger.left - 8))}px`
+          panel.style.maxHeight = `${maxHeight}px`
+          panel.dataset.placed = 'true'
+        }
+      } else if (newState === 'closed') {
+        delete panel.dataset.placed
+      }
+    }
     const onToggle = (event: Event): void => {
       const nowOpen = (event as ToggleEvent).newState === 'open'
       setOpen(nowOpen)
       if (!nowOpen) return
-      const trigger = triggerRef.current?.getBoundingClientRect()
-      if (trigger) {
-        const { top, bottom, maxHeight } = panelPlacement(trigger)
-        // Ancho del disparador como mínimo, pero el panel crece con su contenido
-        // (un disparador estrecho no debe recortar cada opción a puntos suspensivos).
-        setBox({
-          top,
-          bottom,
-          left: trigger.left,
-          right: 'auto',
-          minWidth: trigger.width,
-          maxWidth: Math.max(trigger.width, Math.min(460, window.innerWidth - trigger.left - 8)),
-          maxHeight,
-        })
-      }
       setActive(selectedIndexRef.current >= 0 ? selectedIndexRef.current : 0)
       // El panel toma el foco para que las flechas funcionen sin tabular por las opciones.
       requestAnimationFrame(() => panel.focus())
     }
+    panel.addEventListener('beforetoggle', onBeforeToggle)
     panel.addEventListener('toggle', onToggle)
-    return () => panel.removeEventListener('toggle', onToggle)
+    return () => {
+      panel.removeEventListener('beforetoggle', onBeforeToggle)
+      panel.removeEventListener('toggle', onToggle)
+    }
   }, [])
 
   // El cursor de teclado sigue visible al recorrer una lista larga. El resaltado
@@ -192,7 +201,6 @@ export const Select: React.FC<SelectProps> = ({
         id={panelId}
         popover="auto"
         className="select-panel"
-        style={box}
         role="listbox"
         tabIndex={-1}
         aria-label={ariaLabel ?? title}

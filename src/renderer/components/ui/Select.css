@@ -154,6 +154,11 @@
   display: none;
 }
 
+/* Sin data-placed aún no hay geometría: ocultar evita un frame en la esquina superior izquierda. */
+.select-panel:not([data-placed]) {
+  visibility: hidden;
+}
+
 .select-panel::backdrop {
   background: transparent;
 }

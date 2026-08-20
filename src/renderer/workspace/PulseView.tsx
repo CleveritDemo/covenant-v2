@@ -21,6 +21,7 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
 import { PulseHarnessTable } from './PulseHarnessTable'
+import { formatStat } from './pulseFormat'
 import './PulseView.css'
 import './PulseHarnessTable.css'
 
@@ -50,22 +51,6 @@ const RANGES = {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(Math.round(value))
-}
-
-/**
- * Los tokens llegan a cientos de millones y el número exacto desborda la
- * tarjeta. Por encima del millón se abrevia (52M) y el exacto vive en el
- * tooltip; por debajo se muestra entero, que es lo que se quiere leer.
- */
-const COMPACT_FROM = 1_000_000
-
-function formatStat(value: number): string {
-  const n = Math.round(value)
-  if (n < COMPACT_FROM) return formatNumber(n)
-  return new Intl.NumberFormat(undefined, {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(n)
 }
 
 /** Variación de hoy contra la media de 30 días, en % redondeado. */

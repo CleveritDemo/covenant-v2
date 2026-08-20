@@ -3,26 +3,11 @@ import { useT } from '@i18n/useT'
 import { agentCliSpec, isAgentCliProvider } from '@shared/agentCliProviders'
 import { dayFromMs, type PulseProviderStat } from '@shared/pulseEvents'
 import { Tooltip } from '../components/ui/Tooltip'
+import { formatStat } from './pulseFormat'
 import './PulseHarnessTable.css'
 
 export interface PulseHarnessTableProps {
   providers: PulseProviderStat[]
-}
-
-/** Mismo contrato que PulseView (`pulse-agent__num`): entero o compacto desde 1M. */
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat().format(Math.round(value))
-}
-
-const COMPACT_FROM = 1_000_000
-
-function formatStat(value: number): string {
-  const n = Math.round(value)
-  if (n < COMPACT_FROM) return formatNumber(n)
-  return new Intl.NumberFormat(undefined, {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(n)
 }
 
 function providerLabel(provider: string): string {

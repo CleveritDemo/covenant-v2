@@ -5,6 +5,7 @@ import {
   CURSOR_AGENT_MODELS,
   GEMINI_AGENT_MODELS,
   GROK_AGENT_MODELS,
+  MODEL_DEFAULT_SHORT,
   deriveModelShort,
   resolveModelShort,
 } from '../agentCliModels'
@@ -34,6 +35,13 @@ describe('resolveModelShort', () => {
 
   it('deriva cuando el id no está en catálogo', () => {
     expect(resolveModelShort('cursor', 'claude-sonnet-4.9-thinking')).toBe('S49')
+  })
+
+  it('modelo vacío usa DEF (tres letras)', () => {
+    expect(MODEL_DEFAULT_SHORT).toBe('DEF')
+    expect(MODEL_DEFAULT_SHORT).toHaveLength(3)
+    expect(resolveModelShort('cursor', '')).toBe('DEF')
+    expect(resolveModelShort('claude', '   ')).toBe('DEF')
   })
 })
 

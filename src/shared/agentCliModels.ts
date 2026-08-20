@@ -180,14 +180,21 @@ export function resolveModelLabel(
 }
 
 /**
+ * Chip de la mini cuando el modelo está vacío (default del CLI).
+ * Tres letras, mismo formato que el resto de códigos cortos.
+ */
+export const MODEL_DEFAULT_SHORT = 'DEF'
+
+/**
  * Código para el chip de la mini: `short` del catálogo, o derive del id/label.
+ * Modelo vacío → {@link MODEL_DEFAULT_SHORT}.
  */
 export function resolveModelShort(
   provider: AgentCliProvider,
   modelId: string,
 ): string {
   const id = modelId.trim()
-  if (!id) return ''
+  if (!id) return MODEL_DEFAULT_SHORT
   const option = modelsForProvider(provider).find(entry => entry.id === id)
   if (option?.short?.trim()) return option.short.trim()
   return deriveModelShort(option?.label ?? id)

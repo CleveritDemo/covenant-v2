@@ -33,6 +33,9 @@
   justify-content: space-between;
   gap: 8px;
   padding: 7px 14px 0 14px;
+  /* Cierra la barra de la miga contra el shell: mismo 45% que .orgs-col y
+     .orgs-col__head en OrganizationsModal.css, para leerse como una sola regla. */
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
 }
 
 .organizations-view__crumbs {

@@ -67,4 +67,11 @@ describe('OrganizationsView chrome', () => {
     const root = block(viewCss, '.organizations-view')
     expect(root).toMatch(/border-top:\s*1px solid color-mix\(in srgb, var\(--border\) 16%, transparent\)/)
   })
+
+  it('la barra de la miga cierra contra el shell con el mismo 45% de las columnas', () => {
+    const bar = block(viewCss, '.organizations-view__bar')
+    const head = block(modalCss, '.orgs-col__head')
+    expect(bar).toMatch(/border-bottom:\s*1px solid color-mix\(in srgb, var\(--border\) 45%, transparent\)/)
+    expect(head).toMatch(/border-bottom:\s*1px solid color-mix\(in srgb, var\(--border\) 45%, transparent\)/)
+  })
 })

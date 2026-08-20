@@ -10,6 +10,7 @@ const openBase = {
   brainstormView: null as string | null,
   brainstormRoomLive: false,
   alreadyAutoOpened: false,
+  clisProbed: true,
 }
 
 describe('shouldAutoOpenCeremonyOverlay', () => {
@@ -47,5 +48,17 @@ describe('shouldAutoOpenCeremonyOverlay', () => {
 
   it('i) incomplete false → false', () => {
     expect(shouldAutoOpenCeremonyOverlay({ ...openBase, incomplete: false })).toBe(false)
+  })
+
+  it('j) clisProbed false → false (espera sonda)', () => {
+    expect(shouldAutoOpenCeremonyOverlay({ ...openBase, clisProbed: false })).toBe(false)
+  })
+
+  it('k) clisProbed true + filas vacías (cliAllMissing false) → true', () => {
+    expect(shouldAutoOpenCeremonyOverlay({
+      ...openBase,
+      clisProbed: true,
+      cliAllMissing: false,
+    })).toBe(true)
   })
 })

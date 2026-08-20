@@ -695,6 +695,7 @@ export const App: React.FC = () => {
   /** Confirm de salida pedido por main (⌘Q / botón rojo). */
   const [quitConfirmOpen, setQuitConfirmOpen] = useState(false)
   const [onboardingClis, setOnboardingClis] = useState<OnboardingCliRow[]>([])
+  const [onboardingClisProbed, setOnboardingClisProbed] = useState(false)
   const [onboardingClisMissing, setOnboardingClisMissing] = useState(false)
   const [brainstormSetupDraftByTab, setBrainstormSetupDraftByTab] = useState<
     Record<string, { goalFilled: boolean; participantCount: number }>
@@ -4014,6 +4015,7 @@ export const App: React.FC = () => {
         onboardingClisMissingLockedRef.current = true
         setOnboardingClisMissing(clisAllMissing(rows))
       }
+      setOnboardingClisProbed(true)
     }
     return rows
   }, [])
@@ -4036,6 +4038,7 @@ export const App: React.FC = () => {
     setConfig(prev => ({ ...prev, ...reset }))
     onboardingClisMissingLockedRef.current = false
     onboardingClisRefreshOnceRef.current = false
+    setOnboardingClisProbed(false)
     void refreshOnboardingClis()
   }, [refreshOnboardingClis])
 
@@ -7283,6 +7286,7 @@ export const App: React.FC = () => {
       brainstormView: brainstormViewByTab[activeTab.id] ?? null,
       brainstormRoomLive: roomLive,
       alreadyAutoOpened: ceremonyAutoOpenedRef.current.has(activeTab.id),
+      clisProbed: onboardingClisProbed,
     })) return
     ceremonyAutoOpenedRef.current.add(activeTab.id)
     setBrainstormViewByTab(prev => ({ ...prev, [activeTab.id]: 'setup' }))
@@ -7291,6 +7295,7 @@ export const App: React.FC = () => {
     activeTab,
     config.orchestratorPath,
     onboardingClis,
+    onboardingClisProbed,
     brainstormViewByTab,
     brainstormRoomsByTab,
     brainstormLiveByRoomId,

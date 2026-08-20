@@ -84,10 +84,12 @@ export type CeremonyAutoOpenArgs = {
   brainstormView?: string | null
   brainstormRoomLive?: boolean
   alreadyAutoOpened: boolean
+  clisProbed: boolean
 }
 
 /** Se abre una sola vez por pestaña, venga del CTA o de cualquier otra vía. */
 export function shouldAutoOpenCeremonyOverlay(args: CeremonyAutoOpenArgs): boolean {
+  if (!args.clisProbed) return false
   if (args.alreadyAutoOpened) return false
   if (args.brainstormView != null) return false
   if (args.brainstormRoomLive === true) return false

@@ -80,6 +80,7 @@ export function buildGuideResolveArgs(
     contextNameFilled: tab.contextNameFilled === true,
     sentFirstMessage: tab.sentFirstMessage,
     assignedAnyContext: tab.assignedAnyContext,
+    terminalOpen: Object.values(tab.paneKinds ?? {}).some(kind => kind === 'terminal'),
     doneSteps: tab.doneSteps,
   }
 }
@@ -135,4 +136,24 @@ export function shouldAutoOpenCeremonyOverlay(args: CeremonyAutoOpenArgs): boole
     hasAgents: args.hasAgents,
     cliAllMissing: args.cliAllMissing,
   }).autoOpenCeremonyOverlay
+}
+
+export type ComposerEngineTabSnapshot = {
+  planeOpenChatAgentId?: string | null
+  paneKinds?: Record<string, unknown>
+}
+
+/**
+ * True si el pane con chat abierto es un agente sin motor primario: su turno
+ * aborta en AgentPane (agentPane.missingProvider) y el envío nunca sale.
+ * resolveProvider recibe el paneId y devuelve meta.provider (o undefined).
+ */
+export function composerEngineMissingForTab(
+  tab: ComposerEngineTabSnapshot,
+  resolveProvider: (paneId: string) => string | undefined,
+): boolean {
+  const paneId = tab.planeOpenChatAgentId ?? null
+  if (!paneId) return false
+  if (tab.paneKinds?.[paneId] !== 'agent') return false
+  return !(resolveProvider(paneId) ?? '').trim()
 }

@@ -1,0 +1,202 @@
+.jira-accounts-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jira-accounts-field__title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.jira-accounts-field__hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.jira-accounts-field__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.jira-accounts-field__card + .jira-accounts-field__card {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.jira-accounts-field__card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.jira-accounts-field__monogram {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  background: var(--plane-node-bg);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+}
+
+.jira-accounts-field__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jira-accounts-field__primary {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-accounts-field__secondary {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-accounts-field__aside {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 52%;
+}
+
+.jira-accounts-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.jira-accounts-field__chip[data-state='ok'] {
+  color: var(--accent);
+}
+
+.jira-accounts-field__chip[data-state='error'] {
+  color: var(--danger);
+}
+
+.jira-accounts-field__status-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.jira-accounts-field__error-detail {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--danger);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.jira-accounts-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.jira-accounts-field__workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.jira-accounts-field__workspace-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.jira-accounts-field__workspace-hint {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.jira-accounts-field__workspace-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jira-accounts-field__add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jira-accounts-field__add--panel {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.jira-accounts-field__add-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.jira-accounts-field__add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

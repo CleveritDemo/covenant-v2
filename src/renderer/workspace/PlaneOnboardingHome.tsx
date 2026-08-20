@@ -41,14 +41,14 @@ export const PlaneOnboardingHome: React.FC<PlaneOnboardingHomeProps> = ({
           hint={t('tabs.pathExecuteHint')}
           onClick={() => onSelectPath('engineer')}
         />
+        {onInviteToOrg ? (
+          <div className="plane-onboarding-home__invite">
+            <Button variant="ghost" size="sm" onClick={onInviteToOrg}>
+              {t('tabs.inviteTeam')}
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {onInviteToOrg ? (
-        <div className="plane-onboarding-home__invite">
-          <Button variant="ghost" size="sm" onClick={onInviteToOrg}>
-            {t('tabs.inviteTeam')}
-          </Button>
-        </div>
-      ) : null}
     </div>
   )
 }

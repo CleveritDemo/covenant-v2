@@ -28,6 +28,7 @@ const snapshot: PulseSnapshot = {
   avgPrompts30d: 0,
   days: [],
   agents: [],
+  providers: [],
   scopes: {
     workspaces: [TAG],
     repos: [],
@@ -77,14 +78,18 @@ describe('PulseView workspace labels', () => {
     pulseSnapshot.mockResolvedValue(snapshot)
     getConfig.mockResolvedValue({
       orgWorkspaceCatalogCache: {
-        login: 'carlos',
-        fetchedAt: 1,
-        entries: [{
-          slug: 'rodrigoanti',
-          orgName: 'Rodrigoanti',
-          workspaceId: WORKSPACE_ID,
-          name: 'Covenant',
-        }],
+        byAccount: {
+          '': {
+            login: 'carlos',
+            fetchedAt: 1,
+            entries: [{
+              slug: 'rodrigoanti',
+              orgName: 'Rodrigoanti',
+              workspaceId: WORKSPACE_ID,
+              name: 'Covenant',
+            }],
+          },
+        },
       },
     })
     ;(window as unknown as { api: Record<string, unknown> }).api = {

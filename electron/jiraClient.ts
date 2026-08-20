@@ -1,10 +1,10 @@
 /**
- * Cliente REST de Jira Cloud (API v3). Tres endpoints, `fetch` nativo, sin SDK.
+ * Cliente REST de Jira Cloud (API v3). `fetch` nativo, sin SDK.
  *
- * Por qué no el MCP de Atlassian desde acá: añadiría una dependencia, el flujo
- * OAuth del server remoto, y devuelve texto pensado para un modelo en vez de un
- * objeto que la UI pueda pintar. El MCP sigue siendo el camino del agente para
- * escribir; este es el de la app para leer.
+ * Lectura: contextos y pickers (`jiraMyself`, `jiraSearch`, `jiraGetIssue`).
+ * Escritura en lote: `jiraIssueTypes`, `jiraCreateIssue`, `textToAdf` — ver
+ * `createJiraIssues` en `jiraIpcOps.ts`. El MCP de Atlassian sigue siendo el
+ * camino del agente; este cliente es el de la app.
  */
 
 import { describeFetchError, httpFetch } from './httpFetch'
@@ -53,52 +53,134 @@ function authHeaders(cred: JiraCredentials): Record<string, string> {
   return { Authorization: `Basic ${basic}`, Accept: 'application/json' }
 }
 
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) return
+  let text = ''
+  try {
+    text = await response.text()
+  } catch {
+    text = ''
+  }
+  let detail = ''
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (parsed && typeof parsed === 'object') {
+      const body = parsed as Record<string, unknown>
+      if (Array.isArray(body.errorMessages) && body.errorMessages.length) {
+        detail = body.errorMessages.join(' · ')
+      } else if (body.message) {
+        detail = String(body.message)
+      } else if (body.error) {
+        detail = String(body.error)
+      }
+    }
+  } catch {
+    detail = text.slice(0, 300)
+  }
+  const headers: Record<string, string> = {}
+  for (const name of [
+    'x-seraph-loginreason',
+    'x-authentication-denied-reason',
+    'www-authenticate',
+    'retry-after',
+  ] as const) {
+    const value = response.headers?.get?.(name)
+    if (value) headers[name] = value
+  }
+  throw new JiraApiError(
+    describeJiraFailure(response.status, detail, headers),
+    response.status,
+    detail,
+    headers,
+  )
+}
+
 async function getJson(cred: JiraCredentials, path: string): Promise<unknown> {
   const response = await httpFetch(`${cred.site}${path}`, {
     headers: authHeaders(cred),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
-  if (!response.ok) {
-    let text = ''
-    try {
-      text = await response.text()
-    } catch {
-      text = ''
-    }
-    let detail = ''
-    try {
-      const parsed: unknown = JSON.parse(text)
-      if (parsed && typeof parsed === 'object') {
-        const body = parsed as Record<string, unknown>
-        if (Array.isArray(body.errorMessages) && body.errorMessages.length) {
-          detail = body.errorMessages.join(' · ')
-        } else if (body.message) {
-          detail = String(body.message)
-        } else if (body.error) {
-          detail = String(body.error)
-        }
-      }
-    } catch {
-      detail = text.slice(0, 300)
-    }
-    const headers: Record<string, string> = {}
-    for (const name of [
-      'x-seraph-loginreason',
-      'x-authentication-denied-reason',
-      'www-authenticate',
-      'retry-after',
-    ] as const) {
-      const value = response.headers?.get?.(name)
-      if (value) headers[name] = value
-    }
-    throw new JiraApiError(
-      describeJiraFailure(response.status, detail, headers),
-      response.status,
-      detail,
-      headers,
-    )
-  }
+  await throwIfNotOk(response)
   return response.json()
+}
+
+async function postJson(cred: JiraCredentials, path: string, body: unknown): Promise<unknown> {
+  const response = await httpFetch(`${cred.site}${path}`, {
+    method: 'POST',
+    headers: { ...authHeaders(cred), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+  await throwIfNotOk(response)
+  return response.json()
+}
+
+export interface JiraIssueTypeMeta {
+  id: string
+  name: string
+  subtask: boolean
+}
+
+export async function jiraIssueTypes(
+  cred: JiraCredentials,
+  projectKey: string,
+): Promise<JiraIssueTypeMeta[]> {
+  const payload = asRecord(
+    await getJson(
+      cred,
+      `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes?maxResults=100`,
+    ),
+  )
+  const issueTypes = Array.isArray(payload.issueTypes) ? payload.issueTypes : []
+  return issueTypes.map(raw => {
+    const row = asRecord(raw)
+    return {
+      id: String(row.id ?? ''),
+      name: String(row.name ?? ''),
+      subtask: Boolean(row.subtask),
+    }
+  })
+}
+
+export async function jiraCreateIssue(
+  cred: JiraCredentials,
+  input: {
+    projectKey: string
+    issueTypeId: string
+    summary: string
+    description?: string
+    parentKey?: string
+  },
+): Promise<{ key: string }> {
+  const fields: Record<string, unknown> = {
+    project: { key: input.projectKey },
+    issuetype: { id: input.issueTypeId },
+    summary: input.summary,
+  }
+  if (input.description) {
+    fields.description = textToAdf(input.description)
+  }
+  if (input.parentKey) {
+    fields.parent = { key: input.parentKey }
+  }
+  const payload = asRecord(await postJson(cred, '/rest/api/3/issue', { fields }))
+  return { key: String(payload.key ?? '') }
+}
+
+/**
+ * Texto plano → ADF. Dirección inversa de `adfToText` en `src/shared/jiraIssueDoc.ts`,
+ * que solo lee.
+ */
+export function textToAdf(text: string): unknown {
+  const lines = text.split('\n').filter(line => line.trim())
+  return {
+    type: 'doc',
+    version: 1,
+    content: lines.map(line => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: line }],
+    })),
+  }
 }
 
 

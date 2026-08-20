@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearJiraCache, JiraApiError, jiraGetIssue, jiraMyself, jiraSearch } from '../jiraClient'
+import { clearJiraCache, JiraApiError, jiraCreateIssue, jiraGetIssue, jiraIssueTypes, jiraMyself, jiraSearch, textToAdf } from '../jiraClient'
 
 const cred = { site: 'https://x.atlassian.net', email: 'a@b.c', apiToken: 'tok' }
 
@@ -370,5 +370,69 @@ describe('jiraGetIssue sprint', () => {
       },
     }))
     expect((await jiraGetIssue(cred, 'GRAV-412', 10)).sprint).toBe('Sprint 5')
+  })
+})
+
+describe('textToAdf', () => {
+  it('un párrafo por línea no vacía', () => {
+    expect(textToAdf('uno\ndos\n\n')).toEqual({
+      type: 'doc',
+      version: 1,
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'uno' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'dos' }] },
+      ],
+    })
+  })
+
+  it('texto vacío o solo espacios devuelve content vacío', () => {
+    expect(textToAdf('')).toEqual({ type: 'doc', version: 1, content: [] })
+    expect(textToAdf('   \n  ')).toEqual({ type: 'doc', version: 1, content: [] })
+  })
+})
+
+describe('jiraIssueTypes', () => {
+  it('normaliza id, name y subtask del createmeta', async () => {
+    stubFetch(() => ({
+      issueTypes: [
+        { id: '10', name: 'Epic', subtask: false },
+        { id: '11', name: 'Sub-task', subtask: true },
+      ],
+    }))
+    await expect(jiraIssueTypes(cred, 'GRAV')).resolves.toEqual([
+      { id: '10', name: 'Epic', subtask: false },
+      { id: '11', name: 'Sub-task', subtask: true },
+    ])
+  })
+})
+
+describe('jiraCreateIssue', () => {
+  it('POST con fields, ADF en description y parent opcional', async () => {
+    let posted: unknown
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        posted = JSON.parse(String(init.body))
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ key: 'GRAV-99' }),
+        } as unknown as Response
+      }),
+    )
+
+    const result = await jiraCreateIssue(cred, {
+      projectKey: 'GRAV',
+      issueTypeId: '1',
+      summary: 'Padre',
+      description: 'línea uno',
+      parentKey: 'GRAV-1',
+    })
+
+    expect(result).toEqual({ key: 'GRAV-99' })
+    const body = posted as { fields: Record<string, unknown> }
+    expect(body.fields.project).toEqual({ key: 'GRAV' })
+    expect(body.fields.parent).toEqual({ key: 'GRAV-1' })
+    expect(body.fields.description).toEqual(textToAdf('línea uno'))
   })
 })

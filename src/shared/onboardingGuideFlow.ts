@@ -14,6 +14,7 @@ export type OnboardingGuideAnchor =
   | 'brainstorm-goal'
   | 'brainstorm-participants'
   | 'brainstorm-module-tabs'
+  | 'brainstorm-rooms-list'
   | 'brainstorm-human-composer'
   | 'context-pool'
   | 'context-new'
@@ -21,6 +22,24 @@ export type OnboardingGuideAnchor =
   | 'context-name'
   | 'context-save'
   | 'plane-terminal-fab'
+
+/**
+ * Pasos que se cierran con OK. Son los informativos: cuentan algo y no hay una
+ * acción que el resolver pueda observar. Un paso de acción NUNCA entra aquí, o
+ * el OK se lo saltaría (ver onboardingGuideDismissible.test.ts).
+ */
+export const DISMISSIBLE_GUIDE_STEPS: readonly OnboardingGuideStepId[] = [
+  'write_goal',
+  'join_round',
+  'stop_room',
+  'finish_room',
+  'saved_rooms',
+  'open_terminal',
+]
+
+export function isDismissibleGuideStep(step: string): boolean {
+  return (DISMISSIBLE_GUIDE_STEPS as readonly string[]).includes(step)
+}
 
 export type OnboardingGuideStepId =
   | 'choose_path'
@@ -81,6 +100,8 @@ export type OnboardingGuideResolveArgs = {
   /** El nombre del contexto tiene texto. */
   contextNameFilled?: boolean
   assignedAnyContext?: boolean
+  /** Ya hay un pane terminal en el tab: open_terminal se salta solo. */
+  terminalOpen?: boolean
   doneSteps?: readonly string[]
 }
 
@@ -88,14 +109,13 @@ function guideStep(
   step: OnboardingGuideStepId,
   anchor: OnboardingGuideAnchor,
   messageCamel: string,
-  dismissible?: true,
   dismissDisabled?: boolean,
 ): OnboardingGuideStep {
   return {
     step,
     anchor,
     messageKey: `tabs.onboardingGuide.${messageCamel}`,
-    ...(dismissible ? { dismissible: true } : {}),
+    ...(isDismissibleGuideStep(step) ? { dismissible: true } : {}),
     ...(dismissDisabled ? { dismissDisabled: true } : {}),
   }
 }
@@ -137,40 +157,48 @@ export function resolveOnboardingGuideStep(
       if (joinedOrSpoke) return null
       return guideStep('open_brainstorm', 'brainstorm-rail', 'openBrainstorm')
     }
+    // Biblioteca de salas: aquí no hay setup que enseñar. Si ya participó, el
+    // paso es dónde quedó el acta; si no, abrir la sala viva o crear una nueva.
+    if (args.brainstormView === 'rooms') {
+      if (joinedOrSpoke) {
+        // Ya recorrió una sala: solo queda enseñar la biblioteca. Después la
+        // escalera se agota aquí; si no, «crea una sala» volvería para siempre.
+        if (!doneSteps.includes('saved_rooms')) {
+          return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms')
+        }
+        return null
+      }
+      if (args.brainstormRoomLive) {
+        return guideStep('open_brainstorm', 'brainstorm-rooms-list', 'openLiveRoom')
+      }
+      return guideStep('open_brainstorm', 'brainstorm-module-tabs', 'newRoom')
+    }
     // El objetivo se confirma con OK, no tecleando: el OK está deshabilitado
     // mientras el campo esté vacío, así que nadie salta el paso sin escribir.
+    // Todo el alta es solo para quien aún no participó en una sala.
     const goalDone = doneSteps.includes('write_goal')
-    if (args.brainstormView === 'setup' && !goalDone) {
+    const inSetup = args.brainstormView === 'setup' && !joinedOrSpoke
+    if (inSetup && !goalDone) {
       return guideStep(
         'write_goal',
         'brainstorm-goal',
         'writeGoal',
-        true,
         !args.brainstormGoalFilled,
       )
     }
-    if (args.brainstormView === 'setup' && goalDone && participantCount < 2) {
+    if (inSetup && goalDone && participantCount < 2) {
       return guideStep('pick_participants', 'brainstorm-participants', 'pickParticipants')
     }
-    if (
-      args.brainstormView === 'setup'
-      && goalDone
-      && participantCount >= 2
-      && !args.brainstormCeremonyPicked
-    ) {
+    if (inSetup && goalDone && participantCount >= 2 && !args.brainstormCeremonyPicked) {
       return guideStep('pick_ceremony', 'brainstorm-ceremony', 'pickCeremony')
     }
-    if (
-      args.brainstormView === 'setup'
-      && goalDone
-      && participantCount >= 2
-      && args.brainstormCeremonyPicked
-    ) {
+    if (inSetup && goalDone && participantCount >= 2 && args.brainstormCeremonyPicked) {
       return guideStep('start_ceremony', 'brainstorm-start', 'startCeremony')
     }
     // Informativo: puede enviar, no obligatorio. Avanza con OK (dismissible).
-    if (args.brainstormRoomLive && !joinRoundDone) {
-      return guideStep('join_round', 'brainstorm-human-composer', 'joinRound', true)
+    // A quien ya habló no se le cuenta: el tip ya no le enseña nada.
+    if (args.brainstormRoomLive && !joinedOrSpoke) {
+      return guideStep('join_round', 'brainstorm-human-composer', 'joinRound')
     }
     // Antes de cerrar hay que parar: Detener vive en el chrome de la sala y solo
     // existe mientras la sala está viva.
@@ -179,7 +207,7 @@ export function resolveOnboardingGuideStep(
       && args.brainstormRoomStoppable
       && !doneSteps.includes('stop_room')
     ) {
-      return guideStep('stop_room', 'brainstorm-stop', 'stopRoom', true)
+      return guideStep('stop_room', 'brainstorm-stop', 'stopRoom')
     }
     // Sala terminada: Terminar la suelta del plano y su acta queda en la
     // biblioteca, que es el paso siguiente (saved_rooms).
@@ -188,15 +216,15 @@ export function resolveOnboardingGuideStep(
       && args.brainstormRoomFinishable
       && !doneSteps.includes('finish_room')
     ) {
-      return guideStep('finish_room', 'brainstorm-finish', 'finishRoom', true)
+      return guideStep('finish_room', 'brainstorm-finish', 'finishRoom')
     }
     // saved_rooms solo donde existen las pestañas del módulo (no en sala viva).
     if (
       joinedOrSpoke
       && !doneSteps.includes('saved_rooms')
-      && (args.brainstormView === 'rooms' || args.brainstormView === 'setup')
+      && args.brainstormView === 'setup'
     ) {
-      return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms', true)
+      return guideStep('saved_rooms', 'brainstorm-module-tabs', 'savedRooms')
     }
     return null
   }
@@ -226,12 +254,13 @@ export function resolveOnboardingGuideStep(
     if (!doneSteps.includes('new_context')) {
       return guideStep('new_context', 'context-new', 'newContext')
     }
-    // Sin OK: espera el arrastre real del contexto a un agente.
+    // Sin OK y sin escape por doneSteps: espera el arrastre real del contexto.
     if (!args.assignedAnyContext) {
       return guideStep('assign_context', 'context-pool', 'assignContext')
     }
-    if (!doneSteps.includes('open_terminal')) {
-      return guideStep('open_terminal', 'plane-terminal-fab', 'openTerminal', true)
+    // Con una terminal ya abierta el paso no tiene nada que enseñar.
+    if (!args.terminalOpen && !doneSteps.includes('open_terminal')) {
+      return guideStep('open_terminal', 'plane-terminal-fab', 'openTerminal')
     }
     return null
   }

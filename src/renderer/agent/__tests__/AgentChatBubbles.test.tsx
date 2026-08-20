@@ -86,6 +86,36 @@ describe('AgentChatBubbles markdown + collapse', () => {
     expect(solid[0]?.classList.contains('chat-bubble--assistant')).toBe(true)
   })
 
+  it('pinta el encargo de una delegación como tarjeta, no como texto literal', () => {
+    renderBubbles([
+      {
+        id: 'u-brief',
+        role: 'user',
+        content: [
+          '## Delegation brief',
+          'from: tl',
+          'to: frontend',
+          'round: 1/3',
+          'worktree: qa-2',
+          '',
+          'Revisa el `login`.',
+          '',
+          'Preferred context ids: Front-Rules',
+        ].join('\n'),
+      },
+    ])
+    expect(document.querySelector('.delegation-brief')).not.toBeNull()
+    expect(document.querySelector('.agent-pane__bubble-plain')).toBeNull()
+    // Markdown, no literal: el backtick del objetivo se vuelve código.
+    expect(document.querySelector('.delegation-brief__objective code')?.textContent).toBe('login')
+    // La línea de contextos sale del cuerpo y baja al pie como chip.
+    expect(document.querySelector('.delegation-brief__objective')?.textContent)
+      .not.toContain('Preferred context ids')
+    const chips = document.querySelectorAll('.delegation-brief__chip')
+    expect(chips).toHaveLength(2)
+    expect(chips[0]?.textContent).toBe('Front-Rules')
+  })
+
   it('keeps user sentence punctuation in one plain block (no AiMarkdown split)', () => {
     renderBubbles([
       {

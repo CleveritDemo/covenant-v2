@@ -214,21 +214,39 @@ describe('canCompleteOnboarding', () => {
 })
 
 describe('onboardingChromeHidden', () => {
-  it('hides all chrome while onboarding is incomplete', () => {
-    expect(onboardingChromeHidden(true)).toEqual({
-      hideTabAdd: true,
-      hideOrganizations: true,
-      hidePulse: true,
-      hideWiki: true,
-      hideLoops: true,
-    })
-    expect(onboardingChromeHidden(false)).toEqual({
-      hideTabAdd: false,
-      hideOrganizations: false,
-      hidePulse: false,
-      hideWiki: false,
-      hideLoops: false,
-    })
+  const allHidden = {
+    hideTabAdd: true,
+    hideOrganizations: true,
+    hidePulse: true,
+    hideWiki: true,
+    hideLoops: true,
+  }
+  const allVisible = {
+    hideTabAdd: false,
+    hideOrganizations: false,
+    hidePulse: false,
+    hideWiki: false,
+    hideLoops: false,
+  }
+
+  it('incomplete + empty path hides all chrome', () => {
+    expect(onboardingChromeHidden({ incomplete: true, path: '' })).toEqual(allHidden)
+  })
+
+  it('incomplete + engineer path shows all chrome', () => {
+    expect(onboardingChromeHidden({ incomplete: true, path: 'engineer' })).toEqual(allVisible)
+  })
+
+  it('incomplete + business path shows all chrome', () => {
+    expect(onboardingChromeHidden({ incomplete: true, path: 'business' })).toEqual(allVisible)
+  })
+
+  it('complete + empty path shows all chrome', () => {
+    expect(onboardingChromeHidden({ incomplete: false, path: '' })).toEqual(allVisible)
+  })
+
+  it('complete + engineer path shows all chrome', () => {
+    expect(onboardingChromeHidden({ incomplete: false, path: 'engineer' })).toEqual(allVisible)
   })
 })
 

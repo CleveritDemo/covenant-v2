@@ -1,0 +1,103 @@
+/* Tarjeta del encargo de una delegación en el chat del especialista.
+   El shell sólido lo aporta ChatBubble; aquí solo contenido. */
+.delegation-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delegation-brief__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.delegation-brief__from,
+.delegation-brief__to {
+  font-weight: 600;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
+  font-family: var(--font-ui);
+}
+
+.delegation-brief__from { color: var(--text); }
+.delegation-brief__to { color: var(--text-muted); }
+
+.delegation-brief__arrow {
+  font-family: var(--font-mono);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.92);
+  color: var(--accent);
+}
+
+/* La etiqueta que dice de qué es la tarjeta: encargo (acento) o subencargo
+   (ámbar), para no confundir un encargo del orquestador con uno anidado. */
+.delegation-brief__kind {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.72);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-veil);
+  border: 1px solid var(--accent-border-soft);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.delegation-brief--nested .delegation-brief__kind {
+  color: var(--caution);
+  background: color-mix(in srgb, var(--caution) 9%, transparent);
+  border-color: color-mix(in srgb, var(--caution) 30%, transparent);
+}
+
+.delegation-brief--nested .delegation-brief__arrow { color: var(--caution); }
+
+.delegation-brief__meta {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.8);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.delegation-brief__objective {
+  font-size: var(--agent-chat-font-size, 13px);
+  color: var(--text);
+  /* Igual que en la tarjeta de resultado: una ruta o un SHA no se parte a la
+     mitad, el bloque scrollea dentro de la tarjeta. */
+  overflow-x: auto;
+}
+
+.delegation-brief__objective code {
+  white-space: nowrap;
+}
+
+.delegation-brief__empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Condiciones del encargo: contextos preferidos y worktree aislado. */
+.delegation-brief__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.delegation-brief__chip {
+  font-family: var(--font-mono);
+  font-size: calc(var(--agent-chat-font-size, 13px) * 0.78);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.delegation-brief__chip--worktree {
+  color: var(--caution);
+  border-color: color-mix(in srgb, var(--caution) 34%, transparent);
+}

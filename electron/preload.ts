@@ -44,6 +44,7 @@ import type {
 } from '../src/shared/githubActionsTypes'
 import type { GithubTokenSource } from './githubToken'
 import type { GithubAccount } from '../src/shared/githubAccounts'
+import type { JiraAccount } from '../src/shared/jiraAccounts'
 import type { GithubRepoListResult } from '../src/shared/githubRepoPicker'
 import type {
   CovenantDefault,
@@ -88,6 +89,7 @@ import type {
   TabContextDeleteResult,
   TabContextDiscoveryRequest,
   TabContextDiscoveryResult,
+  ContextSkillsListResult,
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
@@ -328,6 +330,9 @@ const api = {
   },
   discoverTabContexts(request: TabContextDiscoveryRequest): Promise<TabContextDiscoveryResult> {
     return ipcRenderer.invoke(IPC.TAB_CONTEXT_DISCOVER, request)
+  },
+  listSkills(cwd: string): Promise<ContextSkillsListResult> {
+    return ipcRenderer.invoke(IPC.CONTEXT_SKILLS_LIST, cwd)
   },
   ensureAiAgentResults(request: {
     cwd: string
@@ -1270,6 +1275,8 @@ const api = {
     configured: boolean
     site: string
     email: string
+    accountId: string
+    accountLabel: string
     projectKeys: string[]
     connected: boolean
   }> {
@@ -1300,6 +1307,73 @@ const api = {
     issueKey: string,
   ): Promise<{ ok: boolean; content?: string; error?: string }> {
     return ipcRenderer.invoke(IPC.JIRA_PREVIEW_ISSUE, cwd, issueKey)
+  },
+  jiraIssueTypes(
+    cwd: string,
+    projectKey: string,
+  ): Promise<{
+    ok: boolean
+    issueTypes: Array<{ id: string; name: string; subtask: boolean }>
+    error?: string
+  }> {
+    return ipcRenderer.invoke(IPC.JIRA_ISSUE_TYPES, cwd, projectKey)
+  },
+  jiraCreateIssues(
+    cwd: string,
+    input: {
+      projectKey: string
+      nodes: Array<{
+        tempId: string
+        parentTempId?: string
+        issueTypeName: string
+        summary: string
+        description?: string
+      }>
+    },
+  ): Promise<{
+    ok: boolean
+    error?: string
+    results: Array<{ tempId: string; ok: boolean; key?: string; error?: string }>
+  }> {
+    return ipcRenderer.invoke(IPC.JIRA_CREATE_ISSUES, cwd, input)
+  },
+  jiraAccountsList(): Promise<
+    { ok: true; accounts: JiraAccount[]; defaultAccountId: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNTS_LIST)
+  },
+  jiraAccountUpsert(input: {
+    id?: string
+    label: string
+    site: string
+    email: string
+    apiToken?: string
+  }): Promise<{ ok: true; account: JiraAccount } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_UPSERT, input)
+  },
+  jiraAccountDelete(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_DELETE, id)
+  },
+  jiraAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_SET_DEFAULT, id)
+  },
+  jiraAccountCheck(
+    accountId: string,
+  ): Promise<
+    { ok: true; displayName: string; email: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_CHECK, accountId)
+  },
+  jiraWorkspaceAccountGet(
+    cwd: string,
+  ): Promise<{ ok: true; accountId: string | null } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_WORKSPACE_ACCOUNT_GET, cwd)
+  },
+  jiraWorkspaceAccountSet(
+    cwd: string,
+    accountId: string | null,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.JIRA_WORKSPACE_ACCOUNT_SET, cwd, accountId)
   },
 
   githubIssueStatus(

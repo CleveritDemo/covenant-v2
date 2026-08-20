@@ -20,6 +20,11 @@ export type OrgWorkspaceCatalog = {
   fetchedAt: number
 }
 
+/** Catálogos org indexados por accountId Covenant; `''` = cuenta por defecto. */
+export type OrgWorkspaceCatalogMap = { byAccount: Record<string, OrgWorkspaceCatalog> }
+
+export type OrgWorkspaceCatalogOption = OrgWorkspaceCatalogEntry & { accountId: string; login: string }
+
 /** Input al construir el catálogo (permisos ya resueltos por el caller). */
 export type OrgWorkspaceCatalogWorkspaceInput = {
   id: string
@@ -188,6 +193,89 @@ export function parseOrgWorkspaceCatalog(raw: unknown): OrgWorkspaceCatalog | nu
   return { login: obj.login.trim(), entries, fetchedAt: obj.fetchedAt }
 }
 
+export function catalogForAccount(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  accountId: string,
+): OrgWorkspaceCatalog | null {
+  if (!map) return null
+  return map.byAccount[accountId.trim()] ?? null
+}
+
+export function upsertAccountCatalog(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  accountId: string,
+  cat: OrgWorkspaceCatalog,
+): OrgWorkspaceCatalogMap {
+  const key = accountId.trim()
+  return {
+    byAccount: {
+      ...(map?.byAccount ?? {}),
+      [key]: cat,
+    },
+  }
+}
+
+export function accountIdsInCatalogMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+): string[] {
+  if (!map) return []
+  return Object.keys(map.byAccount).sort()
+}
+
+/**
+ * Aplana el mapa multi-cuenta a opciones del picker Cmd+T.
+ * Claves no vacías primero para que el dedupe conserve el accountId real frente a `''`.
+ */
+export function orgWorkspaceOptionsFromCatalogMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+): OrgWorkspaceCatalogOption[] {
+  if (!map) return []
+  const rows = Object.entries(map.byAccount)
+  const sorted = [
+    ...rows.filter(([key]) => key.trim() !== ''),
+    ...rows.filter(([key]) => key.trim() === ''),
+  ]
+  const seen = new Set<string>()
+  const out: OrgWorkspaceCatalogOption[] = []
+  for (const [accountId, cat] of sorted) {
+    const login = cat.login.trim()
+    if (!login) continue
+    for (const entry of cat.entries) {
+      const dedupeKey = `${normalizeGithubLogin(login)}|${entry.slug}|${entry.workspaceId}`
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
+      out.push({
+        ...entry,
+        accountId: accountId.trim(),
+        login,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * Acepta `{ byAccount }` o un catálogo legacy suelto (`login`/`entries`).
+ * Entradas inválidas en `byAccount` se descartan; null si no queda nada válido.
+ */
+export function parseOrgWorkspaceCatalogMap(raw: unknown): OrgWorkspaceCatalogMap | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const byAccountRaw = obj.byAccount
+  if (byAccountRaw != null && typeof byAccountRaw === 'object' && !Array.isArray(byAccountRaw)) {
+    const byAccount: Record<string, OrgWorkspaceCatalog> = {}
+    for (const [key, value] of Object.entries(byAccountRaw as Record<string, unknown>)) {
+      const cat = parseOrgWorkspaceCatalog(value)
+      if (cat) byAccount[key] = cat
+    }
+    if (Object.keys(byAccount).length === 0) return null
+    return { byAccount }
+  }
+  const legacy = parseOrgWorkspaceCatalog(raw)
+  if (legacy) return { byAccount: { '': legacy } }
+  return null
+}
+
 export function findOrgWorkspaceCatalogEntry(
   catalog: OrgWorkspaceCatalog | null | undefined,
   slug: string,
@@ -199,14 +287,30 @@ export function findOrgWorkspaceCatalogEntry(
   return catalog.entries.find(e => e.slug === s && e.workspaceId === id)
 }
 
-/** ¿Puede publicar cambios? Deriva de `canRename` del catálogo (manager/admin). */
+/** Busca una entrada en cualquier catálogo del mapa (p. ej. labels de Pulse). */
+export function findOrgWorkspaceCatalogEntryInMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  slug: string,
+  workspaceId: string,
+): OrgWorkspaceCatalogEntry | undefined {
+  if (!map) return undefined
+  for (const catalog of Object.values(map.byAccount)) {
+    const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
+    if (entry) return entry
+  }
+  return undefined
+}
+
+/** Sin catálogo → false; con entrada → `canRename`; sin entrada → true (el server decide). */
 export function canUploadOrgWorkspaceFromCatalog(
   catalog: OrgWorkspaceCatalog | null | undefined,
   slug: string,
   workspaceId: string,
 ): boolean {
+  if (catalog == null) return false
   const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
-  return entry?.canRename === true
+  if (entry) return entry.canRename === true
+  return true
 }
 
 /**

@@ -59,6 +59,7 @@ import {
 } from '@shared/agentOrchestration'
 import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import type { DelegationRuntimeEntry } from '@shared/delegationRuntimeRegistry'
+import { buildDelegationBriefBlock } from '@shared/delegationBriefCard'
 import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
@@ -187,6 +188,12 @@ export interface PlaneSendDelegation {
   orchestrationJobId: string
   threadId?: string
   cwd?: string
+  /** Solo presentación (tarjeta del encargo): quién delegó. */
+  fromAgentId?: string
+  /** Solo presentación: etiqueta de la oleada, p. ej. `1/3`. */
+  round?: string
+  /** Solo presentación: encargo anidado (especialista → especialista). */
+  nested?: boolean
 }
 
 /** Mensaje escrito mientras la IA trabajaba; se envía solo al liberarse el turno. */
@@ -1785,18 +1792,23 @@ export const AgentPane: React.FC<Props> = ({
     displayImages?: AgentChatImage[]
     allowDelegations?: boolean
     orchestrationJobId?: string
-    delegation?: {
-      id: string
-      fromPaneId: string
-      toAgentId: string
-      orchestrationJobId: string
-      threadId?: string
-      cwd?: string
-    }
+    delegation?: PlaneSendDelegation
   }): Promise<boolean> => {
     const assistant: AgentChatEntry = { id: crypto.randomUUID(), role: 'assistant', content: '' }
+    /**
+     * El encargo se pinta como tarjeta, no como texto: `displayUser` no lo lee
+     * el CLI (para eso está `options.prompt`), así que el bloque de metadatos
+     * viaja solo hasta la burbuja. Ver `shared/delegationBriefCard.ts`.
+     */
     const userContent = options.delegation
-      ? `${options.displayUser}\n\n_(${t('agentPane.delegationViaOrchestrator')})_`
+      ? buildDelegationBriefBlock({
+          objective: options.displayUser,
+          fromAgentId: options.delegation.fromAgentId,
+          toAgentId: options.delegation.toAgentId,
+          ...(options.delegation.round ? { round: options.delegation.round } : {}),
+          ...(options.delegation.cwd ? { cwd: options.delegation.cwd } : {}),
+          ...(options.delegation.nested ? { nested: true } : {}),
+        })
       : options.displayUser
     const user: AgentChatEntry = {
       id: crypto.randomUUID(),

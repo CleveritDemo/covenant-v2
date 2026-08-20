@@ -1,0 +1,24 @@
+.tab-context-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tab-context-search-bar > .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-context-search-bar__count {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tab-context-search-bar__nav {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}

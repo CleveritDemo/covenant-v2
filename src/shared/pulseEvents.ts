@@ -106,6 +106,8 @@ export interface PulseStats {
   days: PulseDay[]
   /** Una fila por agente que haya trabajado en el alcance, de más a menos turnos. */
   agents: PulseAgentStat[]
+  /** Una fila por CLI que atendió turnos, de más a menos tokens. */
+  providers: PulseProviderStat[]
 }
 
 export interface PulseSnapshot extends PulseStats {
@@ -168,6 +170,25 @@ export interface PulseAgentStat {
   series: number[]
   /** Repos tocados, de más a menos turnos. */
   repos: Array<{ repo: string; turns: number }>
+}
+
+export interface PulseProviderStat {
+  provider: string
+  turns: number
+  tokensIn: number
+  tokensOut: number
+  tokens: number
+  /**
+   * Turnos con `(tokensIn ?? 0) + (tokensOut ?? 0) > 0`. Hoy solo algunos
+   * harnesses reportan usage; sin este campo la UI no puede distinguir «gastó 0»
+   * de «no sabemos» — pintar 0 donde no hay medición es mentir.
+   */
+  measuredTurns: number
+  activeDays: number
+  loopTurns: number
+  avgDurationMs: number
+  lastTs: number
+  agents: Array<{ agentId: string; turns: number }>
 }
 
 export function filterPulseEvents(events: PulseEvent[], scope: PulseScope = {}): PulseEvent[] {
@@ -303,6 +324,83 @@ export function aggregateAgents(
     .sort((a, b) => b.turns - a.turns || a.agentId.localeCompare(b.agentId))
 }
 
+/**
+ * Corte por CLI de los turnos prompt: commit, delegate y result no traen harness;
+ * los prompts sin `provider` quedan fuera igual que en la instrumentación.
+ */
+export function aggregateProviders(events: PulseEvent[], nowMs: number): PulseProviderStat[] {
+  interface Acc {
+    provider: string
+    turns: number
+    tokensIn: number
+    tokensOut: number
+    tokens: number
+    measuredTurns: number
+    loopTurns: number
+    lastTs: number
+    days: Set<string>
+    durationMsTotal: number
+    timedTurns: number
+    agentTurns: Map<string, number>
+  }
+  const byProvider = new Map<string, Acc>()
+
+  const ensure = (provider: string): Acc => {
+    let row = byProvider.get(provider)
+    if (!row) {
+      row = {
+        provider,
+        turns: 0,
+        tokensIn: 0,
+        tokensOut: 0,
+        tokens: 0,
+        measuredTurns: 0,
+        loopTurns: 0,
+        lastTs: 0,
+        days: new Set(),
+        durationMsTotal: 0,
+        timedTurns: 0,
+        agentTurns: new Map(),
+      }
+      byProvider.set(provider, row)
+    }
+    return row
+  }
+
+  for (const e of events) {
+    if (e.kind !== 'prompt') continue
+    const provider = e.provider?.trim()
+    if (!provider) continue
+    const row = ensure(provider)
+    row.turns++
+    if (e.viaLoop) row.loopTurns++
+    const tokensIn = e.tokensIn ?? 0
+    const tokensOut = e.tokensOut ?? 0
+    row.tokensIn += tokensIn
+    row.tokensOut += tokensOut
+    row.tokens += tokensIn + tokensOut
+    if (tokensIn + tokensOut > 0) row.measuredTurns++
+    if (typeof e.durationMs === 'number' && e.durationMs >= 0) {
+      row.durationMsTotal += e.durationMs
+      row.timedTurns++
+    }
+    row.days.add(dayFromMs(e.ts))
+    if (e.ts >= row.lastTs) row.lastTs = e.ts
+    if (e.agentId) row.agentTurns.set(e.agentId, (row.agentTurns.get(e.agentId) ?? 0) + 1)
+  }
+
+  return [...byProvider.values()]
+    .map(({ days, durationMsTotal, timedTurns, agentTurns, ...row }) => ({
+      ...row,
+      activeDays: days.size,
+      avgDurationMs: timedTurns > 0 ? durationMsTotal / timedTurns : 0,
+      agents: [...agentTurns.entries()]
+        .map(([agentId, turns]) => ({ agentId, turns }))
+        .sort((a, b) => b.turns - a.turns || a.agentId.localeCompare(b.agentId)),
+    }))
+    .sort((a, b) => b.tokens - a.tokens || b.turns - a.turns || a.provider.localeCompare(b.provider))
+}
+
 /** Días enteros entre dos etiquetas ISO, sobre el calendario UTC como shiftDay. */
 function daysBetween(from: string, to: string): number {
   const ms = (day: string): number => {
@@ -401,6 +499,7 @@ export function aggregatePulse(events: PulseEvent[], nowMs: number): PulseStats 
     avgPrompts30d: prompts30d / 30,
     days,
     agents: aggregateAgents(events, nowMs),
+    providers: aggregateProviders(events, nowMs),
   }
 }
 

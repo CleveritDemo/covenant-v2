@@ -470,7 +470,7 @@ export const BrainstormRoomsView: React.FC<BrainstormRoomsViewProps> = ({
           />
         )}
       >
-        <div className="brainstorm-rooms">
+        <div className="brainstorm-rooms" data-onboarding="brainstorm-rooms-list">
         {rooms.length > 0 ? (
           <div className="brainstorm-rooms__search">
             <Icon name="search" size={14} aria-hidden />

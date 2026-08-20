@@ -168,6 +168,7 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     fallbackProvider ? modelsForProvider(fallbackProvider) : []
   ))
   const [fallbackModelsLoading, setFallbackModelsLoading] = useState(false)
+  const [fallbackModelsError, setFallbackModelsError] = useState('')
 
   useEffect(() => {
     if (modelOptionsProp) return
@@ -200,14 +201,17 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
     if (!fallbackProvider) return
     let cancelled = false
     setFallbackModelsLoading(true)
+    setFallbackModelsError('')
     setFallbackModels(modelsForProvider(fallbackProvider))
     void window.api.listAgentCliModels(fallbackProvider).then(result => {
       if (cancelled) return
       if (result.models.length > 0) setFallbackModels(result.models)
+      setFallbackModelsError(result.error ?? '')
       setFallbackModelsLoading(false)
-    }).catch(() => {
+    }).catch(error => {
       if (cancelled) return
       setFallbackModels(modelsForProvider(fallbackProvider))
+      setFallbackModelsError(error instanceof Error ? error.message : String(error))
       setFallbackModelsLoading(false)
     })
     return () => { cancelled = true }
@@ -317,6 +321,11 @@ export const AgentConfigSettingsPane: React.FC<AgentConfigSettingsPaneProps> = (
           ) : null}
           {fallbackId ? (
             <p className="agent-config-settings__hint">{t('agentPane.fallbackModelHint')}</p>
+          ) : null}
+          {fallbackId && !fallbackModelsLoading && fallbackModelsError ? (
+            <p className="agent-config-settings__hint agent-config-settings__hint--warn">
+              {t('agentPane.modelLoadErrorDetail', { detail: fallbackModelsError.slice(0, 160) })}
+            </p>
           ) : null}
         </div>
       </div>

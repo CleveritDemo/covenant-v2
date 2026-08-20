@@ -57,6 +57,13 @@ export interface OnboardingCoachMarkProps {
   dismissLabel?: string
   /** OK a la vista pero apagado: falta hacer lo que el paso pide. */
   dismissDisabled?: boolean
+  /**
+   * Contenedor donde buscar el ancla: el plano de la pestaña activa. Las tabs
+   * inactivas siguen montadas con las mismas anclas, así que sin este límite el
+   * coach podría medir la copia de otra pestaña. Si el ancla no está dentro
+   * (modales en portal), se busca en todo el documento.
+   */
+  scopeRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -66,10 +73,12 @@ export interface OnboardingCoachMarkProps {
  * pintaba nada. Gana la primera copia VISIBLE; si ninguna lo es, la primera,
  * para que el observer de anclas tardías siga teniendo a quién esperar.
  */
-function queryAnchor(anchor: string): HTMLElement | null {
-  const found = Array.from(
-    document.querySelectorAll<HTMLElement>(`[data-onboarding="${anchor}"]`),
-  )
+function queryAnchor(anchor: string, scope?: HTMLElement | null): HTMLElement | null {
+  const selector = `[data-onboarding="${anchor}"]`
+  const inScope = scope ? Array.from(scope.querySelectorAll<HTMLElement>(selector)) : []
+  const found = inScope.length > 0
+    ? inScope
+    : Array.from(document.querySelectorAll<HTMLElement>(selector))
   if (found.length === 0) return null
   const visible = found.find((el) => {
     const r = el.getBoundingClientRect()
@@ -120,8 +129,8 @@ export function coachMeasuresEqual(
     && a.holePad === b.holePad
 }
 
-function measureTarget(anchor: string): CoachTargetMeasure | null {
-  const el = queryAnchor(anchor)
+function measureTarget(anchor: string, scope?: HTMLElement | null): CoachTargetMeasure | null {
+  const el = queryAnchor(anchor, scope)
   if (!el) return null
   const target = resolveCoachTarget(el)
   const r = target.getBoundingClientRect()
@@ -145,6 +154,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   onDismiss,
   dismissLabel,
   dismissDisabled = false,
+  scopeRef,
 }) => {
   const [measure, setMeasure] = useState<CoachTargetMeasure | null>(null)
   const [cardSize, setCardSize] = useState(CALLOUT_FALLBACK)
@@ -174,10 +184,11 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
      * apunta a donde el control estaba. Solo hay estado nuevo si algo cambió.
      */
     const tick = (): void => {
-      const found = queryAnchor(anchor)
+      const scope = scopeRef?.current ?? null
+      const found = queryAnchor(anchor, scope)
       if (found) tagTarget(resolveCoachTarget(found))
       else clearTag()
-      const next = measureTarget(anchor)
+      const next = measureTarget(anchor, scope)
       if (!coachMeasuresEqual(current, next)) {
         current = next
         setMeasure(next)
@@ -194,7 +205,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
         cancelAnimationFrame(frame)
       }
     }
-  }, [anchor])
+  }, [anchor, scopeRef])
 
   useLayoutEffect(() => {
     const card = cardRef.current

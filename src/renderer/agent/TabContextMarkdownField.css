@@ -1,0 +1,19 @@
+.tab-context-markdown-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tab-context-markdown-field__label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tab-context-markdown-field__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}

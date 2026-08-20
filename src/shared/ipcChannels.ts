@@ -79,6 +79,8 @@ export const IPC = {
   TAB_CONTEXT_PREVIEW: 'tabContext:preview',
   TAB_CONTEXT_MATERIALIZE: 'tabContext:materialize',
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
+  /** Renderer → main (invoke): lista skills instaladas en `.gravity/skills/`. */
+  CONTEXT_SKILLS_LIST: 'context:skills:list',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Renderer → main (invoke): grafo de la wiki (`.gravity/wiki/pages`) de un cwd. */
   WIKI_GRAPH: 'wiki:graph',
@@ -427,6 +429,24 @@ export const IPC = {
   JIRA_SEARCH: 'jira:search',
   /** Markdown de una issue para la vista previa del formulario; no escribe disco. */
   JIRA_PREVIEW_ISSUE: 'jira:previewIssue',
+  /** Renderer → main (invoke): tipos de issue disponibles al crear en un proyecto */
+  JIRA_ISSUE_TYPES: 'jira:issueTypes',
+  /** Renderer → main (invoke): crear issues en lote (padre → subtarea) */
+  JIRA_CREATE_ISSUES: 'jira:createIssues',
+  /** Renderer → main (invoke): lista de cuentas del llavero + default */
+  JIRA_ACCOUNTS_LIST: 'jira:accounts:list',
+  /** Renderer → main (invoke): crear/actualizar cuenta (token opcional) */
+  JIRA_ACCOUNT_UPSERT: 'jira:accounts:upsert',
+  /** Renderer → main (invoke): borrar cuenta del llavero y su token */
+  JIRA_ACCOUNT_DELETE: 'jira:accounts:delete',
+  /** Renderer → main (invoke): marcar cuenta por defecto */
+  JIRA_ACCOUNT_SET_DEFAULT: 'jira:accounts:setDefault',
+  /** Renderer → main (invoke): verificar una cuenta del llavero con sus credenciales */
+  JIRA_ACCOUNT_CHECK: 'jira:account:check',
+  /** Renderer → main (invoke): cuenta ligada al workspace (cwd) */
+  JIRA_WORKSPACE_ACCOUNT_GET: 'jira:workspaceAccount:get',
+  /** Renderer → main (invoke): ligar/desligar cuenta al workspace */
+  JIRA_WORKSPACE_ACCOUNT_SET: 'jira:workspaceAccount:set',
 
   // ─── GitHub issues ──────────────────────────────────────────────────────────
   /** Renderer → main (invoke): ¿hay repo GitHub + token para este cwd? */

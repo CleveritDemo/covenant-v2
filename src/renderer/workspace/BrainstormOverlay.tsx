@@ -32,7 +32,7 @@ export interface BrainstormOverlayProps {
   left?: React.ReactNode
   /** Columna derecha: los asientos. */
   right?: React.ReactNode
-  /** `data-onboarding` en el aside derecho (p. ej. brainstorm-participants). */
+  /** Ancla del coach mark en la columna derecha completa (head + filas). */
   rightAnchor?: string
   /** Cuántas tarjetas hay en la columna derecha: fija el alto de celda. */
   seatCount?: number

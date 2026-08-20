@@ -63,6 +63,24 @@ describe('planeStatusUserSnippet', () => {
     ])).toBe('segunda')
   })
 
+  it('de un encargo delegado muestra el objetivo, no la cabecera', () => {
+    expect(planeStatusUserSnippet([
+      {
+        id: 'u1',
+        role: 'user',
+        content: [
+          '## Delegation brief',
+          'from: tl',
+          'round: 1/3',
+          '',
+          'Revisa el login.',
+          '',
+          'Preferred context ids: Front-Rules',
+        ].join('\n'),
+      },
+    ])).toBe('Revisa el login.')
+  })
+
   it('skips blank user messages', () => {
     expect(planeStatusUserSnippet([
       { id: 'u1', role: 'user', content: 'real' },

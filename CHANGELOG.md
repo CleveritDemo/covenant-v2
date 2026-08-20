@@ -5,6 +5,89 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.102.0
+
+### Cuentas de Jira
+
+- Ajustes → Jira ahora tiene un llavero de cuentas, como el de GitHub: das de alta varias con etiqueta, sitio, correo y token, marcas una como predeterminada y las borras cuando sobran.
+- Cada cuenta se verifica con sus propias credenciales, así que el resultado que ves corresponde a la ficha que pulsaste y no a otra.
+- Cada workspace elige con qué cuenta trabaja, o hereda la predeterminada. El sitio y el correo pasan a ser de la cuenta; el proyecto conserva sus claves, su JQL y su intervalo de refresco.
+- Las credenciales que ya tenías se migran solas al llavero la primera vez que abre la app, sin borrar nada de lo anterior.
+
+### Uso de tokens por harness
+
+- Pulse suma una sección nueva con una fila por CLI: turnos, tokens de entrada y salida, agentes que lo usaron y último uso.
+- Los tokens ahora se atribuyen al turno que los gastó, no a un contador global, así que el reparto entre agentes trabajando en paralelo deja de mezclarse. Codex, Cursor y Copilot pasan a reportar uso además de Claude.
+- Los CLIs que no publican consumo aparecen con un guion, nunca con un cero: no medir y gastar cero no son lo mismo.
+
+### Correcciones
+
+- Los desplegables ya no asoman un instante en la esquina superior izquierda antes de colocarse.
+
+## v0.101.1
+
+- El reporte de un contexto Markdown ahora se lee como documento y no como un mensaje de chat: títulos con escala propia, ancho de lectura acotado y listas con viñeta discreta.
+- Las listas escritas con •, ‣, ·, – o — ya se reconocen como listas; antes cada línea caía como un párrafo suelto con el carácter colgando delante.
+- El detalle de un contexto gana jerarquía: nombre a mayor escala, tipo en versalitas y la ruta del archivo en monoespaciada.
+
+## v0.101.0
+### Salas de brainstorming
+- El idioma de la sala sale del objetivo que escribiste: si lo planteas en español, los agentes responden en español aunque tengas la app en inglés. Con títulos muy cortos, donde no hay señal suficiente, se mantiene el idioma de la app.
+- El acta de la sala tiene un botón nuevo, «Añadir al backlog en Jira». Propone un árbol de historias y subtareas a partir de lo acordado, y antes de crear nada puedes renombrar, cambiar el tipo, mover o quitar cada issue. Los tipos que ofrece son los reales de tu proyecto de Jira, y al crear cada fila muestra su clave o el error que dio: si una falla, las demás siguen.
+
+## v0.100.1
+### Onboarding
+- En Planear, si ya tenías agentes en el catálogo, al crear el equipo la ceremonia de brainstorm se abre sola: la decisión sale del estado actual, no del bootstrap.
+- Si todavía no tenés ningún CLI instalado, la app espera a que la sonda de CLIs responda antes de abrir la ceremonia, así el aviso que te lleva a instalar el CLI no se saltea.
+
+## v0.100.0
+### Cuentas y organizaciones
+- Cada cuenta Covenant tiene su propio catálogo de workspaces de organización. Crear un workspace ya no falla con un error de permisos: la app usa la cuenta del tab en el que estás, no la primera que encuentra. Lo mismo al sincronizar, renombrar, elegir carpeta y en el clon de arranque.
+- «New tab» ofrece los workspaces de todas tus cuentas, no solo de una.
+- Al clonar un workspace de organización se recuerda con qué cuenta lo hiciste.
+- Subir un workspace ya no se corta en silencio: si no se puede publicar te dice por qué, y si el catálogo simplemente no lo conocía, la subida sigue.
+
+### Contextos
+- El editor de contextos tiene buscador: busca en el cuerpo y en la fuente, y salta al primer resultado sin robarte el foco mientras escribes.
+- Los contextos de tipo skill se guardan como `SKILL.md`, con vista previa mientras escribes, y la app puede listarlos. Borrar el contexto no toca la carpeta de la skill.
+
+### Agentes
+- Cuando un agente delega, el especialista recibe una tarjeta en lugar de un volcado de texto: quién le encargó el trabajo, en qué oleada va, el objetivo formateado, y los contextos y el worktree del encargo.
+- Si no se pueden listar los modelos del motor de respaldo, aparece el mismo aviso que en el primario en lugar de un desplegable vacío sin explicación.
+- Con el motor pi, los errores de asdf dejan de aparecer como si fueran modelos disponibles.
+
+## v0.99.5
+La guía de primeros pasos ya no se apaga al entrar a un brainstorm en Planear: si terminás una sala o ya hablaste en ella, los avisos siguen ahí al volver a las salas o al setup, y el paso de salas guardadas queda alcanzable.
+
+Un aviso cuyo sitio aparece un instante más tarde ya no se queda en blanco: la guía espera a que ese sitio exista y entonces lo señala.
+
+## v0.99.4
+La guía de primeros pasos ya no se corta al montar tu primer agente: sigue contigo hasta el final, aunque ya tengas equipo en el plano.
+
+Si un agente no tiene motor elegido, el envío queda bloqueado con un aviso que explica qué falta — distinto del aviso cuando falta instalar un CLI.
+
+El recorrido recuerda lo que ya hiciste: el primer mensaje enviado, los contextos asignados (incluso si ese contexto ya estaba en la pestaña) y los pasos que cerraste no vuelven a pedirse.
+
+Pulse, Wiki, Loops, la pestaña nueva y las organizaciones solo se ocultan mientras eliges rol; después vuelven aunque no hayas terminado el recorrido.
+
+Los avisos informativos ya no bloquean el plano: puedes seguir usándolo mientras están abiertos. Si ya tienes una terminal, el paso de abrir otra se salta automáticamente.
+
+Los avisos de la guía se colocan midiendo su alto real: ya no se salen por arriba ni tapan lo que señalan.
+
+El aviso de la guía se pinta por encima de la sala de brainstorm y de los haces de asignación de contexto.
+
+En el camino Planear ya puedes elegir participantes: el aviso dejó de sellar la columna de asientos.
+
+La guía no se muere al entrar a tus salas guardadas: te ofrece crear una sala nueva o volver a la que está en curso.
+
+El aviso de la guía solo aparece en la pestaña que estás mirando.
+
+La barra de contextos de la conversación avisa con un degradado lateral cuando hay más chips de los que caben.
+
+El aviso de la guía busca su ancla dentro del plano de la pestaña activa: ya no se engancha a una pestaña oculta.
+
+Si el modelo es el del CLI, el chip de la mini muestra DEF (tres letras); el nombre «Predeterminado» sigue en el tooltip y en la config.
+
 ## v0.99.3
 En la mini del agente, el motor queda a la derecha con un chip corto del modelo (FB5, O48, C25…). El nombre completo sigue en el tooltip; en la config no cambia.
 

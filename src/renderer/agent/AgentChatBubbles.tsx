@@ -11,11 +11,16 @@ import React, {
 import { flushSync } from 'react-dom'
 import type { AgentChatEntry } from '@shared/agentCliTypes'
 import {
+  looksLikeDelegationBrief,
+  parseDelegationBrief,
+} from '@shared/delegationBriefCard'
+import {
   looksLikeDelegationResultFollowUp,
   parseDelegationResultCards,
 } from '@shared/delegationResultCards'
 import { resolveAgentLabel } from '@shared/queuedTurnPreview'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import { DelegationBriefCard } from './DelegationBriefCard'
 import { DelegationResultCard } from './DelegationResultCard'
 import { PendingImageThumb } from '../components/PendingImageThumb'
 import { useT } from '@i18n/useT'
@@ -61,8 +66,25 @@ const BubbleBodyInner: React.FC<{
 }> = ({ content, live, role, projectAgents = [], onInsertCommand }) => {
   // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
-    // Salvo el follow-up de una delegación: ese no lo escribió una persona, lo
-    // arma el host, y en crudo se lee como un volcado con los pipes a la vista.
+    // Salvo lo que arma el host: el encargo que entra al especialista…
+    if (looksLikeDelegationBrief(content)) {
+      const brief = parseDelegationBrief(content)
+      if (brief) {
+        return (
+          <div className="agent-pane__bubble-cards">
+            <ChatBubble variant="assistant" solid>
+              <DelegationBriefCard
+                data={brief}
+                fromLabel={delegationCardAgentLabel(brief.fromAgentId, projectAgents)}
+                toLabel={delegationCardAgentLabel(brief.toAgentId, projectAgents)}
+              />
+            </ChatBubble>
+          </div>
+        )
+      }
+    }
+    // …y el follow-up del resultado, que en crudo se leía como un volcado con
+    // los pipes de la tabla markdown a la vista.
     if (looksLikeDelegationResultFollowUp(content)) {
       const cards = parseDelegationResultCards(content)
       if (cards.length > 0) {

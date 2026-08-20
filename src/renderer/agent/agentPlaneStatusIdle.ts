@@ -1,4 +1,5 @@
 import type { AgentChatEntry } from '@shared/agentCliTypes'
+import { parseDelegationBrief } from '@shared/delegationBriefCard'
 import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
 
 export interface QueuedTurnPlaneImage {
@@ -62,7 +63,9 @@ export function planeStatusUserSnippet(
   for (let i = messages.length - 1; i >= 0; i--) {
     const entry = messages[i]
     if (!entry || entry.role !== 'user') continue
-    const text = entry.content.trim()
+    const raw = entry.content.trim()
+    // Del encargo de una delegación interesa el objetivo, no su cabecera.
+    const text = parseDelegationBrief(raw)?.objective.trim() ?? raw
     if (!text || looksLikeDelegationResultFollowUp(text)) continue
     return text.length > 120 ? `${text.slice(0, 117)}…` : text
   }

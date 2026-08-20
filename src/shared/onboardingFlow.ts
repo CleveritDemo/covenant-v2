@@ -70,19 +70,24 @@ export function canCompleteOnboarding(args: {
   return false
 }
 
-export function onboardingChromeHidden(incomplete: boolean): {
+/** Chrome recortado solo en fase pre-rol; tras elegir rol el usuario recupera Pulse, Wiki, Loops, orgs y nuevas pestañas aunque el onboarding siga incompleto. */
+export function onboardingChromeHidden(args: {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+}): {
   hideTabAdd: boolean
   hideOrganizations: boolean
   hidePulse: boolean
   hideWiki: boolean
   hideLoops: boolean
 } {
+  const hidden = args.incomplete && args.path === ''
   return {
-    hideTabAdd: incomplete,
-    hideOrganizations: incomplete,
-    hidePulse: incomplete,
-    hideWiki: incomplete,
-    hideLoops: incomplete,
+    hideTabAdd: hidden,
+    hideOrganizations: hidden,
+    hidePulse: hidden,
+    hideWiki: hidden,
+    hideLoops: hidden,
   }
 }
 
@@ -127,4 +132,29 @@ export function shouldWarnComposerMissingCli(args: {
   cliAllMissing: boolean
 }): boolean {
   return args.incomplete && args.path === 'engineer' && args.cliAllMissing
+}
+
+export type ComposerSendBlock = 'none' | 'cli' | 'engine'
+
+/** Qué bloquea el envío del composer durante el onboarding del track engineer. */
+export function resolveComposerSendBlock(args: {
+  incomplete: boolean
+  path: OrchestratorPath | ''
+  cliAllMissing: boolean
+  engineMissing: boolean
+}): ComposerSendBlock {
+  if (!args.incomplete) return 'none'
+  if (args.path !== 'engineer') return 'none'
+  // 'cli' gana a 'engine': sin CLI en disco elegir motor no arregla nada.
+  if (args.cliAllMissing) return 'cli'
+  if (args.engineMissing) return 'engine'
+  return 'none'
+}
+
+/** Evita reescribir onboardingCompletedVersion cuando ya coincide con la versión pedida. */
+export function shouldPersistOnboardingCompleted(
+  current: string | undefined | null,
+  next: string,
+): boolean {
+  return (current ?? '').trim() !== next.trim()
 }

@@ -71,6 +71,8 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
         </div>
       ) : null}
       <div className={['plane-fab-stack', 'plane-fab-stack--right', elevatedClass].filter(Boolean).join(' ')}>
+        {/* create-team: PlaneIdleGravity va antes en el DOM (plano vacío gana su CTA);
+            con terminal abierta gana este FAB bootstrap. */}
         {showBootstrapAgents && bootstrapAgentsTitle && onBootstrapAgents ? (
           <PlaneFab
             kind="bootstrap"
@@ -78,6 +80,7 @@ export const PlaneFabStack: React.FC<PlaneFabStackProps> = ({
             hint={bootstrapHint}
             disabled={!canBootstrapAgents}
             disabledTitle={bootstrapAgentsDisabledTitle}
+            dataOnboarding="create-team"
             onClick={onBootstrapAgents}
           />
         ) : null}

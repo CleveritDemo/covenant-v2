@@ -110,4 +110,15 @@ describe('ContextReport kind notes', () => {
 
     expect(screen.getByText(/Body from workspaceContextBody/)).toBeTruthy()
   })
+
+  it('renderiza el markdown del cuerpo con la clase ai-md--doc', () => {
+    const { container } = render(
+      <ContextReport
+        context={notesContext}
+        content={notesDoc('## Objetivo\n\nEntregar el preview correcto.')}
+      />,
+    )
+
+    expect(container.querySelector('.ai-md--doc')).toBeTruthy()
+  })
 })

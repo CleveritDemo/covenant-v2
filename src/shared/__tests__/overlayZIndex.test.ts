@@ -10,12 +10,16 @@ import {
   QUIT_CONFIRM_Z,
 } from '../overlayZIndex'
 
-function tsxFiles(dir: string): string[] {
+function walkFiles(dir: string, extensions: string[]): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = join(dir, entry.name)
-    if (entry.isDirectory()) return tsxFiles(full)
-    return entry.name.endsWith('.tsx') ? [full] : []
+    if (entry.isDirectory()) return walkFiles(full, extensions)
+    return extensions.some(ext => entry.name.endsWith(ext)) ? [full] : []
   })
+}
+
+function tsxFiles(dir: string): string[] {
+  return walkFiles(dir, ['.tsx'])
 }
 
 describe('ONBOARDING_COACH_MARK_Z', () => {

@@ -37,31 +37,42 @@ import {
   onboardingChromeHidden,
   onboardingLockedSurface,
   shouldAutoCompleteFromPanes,
-  shouldWarnComposerMissingCli,
+  resolveComposerSendBlock,
+  shouldPersistOnboardingCompleted,
 } from '@shared/onboardingFlow'
 import {
   resolveOnboardingGuideStep,
+  isDismissibleGuideStep,
   type OnboardingGuideStep,
 } from '@shared/onboardingGuideFlow'
 import {
+  resolveContextAssignOutcome,
+  shouldPersistAssignedContext,
+} from '@shared/onboardingContextAssign'
+import {
   buildGuideResolveArgs,
+  composerEngineMissingForTab,
   shouldAutoOpenCeremonyOverlay,
   shouldCompleteByGuideExhausted,
 } from './onboardingAppWiring'
-import type { OrgWorkspaceCatalog } from '../shared/orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogMap } from '../shared/orgWorkspaceCatalog'
 import {
   buildOrgWorkspaceCatalog,
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   canUploadOrgWorkspaceFromCatalog,
-  catalogForLogin,
+  catalogForAccount,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
+  type OrgWorkspaceCatalog,
+  type OrgWorkspaceCatalogEntry,
   isCatalogFresh,
   orgWorkspaceTokenMissing,
+  parseOrgWorkspaceCatalogMap,
   patchOrgWorkspaceCatalogName,
   sameGithubLogin,
   syncTabTitlesFromOrgWorkspaceCatalog,
+  upsertAccountCatalog,
 } from '../shared/orgWorkspaceCatalog'
 import { GitPanelModal } from './components/GitPanelModal'
 import { GitRepoPickerModal } from './components/GitRepoPickerModal'
@@ -86,7 +97,7 @@ import {
   filterBrainstormInvitableAgents,
   type BrainstormRoom,
 } from '../shared/brainstormRoom'
-import { TabFileExplorerWindow, type TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
+import type { TabFileExplorerWindowHandle } from './workspace/TabFileExplorerWindow'
 import {
   armMiniExpandSuppress,
   isMiniExpandSuppressed,
@@ -131,6 +142,7 @@ import {
   buildBatchedDelegationFollowUp,
   isDuplicateOrchestrationQueueItem,
   orchestrationFollowUpKey,
+  formatOrchestrationRoundLabel,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
   isOrchestrationRoundsUnlimited,
@@ -140,7 +152,6 @@ import {
 import type { DelegateRequest, DelegateResult } from '@shared/agentOrchestration'
 import {
   buildDelegationTurnSummary,
-  isBetterDelegationSummary,
   isDelegationSummaryPlaceholder,
 } from '@shared/delegationTurnSummary'
 import {
@@ -274,7 +285,6 @@ import {
 import {
   agentChatRefFor,
   planAgentChatCleanupForRemovedPanes,
-  type AgentChatRef,
   type AgentChatScope,
 } from '../shared/agentChatPersistence'
 import { composerHistoryFromEntries } from '@shared/composerHistory'
@@ -322,6 +332,7 @@ import {
 import {
   getCovenantApi,
   hasCovenantOrgAdminsApi,
+  hasCovenantStatusAllApi,
   hasCovenantWikiApi,
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
@@ -335,10 +346,7 @@ import {
 } from './orgWikiSync'
 import { retryCovenantResult } from '../shared/covenantRetry'
 import { sanitizeSlugSegment } from '../shared/orgWorkspaceContent'
-import {
-  canUploadOrgWorkspaceChanges,
-  orderedAgentIdsFromTab,
-} from '../shared/orgWorkspaceLocalSync'
+import { orderedAgentIdsFromTab } from '../shared/orgWorkspaceLocalSync'
 import {
   downloadOrgWorkspaceToLocal,
   planOrgWorkspaceUpload,
@@ -434,6 +442,104 @@ function liveLaneThreadIdsForPane(
   return ids
 }
 
+export type OrgWorkspaceUploadGateResult =
+  | { proceed: true }
+  | { proceed: false; uploadError: string }
+
+/** Gate de subida org: entrada que deniega → error; sin entrada → el server decide. */
+export function resolveOrgWorkspaceUploadGate(
+  entry: OrgWorkspaceCatalogEntry | undefined,
+): OrgWorkspaceUploadGateResult {
+  if (entry && entry.canRename !== true) {
+    return { proceed: false, uploadError: 'not allowed to publish this workspace' }
+  }
+  return { proceed: true }
+}
+
+/** Cuenta Covenant de una pestaña org: persistida o resuelta por carpeta. */
+export function orgAccountIdForTab(
+  tab: TabSession,
+  resolveAccountId: (cwd: string | undefined | null) => string,
+): string {
+  return tab.orgWorkspace?.accountId?.trim()
+    || resolveAccountId(tab.projectFolder ?? tab.orgWorkspace?.localDir ?? '')
+}
+
+/** Cuenta Covenant para un cwd org: pestaña coincidente o fallback por carpeta. */
+export function orgAccountIdForCwd(
+  tabs: readonly TabSession[],
+  cwd: string,
+  resolveAccountId: (cwd: string | undefined | null) => string,
+): string {
+  const normalized = cwd.trim()
+  if (!normalized) return resolveAccountId(cwd)
+  const tab = tabs.find(item => {
+    const localDir = item.orgWorkspace?.localDir?.trim()
+    const projectFolder = item.projectFolder?.trim()
+    return localDir === normalized || projectFolder === normalized
+  })
+  const persisted = tab?.orgWorkspace?.accountId?.trim()
+  if (persisted) return persisted
+  return resolveAccountId(cwd)
+}
+
+/** Catálogo org de la cuenta dueña de la pestaña. */
+export function orgCatalogForTab(
+  map: OrgWorkspaceCatalogMap | null,
+  tab: TabSession,
+  resolveAccountId: (cwd: string | undefined | null) => string,
+): OrgWorkspaceCatalog | null {
+  return catalogForAccount(map, orgAccountIdForTab(tab, resolveAccountId))
+}
+
+function removeAccountCatalog(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  accountId: string,
+): OrgWorkspaceCatalogMap | null {
+  if (!map) return null
+  const key = accountId.trim()
+  if (!(key in map.byAccount)) return map
+  const byAccount = { ...map.byAccount }
+  delete byAccount[key]
+  return Object.keys(byAccount).length ? { byAccount } : null
+}
+
+function syncAllOrgTabTitlesFromMap(
+  tabs: readonly TabSession[],
+  map: OrgWorkspaceCatalogMap | null,
+  resolveAccountId: (cwd: string | undefined | null) => string,
+): TabSession[] | null {
+  let merged: TabSession[] = [...tabs]
+  let changed = false
+  for (const tab of tabs) {
+    if (!tab.orgWorkspace) continue
+    const cat = orgCatalogForTab(map, tab, resolveAccountId)
+    const synced = syncTabTitlesFromOrgWorkspaceCatalog([tab], cat)
+    if (!synced) continue
+    merged = merged.map(item => (item.id === tab.id ? synced[0]! : item))
+    changed = true
+  }
+  return changed ? merged : null
+}
+
+function catalogEntryChanged(
+  prev: OrgWorkspaceCatalog | undefined,
+  next: OrgWorkspaceCatalog,
+): boolean {
+  if (!prev) return true
+  if (prev.login !== next.login || prev.entries.length !== next.entries.length) return true
+  return prev.entries.some((e, i) => {
+    const n = next.entries[i]!
+    return (
+      e.slug !== n.slug
+      || e.orgName !== n.orgName
+      || e.workspaceId !== n.workspaceId
+      || e.name !== n.name
+      || e.canRename !== n.canRename
+    )
+  })
+}
+
 export function findPendingDelegationForThread(
   jobsByPane: ReadonlyMap<string, ReadonlyMap<string, OrchestrationJob>>,
   paneId: string,
@@ -492,6 +598,48 @@ export function applyPlaneSelectThreadMeta(
   }
 }
 
+/** Filas de CLI para el guard async de envío del plano durante onboarding. */
+export async function resolveOnboardingSendGuardCliRows(
+  guideLocked: boolean,
+  cachedClis: OnboardingCliRow[],
+  refreshOnboardingClis: () => Promise<OnboardingCliRow[]>,
+): Promise<OnboardingCliRow[]> {
+  if (guideLocked) {
+    return refreshOnboardingClis()
+  }
+  return cachedClis.length > 0 ? cachedClis : refreshOnboardingClis()
+}
+
+/** Decide si persistir onboardingSentFirstMessage tras encolar un envío humano del plano. */
+export async function evaluateOnboardingPlaneSendPersistGuard(args: {
+  guideLocked: boolean
+  cachedClis: OnboardingCliRow[]
+  refreshOnboardingClis: () => Promise<OnboardingCliRow[]>
+  orchestratorPath: OrchestratorPath | ''
+  paneId: string
+  paneKinds?: Record<string, unknown>
+  resolveProvider: (paneId: string) => string | undefined
+}): Promise<boolean> {
+  const rows = await resolveOnboardingSendGuardCliRows(
+    args.guideLocked,
+    args.cachedClis,
+    args.refreshOnboardingClis,
+  )
+  const cliAllMissing = clisAllMissing(rows)
+  return resolveComposerSendBlock({
+    incomplete: args.guideLocked,
+    path: args.orchestratorPath,
+    cliAllMissing,
+    engineMissing: composerEngineMissingForTab(
+      {
+        planeOpenChatAgentId: args.paneId,
+        paneKinds: args.paneKinds,
+      },
+      args.resolveProvider,
+    ),
+  }) === 'none'
+}
+
 export const App: React.FC = () => {
   const { t } = useT()
   const [tabs, setTabs] = useState<TabSession[]>([])
@@ -523,6 +671,9 @@ export const App: React.FC = () => {
     if (!key) return ''
     return workspaceAccountByCwdRef.current[key] ?? ''
   }, [])
+  const resolveOrgAccountIdForCwd = useCallback((cwd: string) => (
+    orgAccountIdForCwd(tabsRef.current, cwd, accountIdForCwd)
+  ), [accountIdForCwd])
   const handleGithubAccountChanged = useCallback((cwd: string, accountId: string | null) => {
     const key = cwd.trim()
     if (!key) return
@@ -554,6 +705,7 @@ export const App: React.FC = () => {
   >({})
   const onboardingClisRefreshOnceRef = useRef(false)
   const onboardingClisMissingLockedRef = useRef(false)
+  const onboardingCompletedVersionRef = useRef<string>(config.onboardingCompletedVersion ?? '')
   const ceremonyAutoOpenedRef = useRef<Set<string>>(new Set())
   const [orgModalOpen, setOrgModalOpen] = useState(false)
   const [orgWorkspacePickerOpen, setOrgWorkspacePickerOpen] = useState(false)
@@ -573,8 +725,8 @@ export const App: React.FC = () => {
     Record<string, number>
   >({})
   /** Snapshot Cmd+T: null = aún no hidratado / sin sesión. */
-  const [orgWorkspaceCatalog, setOrgWorkspaceCatalog] = useState<OrgWorkspaceCatalog | null>(null)
-  const orgWorkspaceCatalogRef = useRef<OrgWorkspaceCatalog | null>(null)
+  const [orgWorkspaceCatalogMap, setOrgWorkspaceCatalogMap] = useState<OrgWorkspaceCatalogMap | null>(null)
+  const orgWorkspaceCatalogMapRef = useRef<OrgWorkspaceCatalogMap | null>(null)
   const orgWorkspaceCatalogLoadingRef = useRef(false)
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
   const [orgWorkspaceRequirement, setOrgWorkspaceRequirement] =
@@ -1211,7 +1363,7 @@ export const App: React.FC = () => {
       if (isCancelled?.()) {
         return { agentsOk: true, contextsOk: true, cancelled: true }
       }
-      const covenant = getCovenantApi(accountIdForCwd(cwd))
+      const covenant = getCovenantApi(resolveOrgAccountIdForCwd(cwd))
       if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
         agentsOk = false
         contextsOk = false
@@ -1271,7 +1423,7 @@ export const App: React.FC = () => {
       }
     }
     return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
-  }, [accountIdForCwd, refreshProjectAgents, syncTabWithProjectAgents])
+  }, [resolveOrgAccountIdForCwd, refreshProjectAgents, syncTabWithProjectAgents])
   syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
 
   const refreshAndSyncProjectAgents = useCallback(async (cwd: string, tabId?: string) => {
@@ -1396,39 +1548,41 @@ export const App: React.FC = () => {
       }
       setConfig({ ...cfg, themeId: tid })
 
-      let login = ''
-      try {
-        const covenant = getCovenantApi()
-        if (covenant) {
-          const status = await covenant.status()
-          if (status.ok && status.data.signedIn) {
-            login = status.data.login?.trim() ?? ''
-          }
-        }
-      } catch {
-        /* status local falló → sin cache */
-      }
-      const hydrated = login
-        ? catalogForLogin(cfg.orgWorkspaceCatalogCache, login)
-        : null
-      orgWorkspaceCatalogRef.current = hydrated
-      setOrgWorkspaceCatalog(hydrated)
+      const map = parseOrgWorkspaceCatalogMap(cfg.orgWorkspaceCatalogCache)
+      orgWorkspaceCatalogMapRef.current = map
+      setOrgWorkspaceCatalogMap(map)
       setConfigReady(true)
     })
   }, [])
 
-  const applyOrgWorkspaceCatalog = useCallback((next: OrgWorkspaceCatalog | null) => {
-    orgWorkspaceCatalogRef.current = next
-    setOrgWorkspaceCatalog(next)
-    const synced = syncTabTitlesFromOrgWorkspaceCatalog(tabsRef.current, next)
+  const applyOrgWorkspaceCatalogMap = useCallback((next: OrgWorkspaceCatalogMap | null) => {
+    orgWorkspaceCatalogMapRef.current = next
+    setOrgWorkspaceCatalogMap(next)
+    const synced = syncAllOrgTabTitlesFromMap(tabsRef.current, next, accountIdForCwd)
     if (synced) {
       tabsRef.current = synced
       setTabs(synced)
     }
-  }, [])
+  }, [accountIdForCwd])
+
+  const applyOrgWorkspaceCatalogForAccount = useCallback((
+    accountId: string,
+    cat: OrgWorkspaceCatalog | null,
+  ) => {
+    const next = cat
+      ? upsertAccountCatalog(orgWorkspaceCatalogMapRef.current, accountId, cat)
+      : removeAccountCatalog(orgWorkspaceCatalogMapRef.current, accountId)
+    orgWorkspaceCatalogMapRef.current = next
+    setOrgWorkspaceCatalogMap(next)
+    const synced = syncAllOrgTabTitlesFromMap(tabsRef.current, next, accountIdForCwd)
+    if (synced) {
+      tabsRef.current = synced
+      setTabs(synced)
+    }
+  }, [accountIdForCwd])
 
   const persistOrgWorkspaceCatalogCache = useCallback(async (
-    next: OrgWorkspaceCatalog | null,
+    next: OrgWorkspaceCatalogMap | null,
   ) => {
     setConfig(prev => {
       if (next) {
@@ -1450,131 +1604,151 @@ export const App: React.FC = () => {
     orgWorkspaceCatalogLoadingRef.current = true
     const CATALOG_TTL_MS = 5 * 60 * 1000
     try {
-      const covenant = getCovenantApi()
-      if (!covenant) {
+      const accountIds = new Set<string>([''])
+      const defaultApi = getCovenantApi()
+      if (defaultApi && hasCovenantStatusAllApi(defaultApi)) {
+        const allStatus = await defaultApi.statusAll()
         if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-        applyOrgWorkspaceCatalog(null)
-        await persistOrgWorkspaceCatalogCache(null)
-        return
-      }
-      const status = await covenant.status()
-      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-      if (!status.ok || !status.data.signedIn) {
-        applyOrgWorkspaceCatalog(null)
-        await persistOrgWorkspaceCatalogCache(null)
-        return
-      }
-      const login = status.data.login?.trim() ?? ''
-      if (!login) {
-        applyOrgWorkspaceCatalog(null)
-        await persistOrgWorkspaceCatalogCache(null)
-        return
-      }
-
-      const current = catalogForLogin(orgWorkspaceCatalogRef.current, login)
-      const renameFlagsReady = !current
-        || current.entries.every(e => typeof e.canRename === 'boolean')
-      if (
-        !force
-        && isCatalogFresh(current, CATALOG_TTL_MS, Date.now())
-        && renameFlagsReady
-      ) {
-        if (current) applyOrgWorkspaceCatalog(current)
-        return
-      }
-
-      if (!hasCovenantWorkspacesApi(covenant)) {
-        const empty = buildOrgWorkspaceCatalog(login, [], {}, Date.now())
-        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-        applyOrgWorkspaceCatalog(empty)
-        await persistOrgWorkspaceCatalogCache(empty)
-        return
-      }
-
-      const orgsResult = await covenant.orgsList()
-      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-      if (!orgsResult.ok) return
-
-      const workspacesByOrg: Record<string, Array<{
-        id: string
-        name: string
-        canRename: boolean
-      }>> = {}
-      const orgAdminsApi = hasCovenantOrgAdminsApi(covenant)
-      type OrgListResult = Awaited<ReturnType<typeof covenant.workspacesList>>
-      const orgRows = await mapWithConcurrency(
-        orgsResult.data,
-        COVENANT_REQUEST_LIMIT,
-        async org => {
-          const slug = org.slug?.trim() ?? ''
-          if (!slug) {
-            return { slug: '', list: null as OrgListResult | null, isOrgAdmin: false }
+        if (allStatus.ok) {
+          for (const [id, statusRow] of Object.entries(allStatus.data)) {
+            if (statusRow.signedIn) accountIds.add(id)
           }
-          const list = await covenant.workspacesList(slug)
-          if (!list.ok) return { slug, list, isOrgAdmin: false }
-          const orgRole = org.role?.trim() ?? ''
-          let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
-          if (!isOrgAdmin && orgAdminsApi) {
-            const adminsResult = await covenant.orgAdminsList(slug)
-            if (adminsResult.ok) {
-              isOrgAdmin = adminsResult.data.some(a => sameGithubLogin(a, login))
+        }
+      }
+      for (const tab of tabsRef.current) {
+        if (!tab.orgWorkspace) continue
+        accountIds.add(orgAccountIdForTab(tab, accountIdForCwd))
+      }
+
+      let map = orgWorkspaceCatalogMapRef.current
+      let structuralChanged = false
+
+      for (const accountId of accountIds) {
+        const covenant = getCovenantApi(accountId)
+        if (!covenant) {
+          const removed = removeAccountCatalog(map, accountId)
+          if (removed !== map) {
+            map = removed
+            structuralChanged = true
+          }
+          continue
+        }
+        const status = await covenant.status()
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        if (!status.ok || !status.data.signedIn) {
+          const removed = removeAccountCatalog(map, accountId)
+          if (removed !== map) {
+            map = removed
+            structuralChanged = true
+          }
+          continue
+        }
+        const login = status.data.login?.trim() ?? ''
+        if (!login) {
+          const removed = removeAccountCatalog(map, accountId)
+          if (removed !== map) {
+            map = removed
+            structuralChanged = true
+          }
+          continue
+        }
+
+        const current = catalogForAccount(map, accountId)
+        const renameFlagsReady = !current
+          || current.entries.every(e => typeof e.canRename === 'boolean')
+        if (
+          !force
+          && isCatalogFresh(current, CATALOG_TTL_MS, Date.now())
+          && renameFlagsReady
+        ) {
+          continue
+        }
+
+        if (!hasCovenantWorkspacesApi(covenant)) {
+          const empty = buildOrgWorkspaceCatalog(login, [], {}, Date.now())
+          if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+          if (catalogEntryChanged(current ?? undefined, empty)) {
+            map = upsertAccountCatalog(map, accountId, empty)
+            structuralChanged = true
+          }
+          continue
+        }
+
+        const orgsResult = await covenant.orgsList()
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        if (!orgsResult.ok) continue
+
+        const workspacesByOrg: Record<string, Array<{
+          id: string
+          name: string
+          canRename: boolean
+        }>> = {}
+        const orgAdminsApi = hasCovenantOrgAdminsApi(covenant)
+        type OrgListResult = Awaited<ReturnType<typeof covenant.workspacesList>>
+        const orgRows = await mapWithConcurrency(
+          orgsResult.data,
+          COVENANT_REQUEST_LIMIT,
+          async org => {
+            const slug = org.slug?.trim() ?? ''
+            if (!slug) {
+              return { slug: '', list: null as OrgListResult | null, isOrgAdmin: false }
             }
-          }
-          return { slug, list, isOrgAdmin }
-        },
-      )
-      if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-      for (let i = 0; i < orgRows.length; i++) {
-        const org = orgsResult.data[i]!
-        const { slug, list, isOrgAdmin } = orgRows[i]!
-        if (!slug) continue
-        if (!list || !list.ok) continue
-        workspacesByOrg[slug] = list.data.map(w => {
-          const workspaceAccess = {
-            login,
-            orgRole: org.role ?? '',
-            isOrgAdmin,
-            createdBy: w.createdBy,
-            admins: w.admins,
-          }
-          return {
-            id: w.id,
-            name: w.name,
-            canAccess: canAccessOrgWorkspace({
-              ...workspaceAccess,
-              assignees: w.assignees,
-            }),
-            canRename: canRenameOrgWorkspace(workspaceAccess),
-          }
-        })
+            const list = await covenant.workspacesList(slug)
+            if (!list.ok) return { slug, list, isOrgAdmin: false }
+            const orgRole = org.role?.trim() ?? ''
+            let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
+            if (!isOrgAdmin && orgAdminsApi) {
+              const adminsResult = await covenant.orgAdminsList(slug)
+              if (adminsResult.ok) {
+                isOrgAdmin = adminsResult.data.some(a => sameGithubLogin(a, login))
+              }
+            }
+            return { slug, list, isOrgAdmin }
+          },
+        )
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+        for (let i = 0; i < orgRows.length; i++) {
+          const org = orgsResult.data[i]!
+          const { slug, list, isOrgAdmin } = orgRows[i]!
+          if (!slug) continue
+          if (!list || !list.ok) continue
+          workspacesByOrg[slug] = list.data.map(w => {
+            const workspaceAccess = {
+              login,
+              orgRole: org.role ?? '',
+              isOrgAdmin,
+              createdBy: w.createdBy,
+              admins: w.admins,
+            }
+            return {
+              id: w.id,
+              name: w.name,
+              canAccess: canAccessOrgWorkspace({
+                ...workspaceAccess,
+                assignees: w.assignees,
+              }),
+              canRename: canRenameOrgWorkspace(workspaceAccess),
+            }
+          })
+        }
+
+        const built = buildOrgWorkspaceCatalog(
+          login,
+          orgsResult.data.map(o => ({ slug: o.slug, name: o.name })),
+          workspacesByOrg,
+          Date.now(),
+        )
+        if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
+
+        if (catalogEntryChanged(current ?? undefined, built)) {
+          map = upsertAccountCatalog(map, accountId, built)
+          structuralChanged = true
+        }
       }
 
-      const built = buildOrgWorkspaceCatalog(
-        login,
-        orgsResult.data.map(o => ({ slug: o.slug, name: o.name })),
-        workspacesByOrg,
-        Date.now(),
-      )
       if (gen !== orgWorkspaceCatalogLoadGenRef.current) return
-
-      const prev = orgWorkspaceCatalogRef.current
-      const changed =
-        !prev
-        || prev.login !== built.login
-        || prev.entries.length !== built.entries.length
-        || prev.entries.some((e, i) => {
-          const n = built.entries[i]!
-          return (
-            e.slug !== n.slug
-            || e.orgName !== n.orgName
-            || e.workspaceId !== n.workspaceId
-            || e.name !== n.name
-            || e.canRename !== n.canRename
-          )
-        })
-
-      applyOrgWorkspaceCatalog(built)
-      if (changed) await persistOrgWorkspaceCatalogCache(built)
+      applyOrgWorkspaceCatalogMap(map)
+      if (structuralChanged) await persistOrgWorkspaceCatalogCache(map)
     } catch {
       /* red falló: conservar snapshot en memoria */
     } finally {
@@ -1582,7 +1756,7 @@ export const App: React.FC = () => {
         orgWorkspaceCatalogLoadingRef.current = false
       }
     }
-  }, [applyOrgWorkspaceCatalog, persistOrgWorkspaceCatalogCache])
+  }, [accountIdForCwd, applyOrgWorkspaceCatalogMap, persistOrgWorkspaceCatalogCache])
 
   // Stale-while-revalidate tras boot (red en background; Cmd+T ya usa el snapshot).
   useEffect(() => {
@@ -1592,12 +1766,12 @@ export const App: React.FC = () => {
 
   // Catálogo y sesión cargan en paralelo: alinear títulos org cuando ambos estén listos.
   useEffect(() => {
-    if (!sessionReady.loaded || !orgWorkspaceCatalog) return
-    const synced = syncTabTitlesFromOrgWorkspaceCatalog(tabsRef.current, orgWorkspaceCatalog)
+    if (!sessionReady.loaded || !orgWorkspaceCatalogMap) return
+    const synced = syncAllOrgTabTitlesFromMap(tabsRef.current, orgWorkspaceCatalogMap, accountIdForCwd)
     if (!synced) return
     tabsRef.current = synced
     setTabs(synced)
-  }, [sessionReady.loaded, orgWorkspaceCatalog])
+  }, [sessionReady.loaded, orgWorkspaceCatalogMap, accountIdForCwd])
 
   // Tab org sin `canRename` en catálogo: refrescar permisos (admin recién promovido, caché vieja).
   const orgCatalogPermissionRefreshRef = useRef<string | null>(null)
@@ -1610,7 +1784,11 @@ export const App: React.FC = () => {
       orgCatalogPermissionRefreshRef.current = null
       return
     }
-    const entry = findOrgWorkspaceCatalogEntry(orgWorkspaceCatalog, slug, workspaceId)
+    const entry = findOrgWorkspaceCatalogEntry(
+      orgCatalogForTab(orgWorkspaceCatalogMap, tab!, accountIdForCwd),
+      slug,
+      workspaceId,
+    )
     if (entry && typeof entry.canRename === 'boolean') {
       orgCatalogPermissionRefreshRef.current = null
       return
@@ -1619,7 +1797,7 @@ export const App: React.FC = () => {
     if (orgCatalogPermissionRefreshRef.current === key) return
     orgCatalogPermissionRefreshRef.current = key
     void loadOrgWorkspaceCatalog(true)
-  }, [activeTabId, sessionReady.loaded, orgWorkspaceCatalog, loadOrgWorkspaceCatalog])
+  }, [activeTabId, sessionReady.loaded, orgWorkspaceCatalogMap, loadOrgWorkspaceCatalog, accountIdForCwd])
 
   useEffect(() => {
     document.documentElement.dataset.platform = platformId || 'unknown'
@@ -1791,7 +1969,7 @@ export const App: React.FC = () => {
               let firstCloneError: string | null = null
               let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
               await Promise.all([...reposByWorkspace.values()].map(async ws => {
-                const covenant = getCovenantApi(accountIdForCwd(ws.localDir))
+                const covenant = getCovenantApi(resolveOrgAccountIdForCwd(ws.localDir))
                 if (
                   !covenant
                   || !hasCovenantWorkspaceReposApi(covenant)
@@ -2020,7 +2198,7 @@ export const App: React.FC = () => {
     ws: string,
     root: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> => {
-    const covenant = getCovenantApi(accountIdForCwd(root))
+    const covenant = getCovenantApi(resolveOrgAccountIdForCwd(root))
     if (!covenant || !hasCovenantWikiApi(covenant)) return { ok: true }
     try {
       await syncOrgWikiPush({
@@ -2041,7 +2219,7 @@ export const App: React.FC = () => {
       console.warn('[orgWikiSync] push falló:', message)
       return { ok: false, error: message }
     }
-  }, [accountIdForCwd])
+  }, [resolveOrgAccountIdForCwd])
 
   const pushOrgWikiForScope = useCallback(async (
     orgSlug: string,
@@ -2503,6 +2681,8 @@ export const App: React.FC = () => {
   }, [patchTabExplorer])
 
   const persistOnboardingCompleted = useCallback((version: string) => {
+    if (!shouldPersistOnboardingCompleted(onboardingCompletedVersionRef.current, version)) return
+    onboardingCompletedVersionRef.current = version
     void window.api.setConfig({ onboardingCompletedVersion: version })
     setConfig(prev => ({ ...prev, onboardingCompletedVersion: version }))
   }, [])
@@ -2554,12 +2734,13 @@ export const App: React.FC = () => {
       incomplete: isOnboardingIncomplete(config.onboardingCompletedVersion),
       tabs: tabsRef.current,
     })) return
-    const cat = orgWorkspaceCatalogRef.current
-    if (catalogHasWorkspaces(cat)) {
+    const map = orgWorkspaceCatalogMapRef.current
+    if (map && Object.values(map.byAccount).some(catalogHasWorkspaces)) {
+      void loadOrgWorkspaceCatalog(false)
       setOrgWorkspacePickerOpen(true)
       return
     }
-    if (cat === null) {
+    if (map === null) {
       void loadOrgWorkspaceCatalog(false)
     }
     const tab = newTab(t('tabs.defaultTitle', { n: ++tabCounter }))
@@ -2601,17 +2782,21 @@ export const App: React.FC = () => {
     })) {
       persistOnboardingCompleted(ONBOARDING_VERSION)
     }
+    const pickerAccountId = selection.accountId?.trim() || accountIdForCwd(
+      tabsRef.current.find(item => item.id === activeTabIdRef.current)?.projectFolder,
+    )
     if (org.canPublish !== undefined) {
+      const currentCat = catalogForAccount(orgWorkspaceCatalogMapRef.current, pickerAccountId)
       const patched = patchOrgWorkspaceCatalogName(
-        orgWorkspaceCatalogRef.current,
+        currentCat,
         org.slug,
         org.workspaceId,
         org.name?.trim() ?? '',
         org.canPublish,
       )
-      if (patched) {
-        applyOrgWorkspaceCatalog(patched)
-        void persistOrgWorkspaceCatalogCache(patched)
+      if (patched && patched !== currentCat) {
+        applyOrgWorkspaceCatalogForAccount(pickerAccountId, patched)
+        void persistOrgWorkspaceCatalogCache(orgWorkspaceCatalogMapRef.current)
       }
     }
     const cfg = await window.api.getConfig()
@@ -2627,9 +2812,6 @@ export const App: React.FC = () => {
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
     setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
 
-    const pickerAccountId = selection.accountId ?? accountIdForCwd(
-      tabsRef.current.find(item => item.id === activeTabIdRef.current)?.projectFolder,
-    )
     const covenant = getCovenantApi(pickerAccountId)
     try {
       let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
@@ -2676,6 +2858,7 @@ export const App: React.FC = () => {
         slug: org.slug,
         workspaceId: org.workspaceId,
         localDir: res.workspaceDir,
+        accountId: pickerAccountId,
       }
       setExplorerByTab(prev => {
         const next = { ...prev, [tab.id]: { ...DEFAULT_FILE_EXPLORER_STATE } }
@@ -2732,7 +2915,8 @@ export const App: React.FC = () => {
       }
     }
   }, [
-    applyOrgWorkspaceCatalog,
+    accountIdForCwd,
+    applyOrgWorkspaceCatalogForAccount,
     persistOrgWorkspaceCatalogCache,
     refreshAndSyncProjectAgents,
     rememberProjectAgent,
@@ -2763,7 +2947,7 @@ export const App: React.FC = () => {
   ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
-    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder ?? org.localDir))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant) return
 
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
@@ -2828,7 +3012,7 @@ export const App: React.FC = () => {
         return next
       })
     }
-  }, [reportOrgSyncPhase, syncOrgWorkspaceContent])
+  }, [accountIdForCwd, reportOrgSyncPhase, syncOrgWorkspaceContent])
   resyncOrgWorkspaceRef.current = handleResyncOrgWorkspace
 
   const buildOrgWorkspaceUploadDeps = useCallback((
@@ -2898,7 +3082,7 @@ export const App: React.FC = () => {
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
     const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
     if (!cwd) return
-    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) return
 
     setOrgUploadPlanLoading(true)
@@ -2918,7 +3102,7 @@ export const App: React.FC = () => {
     } finally {
       setOrgUploadPlanLoading(false)
     }
-  }, [buildOrgWorkspaceUploadDeps])
+  }, [accountIdForCwd, buildOrgWorkspaceUploadDeps])
 
   const executeUploadOrgWorkspace = useCallback(async (
     tab: TabSession,
@@ -2931,7 +3115,7 @@ export const App: React.FC = () => {
       setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })
       return
     }
-    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       setOrgWorkspaceRequirement({ uploadError: 'Covenant API unavailable' })
       return
@@ -2986,6 +3170,7 @@ export const App: React.FC = () => {
       }
     }
   }, [
+    accountIdForCwd,
     buildOrgWorkspaceUploadDeps,
     clearWorkspaceUploadProgress,
     pushOrgWikiForScope,
@@ -2996,17 +3181,21 @@ export const App: React.FC = () => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
     const entry = findOrgWorkspaceCatalogEntry(
-      orgWorkspaceCatalogRef.current,
+      orgCatalogForTab(orgWorkspaceCatalogMapRef.current, tab, accountIdForCwd),
       org.slug,
       org.workspaceId,
     )
-    if (!canUploadOrgWorkspaceChanges(entry?.canRename)) return
+    const uploadGate = resolveOrgWorkspaceUploadGate(entry)
+    if (!uploadGate.proceed) {
+      setOrgWorkspaceRequirement({ uploadError: uploadGate.uploadError })
+      return
+    }
     const cwd = tab.projectFolder?.trim() || org.localDir?.trim() || ''
     if (!cwd) {
       setOrgWorkspaceRequirement({ uploadError: 'missing project folder' })
       return
     }
-    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       setOrgWorkspaceRequirement({ uploadError: 'Covenant API unavailable' })
       return
@@ -3015,7 +3204,7 @@ export const App: React.FC = () => {
     setOrgUploadPlan(null)
     setOrgUploadScopeTab(tab)
     void loadOrgUploadPlan(tab, true)
-  }, [loadOrgUploadPlan])
+  }, [accountIdForCwd, loadOrgUploadPlan])
 
   useEffect(() => {
     if (!promoteWorkspaceTab) {
@@ -3097,7 +3286,7 @@ export const App: React.FC = () => {
     const tab = promoteWorkspaceTab
     const cwd = tab?.projectFolder?.trim() ?? ''
     if (!tab || !cwd || promoteWorkspaceBusy) return
-    const covenant = getCovenantApi(accountIdForCwd(cwd))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspacesApi(covenant) || !hasCovenantWorkspaceContentApi(covenant)) {
       setPromoteWorkspaceError('Covenant API unavailable')
       return
@@ -3235,6 +3424,7 @@ export const App: React.FC = () => {
                 slug: payload.orgSlug,
                 workspaceId: result.workspaceId,
                 localDir: cwd,
+                accountId: orgAccountIdForTab(tab, accountIdForCwd),
               },
             }
           : item
@@ -3253,6 +3443,7 @@ export const App: React.FC = () => {
       }
     }
   }, [
+    accountIdForCwd,
     handleOrgWorkspacesMutated,
     promoteWorkspaceBusy,
     promoteWorkspaceTab,
@@ -3542,7 +3733,10 @@ export const App: React.FC = () => {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
       const opGen = ++orgWorkspaceSyncUploadGenRef.current
       setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
-      const covenant = getCovenantApi(accountIdForCwd(tab?.projectFolder) || accountIdForCwd(path))
+      const covenant = getCovenantApi(
+        (tab ? orgAccountIdForTab(tab, accountIdForCwd) : '')
+          || resolveOrgAccountIdForCwd(path),
+      )
       try {
         let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
         if (covenant && hasCovenantWorkspaceReposApi(covenant)) {
@@ -3651,7 +3845,7 @@ export const App: React.FC = () => {
     await saveSessionNow()
     void refreshAndSyncProjectAgents(path, tabId)
     return path
-  }, [refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
+  }, [accountIdForCwd, refreshAndSyncProjectAgents, rememberProjectAgent, reportOrgSyncPhase, resolveOrgAccountIdForCwd, saveSessionNow, syncOrgWorkspaceContent, syncTabWithProjectAgents, t])
 
   const handleCreateTerminal = useCallback((tabId: string) => {
     const tab = tabsRef.current.find(t => t.id === tabId)
@@ -3852,6 +4046,10 @@ export const App: React.FC = () => {
     setOnboardingClisProbed(false)
     void refreshOnboardingClis()
   }, [refreshOnboardingClis])
+
+  useEffect(() => {
+    onboardingCompletedVersionRef.current = config.onboardingCompletedVersion ?? ''
+  }, [config.onboardingCompletedVersion])
 
   useEffect(() => {
     const ready = configReady && sessionReady.loaded
@@ -4142,12 +4340,24 @@ export const App: React.FC = () => {
     toPaneId: string,
     contextId: string,
   ) => {
-    handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
-      if (isAgentOwnResultContext(previous.id, contextId)) return previous
-      const nextIds = [...new Set([...(previous.contextIds ?? []), contextId])]
-      return { ...previous, contextIds: nextIds }
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    const previous = tab ? resolveTabAgentMeta(tab, toPaneId, projectAgentsByCwdRef.current) : null
+    const outcome = resolveContextAssignOutcome({
+      currentIds: previous?.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(previous?.id, contextId),
+      mode: 'assign',
     })
-    persistOnboardingSignals({ onboardingAssignedContext: true })
+    void handleAgentMetaChangeRef.current(tabId, toPaneId, previous => {
+      if (isAgentOwnResultContext(previous.id, contextId)) return previous
+      const prior = previous.contextIds ?? []
+      const nextIds = [...new Set([...prior, contextId])]
+      return { ...previous, contextIds: nextIds }
+    }).then(ok => {
+      if (ok && previous && shouldPersistAssignedContext(outcome)) {
+        persistOnboardingSignals({ onboardingAssignedContext: true })
+      }
+    })
   }, [persistOnboardingSignals])
 
   /**
@@ -4165,11 +4375,26 @@ export const App: React.FC = () => {
     if (!root) return
     const agent = (projectAgentsByCwdRef.current[root] ?? []).find(item => item.id === agentId)
     if (!agent) return
+    const outcome = resolveContextAssignOutcome({
+      currentIds: agent.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(agent.id, contextId),
+      mode: 'assign',
+    })
+    if (outcome === 'rejected') return
+    if (outcome === 'already') {
+      persistOnboardingSignals({ onboardingAssignedContext: true })
+      return
+    }
     const next = addAgentContextId(agent, contextId)
     if (!next) return
-    persistOnboardingSignals({ onboardingAssignedContext: true })
     void window.api.upsertProjectAgent(root, next).then(result => {
-      if (result.ok) rememberProjectAgent(root, result.agent)
+      if (result.ok) {
+        rememberProjectAgent(root, result.agent)
+        if (shouldPersistAssignedContext(outcome)) {
+          persistOnboardingSignals({ onboardingAssignedContext: true })
+        }
+      }
     })
   }, [rememberProjectAgent, persistOnboardingSignals])
 
@@ -4178,8 +4403,15 @@ export const App: React.FC = () => {
     paneId: string,
     contextId: string,
   ) => {
-    persistOnboardingSignals({ onboardingAssignedContext: true })
-    handleAgentMetaChangeRef.current(tabId, paneId, previous => {
+    const tab = tabsRef.current.find(item => item.id === tabId)
+    const previous = tab ? resolveTabAgentMeta(tab, paneId, projectAgentsByCwdRef.current) : null
+    const outcome = resolveContextAssignOutcome({
+      currentIds: previous?.contextIds,
+      contextId,
+      ownResult: isAgentOwnResultContext(previous?.id, contextId),
+      mode: 'toggle',
+    })
+    void handleAgentMetaChangeRef.current(tabId, paneId, previous => {
       const selected = new Set(previous.contextIds ?? [])
       if (selected.has(contextId)) {
         selected.delete(contextId)
@@ -4189,6 +4421,10 @@ export const App: React.FC = () => {
         selected.add(contextId)
       }
       return { ...previous, contextIds: [...selected] }
+    }).then(ok => {
+      if (ok && shouldPersistAssignedContext(outcome)) {
+        persistOnboardingSignals({ onboardingAssignedContext: true })
+      }
     })
   }, [persistOnboardingSignals])
 
@@ -4916,6 +5152,10 @@ export const App: React.FC = () => {
           orchestrationJobId: job.jobId,
           threadId,
           ...(worktreePath ? { cwd: worktreePath } : {}),
+          // Solo para la tarjeta del encargo en el panel destino.
+          fromAgentId: fromMeta.id,
+          round: formatOrchestrationRoundLabel(nextRound, maxRounds),
+          ...(job.parentDelegationId ? { nested: true } : {}),
         },
       })
       if (!queued) {
@@ -5110,6 +5350,9 @@ export const App: React.FC = () => {
     const contextHint = next.delegation.contextIds?.length
       ? `\n\nPreferred context ids: ${next.delegation.contextIds.join(', ')}`
       : ''
+    const deferredFromMeta = tab
+      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+      : undefined
     enqueueOrchestrationSend(next.toPaneId, {
       text: `${next.delegation.objective}${contextHint}`,
       focusPane: false,
@@ -5120,6 +5363,13 @@ export const App: React.FC = () => {
         orchestrationJobId: job.jobId,
         threadId,
         ...(worktreePath ? { cwd: worktreePath } : {}),
+        // Solo para la tarjeta del encargo en el panel destino.
+        ...(deferredFromMeta ? { fromAgentId: deferredFromMeta.id } : {}),
+        round: formatOrchestrationRoundLabel(
+          job.round || 1,
+          orchestrationMaxRoundsForPane(fromPaneId, next.tabId),
+        ),
+        ...(job.parentDelegationId ? { nested: true } : {}),
       },
     })
     syncAwaitingFromPending()
@@ -6418,9 +6668,13 @@ export const App: React.FC = () => {
     const slug = org?.slug?.trim() ?? ''
     const workspaceId = org?.workspaceId?.trim() ?? ''
     if (!slug || !workspaceId) return true
-    const entry = findOrgWorkspaceCatalogEntry(orgWorkspaceCatalogRef.current, slug, workspaceId)
+    const entry = findOrgWorkspaceCatalogEntry(
+      orgCatalogForTab(orgWorkspaceCatalogMapRef.current, tab, accountIdForCwd),
+      slug,
+      workspaceId,
+    )
     return entry?.canRename === true
-  }, [])
+  }, [accountIdForCwd])
 
   const handleRenameTab = useCallback((id: string, name: string) => {
     const next = name.trim().slice(0, 40)
@@ -6448,7 +6702,7 @@ export const App: React.FC = () => {
     }
     if (next === tab.title.trim()) return
 
-    const covenant = getCovenantApi(accountIdForCwd(tab.projectFolder))
+    const covenant = getCovenantApi(orgAccountIdForTab(tab, accountIdForCwd))
     if (!covenant || !hasCovenantWorkspacesApi(covenant)) {
       setOrgWorkspaceRequirement({
         workspaceRenameError: t('organizations.unavailable'),
@@ -6474,19 +6728,21 @@ export const App: React.FC = () => {
         tabsRef.current = mapped
         return mapped
       })
+      const accountId = orgAccountIdForTab(tab, accountIdForCwd)
+      const currentCat = orgCatalogForTab(orgWorkspaceCatalogMapRef.current, tab, accountIdForCwd)
       const patched = patchOrgWorkspaceCatalogName(
-        orgWorkspaceCatalogRef.current,
+        currentCat,
         slug,
         workspaceId,
         canonical,
         true,
       )
-      if (patched && patched !== orgWorkspaceCatalogRef.current) {
-        applyOrgWorkspaceCatalog(patched)
-        void persistOrgWorkspaceCatalogCache(patched)
+      if (patched && patched !== currentCat) {
+        applyOrgWorkspaceCatalogForAccount(accountId, patched)
+        void persistOrgWorkspaceCatalogCache(orgWorkspaceCatalogMapRef.current)
       }
     })()
-  }, [applyOrgWorkspaceCatalog, canRenameTab, persistOrgWorkspaceCatalogCache, t])
+  }, [accountIdForCwd, applyOrgWorkspaceCatalogForAccount, canRenameTab, persistOrgWorkspaceCatalogCache, t])
 
   const handleReorderTabs = useCallback((
     dragId: string,
@@ -6941,7 +7197,19 @@ export const App: React.FC = () => {
   const onboardingActive = isOnboardingActive({ incomplete, tabs })
   const chromeLocked = onboardingActive && ready
   const guideLocked = isOnboardingGuideActive({ incomplete }) && ready
-  const chrome = onboardingChromeHidden(onboardingActive)
+  const composerSendBlockForTab = (tab: TabSession) => resolveComposerSendBlock({
+    incomplete: guideLocked,
+    path: config.orchestratorPath,
+    cliAllMissing: onboardingClisMissing,
+    engineMissing: composerEngineMissingForTab(
+      {
+        planeOpenChatAgentId: tab.planeOpenChatAgentId ?? null,
+        paneKinds: tab.paneKinds,
+      },
+      paneId => resolveTabAgentMeta(tab, paneId, projectAgentsByCwd).provider,
+    ),
+  })
+  const chrome = onboardingChromeHidden({ incomplete: incomplete && ready, path: config.orchestratorPath })
 
   const surfaceForTab = (tab: TabSession) => onboardingLockedSurface({
     incomplete: onboardingActive,
@@ -7225,6 +7493,7 @@ export const App: React.FC = () => {
         <div className="terminals-container">
           {configReady && sessionReady.loaded && tabs.map(tab => {
             const s = surfaceForTab(tab)
+            const sendBlock = composerSendBlockForTab(tab)
             const discoveredContexts = tabContextsByTab[tab.id] ?? []
             const tabContextBadges = discoveredContexts.map(ctx => ({
               id: ctx.id,
@@ -7630,15 +7899,21 @@ export const App: React.FC = () => {
                         fifo: nextQueue.length,
                       })
                       void (async () => {
-                        const rows = onboardingClis.length > 0
-                          ? onboardingClis
-                          : await refreshOnboardingClis()
-                        const cliAllMissing = clisAllMissing(rows)
-                        if (shouldWarnComposerMissingCli({
-                          incomplete: onboardingActive,
-                          path: config.orchestratorPath,
-                          cliAllMissing,
-                        })) {
+                        const snapshot = tabsRef.current.find(t => t.id === tab.id) ?? tab
+                        const shouldPersist = await evaluateOnboardingPlaneSendPersistGuard({
+                          guideLocked,
+                          cachedClis: onboardingClis,
+                          refreshOnboardingClis,
+                          orchestratorPath: config.orchestratorPath,
+                          paneId,
+                          paneKinds: snapshot.paneKinds,
+                          resolveProvider: pid => resolveTabAgentMeta(
+                            snapshot,
+                            pid,
+                            projectAgentsByCwdRef.current,
+                          ).provider,
+                        })
+                        if (!shouldPersist) {
                           return
                         }
                         persistOnboardingSignals({ onboardingSentFirstMessage: true })
@@ -7811,7 +8086,7 @@ export const App: React.FC = () => {
                   resyncWorkspaceBusy={resyncingWorkspaceTabs.has(tab.id) || uploadingWorkspaceTabs.has(tab.id)}
                   onResyncWorkspace={() => { setOrgSyncScopeTab(tab) }}
                   canUploadWorkspace={canUploadOrgWorkspaceFromCatalog(
-                    orgWorkspaceCatalog,
+                    orgCatalogForTab(orgWorkspaceCatalogMap, tab, accountIdForCwd),
                     tab.orgWorkspace?.slug?.trim() ?? '',
                     tab.orgWorkspace?.workspaceId?.trim() ?? '',
                   )}
@@ -7924,6 +8199,7 @@ export const App: React.FC = () => {
                   onboardingGuideStep={resolveGuideStepForTab(tab)}
                   onboardingGuideDismissLabel={t('tabs.onboardingGuide.dismiss')}
                   onOnboardingGuideDismiss={step => {
+                    if (!isDismissibleGuideStep(step)) return
                     const current = config.onboardingGuideDone ?? []
                     if (current.includes(step)) return
                     persistOnboardingSignals({ onboardingGuideDone: [...current, step] })
@@ -7935,11 +8211,8 @@ export const App: React.FC = () => {
                   hidePulse={chrome.hidePulse}
                   hideWiki={chrome.hideWiki}
                   hideLoops={chrome.hideLoops}
-                  agentCliMissing={shouldWarnComposerMissingCli({
-                    incomplete: onboardingActive,
-                    path: config.orchestratorPath,
-                    cliAllMissing: onboardingClisMissing,
-                  })}
+                  composerSendBlock={sendBlock}
+                  agentCliMissing={sendBlock === 'cli'}
                   showPathPicker={s.showPathPicker}
                   showFolderCta={s.showFolderCta}
                   showTeamFab={s.showTeamFab}
@@ -8031,10 +8304,7 @@ export const App: React.FC = () => {
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}
-        orgWorkspacePickerAccountId={accountIdForCwd(
-          tabs.find(item => item.id === activeTabId)?.projectFolder,
-        )}
-        orgWorkspaceCatalogEntries={orgWorkspaceCatalog?.entries}
+        orgWorkspaceCatalogMap={orgWorkspaceCatalogMap}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
         agentCreate={agentCreate}

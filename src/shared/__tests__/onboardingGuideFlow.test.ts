@@ -354,7 +354,69 @@ describe('resolveOnboardingGuideStep', () => {
     })
   })
 
-  it('business ladder is exhausted after saved_rooms is dismissed', () => {
+  it('rooms view without live room guides to create a new room', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        brainstormRoomLive: false,
+      }),
+    ).toEqual({
+      step: 'open_brainstorm',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.newRoom',
+    })
+  })
+
+  it('rooms view with live room guides to open it before speaking', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'rooms',
+        brainstormRoomLive: true,
+        humanSpokeInRoom: false,
+      }),
+    ).toEqual({
+      step: 'open_brainstorm',
+      anchor: 'brainstorm-rooms-list',
+      messageKey: 'tabs.onboardingGuide.openLiveRoom',
+    })
+  })
+
+  it('live room view after speaking: sin tip de intervenir y sin ancla de pestañas, null', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'room-1',
+        brainstormRoomLive: true,
+        humanSpokeInRoom: true,
+      }),
+    ).toBeNull()
+  })
+
+  it('setup view after speaking offers saved_rooms dismissible', () => {
+    expect(
+      resolveOnboardingGuideStep({
+        ...businessReady,
+        brainstormOverlayOpen: true,
+        brainstormView: 'setup',
+        humanSpokeInRoom: true,
+      }),
+    ).toEqual({
+      step: 'saved_rooms',
+      anchor: 'brainstorm-module-tabs',
+      messageKey: 'tabs.onboardingGuide.savedRooms',
+      dismissible: true,
+    })
+  })
+
+  it('business ladder se agota en rooms tras cerrar saved_rooms', () => {
+    // Aquí termina el recorrido de Planear: si en su lugar volviera «crea una
+    // sala», la escalera no se agotaría nunca y el onboarding no cerraría
+    // (ver shouldCompleteByGuideExhausted en onboardingAppWiring).
     expect(
       resolveOnboardingGuideStep({
         ...businessReady,

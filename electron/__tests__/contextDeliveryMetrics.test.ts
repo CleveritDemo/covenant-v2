@@ -4,27 +4,21 @@ import {
   clearContextDeliveryMetrics,
   getContextDeliveryMetrics,
   normalizeClaudeEvent,
-  recordTurnUsage,
 } from '../agentCliRuntime'
 
 describe('métricas de entrega de contexto', () => {
   beforeEach(() => clearContextDeliveryMetrics())
 
-  it('acumula tokens de varios turnos', () => {
-    recordTurnUsage({ inputTokens: 1200, outputTokens: 300 })
-    recordTurnUsage({ inputTokens: 800, outputTokens: 150 })
-    expect(getContextDeliveryMetrics()).toMatchObject({ inputTokens: 2000, outputTokens: 450 })
-  })
-
-  it('ignora valores que no son números finitos', () => {
-    recordTurnUsage({ inputTokens: Number.NaN, outputTokens: 10 })
-    expect(getContextDeliveryMetrics()).toMatchObject({ inputTokens: 0, outputTokens: 10 })
-  })
-
   it('clear deja los contadores en cero', () => {
-    recordTurnUsage({ inputTokens: 5, outputTokens: 5 })
     clearContextDeliveryMetrics()
-    expect(getContextDeliveryMetrics()).toMatchObject({ inputTokens: 0, outputTokens: 0 })
+    expect(getContextDeliveryMetrics()).toMatchObject({
+      catalogChars: 0,
+      sectionsRequested: 0,
+      sectionsDelivered: 0,
+      sectionsPreattached: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    })
   })
 })
 
@@ -42,8 +36,6 @@ const resultEvent = {
 }
 
 describe('claudeTurnUsage', () => {
-  beforeEach(() => clearContextDeliveryMetrics())
-
   it('suma los campos de caché al input: ahí está el preámbulo', () => {
     // Sin sumarlos, un agente con plugins mide igual que uno sin ellos y la
     // comparación antes/después no sirve para nada.
@@ -56,8 +48,11 @@ describe('claudeTurnUsage', () => {
       .toEqual({ inputTokens: 0, outputTokens: 0 })
   })
 
-  it('normalizar el evento final acumula el uso del turno', () => {
-    normalizeClaudeEvent(resultEvent)
-    expect(getContextDeliveryMetrics()).toMatchObject({ inputTokens: 22578, outputTokens: 4 })
+  it('normalizar el evento final emite usage con los tres campos de caché sumados', () => {
+    expect(normalizeClaudeEvent(resultEvent)).toEqual([
+      { type: 'session', cliSessionId: 's-1' },
+      { type: 'usage', inputTokens: 22578, outputTokens: 4 },
+      { type: 'assistant_final', text: 'ok' },
+    ])
   })
 })

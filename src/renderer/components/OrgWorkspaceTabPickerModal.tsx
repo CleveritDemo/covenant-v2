@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import {
   getCovenantApi,
+  hasCovenantStatusAllApi,
   hasCovenantWorkspacesApi,
   hasCovenantWorkspaceContentApi,
   hasCovenantOrgAdminsApi,
@@ -17,13 +18,15 @@ import {
   projectAgentsFromWorkspaceAgents,
   tabContextsFromWorkspaceContexts,
 } from '../../shared/orgWorkspaceContent'
-import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogMap, OrgWorkspaceCatalogOption } from '../../shared/orgWorkspaceCatalog'
 import {
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   matchesWorkspaceQuery,
+  orgWorkspaceOptionsFromCatalogMap,
   sameGithubLogin,
 } from '../../shared/orgWorkspaceCatalog'
+import { COVENANT_REQUEST_LIMIT, mapWithConcurrency } from '../../shared/boundedMap'
 import type { ProjectAgentDefinition } from '../../shared/projectAgentCatalog'
 import type { TabContext } from '../../shared/tabContext'
 import './OrganizationsModal.css'
@@ -47,6 +50,8 @@ interface WorkspaceOption {
   label: string
   name: string
   orgName: string
+  login: string
+  accountId: string
   canPublish: boolean
 }
 
@@ -55,34 +60,26 @@ interface Props {
   onClose: () => void
   onConfirm: (selection: OrgWorkspaceSelection) => void
   /** Snapshot en memoria: opciones al instante sin bloquear. */
-  catalog?: OrgWorkspaceCatalogEntry[]
-  accountId?: string
+  catalogMap?: OrgWorkspaceCatalogMap
 }
 
 function encodeWorkspaceValue(slug: string, workspaceId: string): string {
   return `${encodeURIComponent(slug)}/${encodeURIComponent(workspaceId)}`
 }
 
-function decodeWorkspaceValue(value: string): { slug: string; workspaceId: string } | null {
-  const slash = value.indexOf('/')
-  if (slash <= 0) return null
-  try {
-    const slug = decodeURIComponent(value.slice(0, slash))
-    const workspaceId = decodeURIComponent(value.slice(slash + 1))
-    if (!slug || !workspaceId) return null
-    return { slug, workspaceId }
-  } catch {
-    return null
-  }
+function encodeOptionValue(accountId: string, slug: string, workspaceId: string): string {
+  return `${encodeURIComponent(accountId)}|${encodeWorkspaceValue(slug, workspaceId)}`
 }
 
-function optionsFromCatalog(entries: OrgWorkspaceCatalogEntry[]): WorkspaceOption[] {
+function optionsFromCatalogOptions(entries: OrgWorkspaceCatalogOption[]): WorkspaceOption[] {
   return entries.map(entry => ({
-    value: encodeWorkspaceValue(entry.slug, entry.workspaceId),
+    value: encodeOptionValue(entry.accountId, entry.slug, entry.workspaceId),
     slug: entry.slug,
     workspaceId: entry.workspaceId,
     name: entry.name,
     orgName: entry.orgName || entry.slug,
+    login: entry.login,
+    accountId: entry.accountId,
     label: `${entry.orgName || entry.slug} · ${entry.name}`,
     canPublish: entry.canRename === true,
   }))
@@ -92,16 +89,19 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
   open,
   onClose,
   onConfirm,
-  catalog,
-  accountId = '',
+  catalogMap,
 }) => {
   const { t } = useT()
+  const catalogMapRef = useRef(catalogMap)
+  catalogMapRef.current = catalogMap
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [options, setOptions] = useState<WorkspaceOption[]>(() => optionsFromCatalog(catalog ?? []))
+  const [options, setOptions] = useState<WorkspaceOption[]>(() =>
+    optionsFromCatalogOptions(orgWorkspaceOptionsFromCatalogMap(catalogMap)),
+  )
   const [value, setValue] = useState(PERSONAL_VALUE)
   const [query, setQuery] = useState('')
-  const [accountSignedIn, setAccountSignedIn] = useState<boolean | null>(null)
+  const [signedInAccountCount, setSignedInAccountCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -109,80 +109,102 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     setError(null)
     setValue(PERSONAL_VALUE)
     setQuery('')
-    setOptions(optionsFromCatalog(catalog ?? []))
-    setAccountSignedIn(null)
-  }, [open, catalog])
+    setOptions(optionsFromCatalogOptions(orgWorkspaceOptionsFromCatalogMap(catalogMapRef.current)))
+    setSignedInAccountCount(null)
+  }, [open])
 
   useEffect(() => {
-    if (accountSignedIn === false && value !== PERSONAL_VALUE) {
+    if (signedInAccountCount === 0 && value !== PERSONAL_VALUE) {
       setValue(PERSONAL_VALUE)
     }
-  }, [accountSignedIn, value])
+  }, [signedInAccountCount, value])
 
   // Refresh en segundo plano: no bloquea el Select.
   useEffect(() => {
     if (!open) return
     let cancelled = false
     void (async () => {
-      const covenant = getCovenantApi(accountId)
-      if (!covenant || !hasCovenantWorkspacesApi(covenant)) return
-      const status = await covenant.status()
-      if (cancelled) return
-      if (!status.ok || !status.data.signedIn) {
-        setAccountSignedIn(false)
-        return
-      }
-      const login = status.data.login?.trim() ?? ''
-      if (!login) {
-        setAccountSignedIn(false)
-        return
-      }
-      setAccountSignedIn(true)
-      const orgsResult = await covenant.orgsList()
-      if (!orgsResult.ok || cancelled) return
-      const next: WorkspaceOption[] = []
-      for (const org of orgsResult.data) {
-        const slug = org.slug?.trim()
-        if (!slug) continue
-        const list = await covenant.workspacesList(slug)
-        if (!list.ok || cancelled) continue
-        const orgRole = org.role?.trim() ?? ''
-        let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
-        if (!isOrgAdmin && hasCovenantOrgAdminsApi(covenant)) {
-          const admins = await covenant.orgAdminsList(slug)
-          if (cancelled) return
-          if (admins.ok) isOrgAdmin = admins.data.some(a => sameGithubLogin(a, login))
-        }
-        for (const workspace of list.data as CovenantWorkspace[]) {
-          const workspaceId = workspace.id?.trim()
-          const name = workspace.name?.trim()
-          if (!workspaceId || !name) continue
-          if (!canAccessOrgWorkspace({
-            login,
-            orgRole: org.role ?? '',
-            isOrgAdmin,
-            createdBy: workspace.createdBy,
-            admins: workspace.admins,
-            assignees: workspace.assignees,
-          })) continue
-          next.push({
-            value: encodeWorkspaceValue(slug, workspaceId),
-            slug,
-            workspaceId,
-            name,
-            orgName: org.name || slug,
-            label: `${org.name || slug} · ${name}`,
-            canPublish: canRenameOrgWorkspace({
-              login,
-              orgRole,
-              isOrgAdmin,
-              createdBy: workspace.createdBy,
-              admins: workspace.admins,
-            }),
-          })
+      const defaultApi = getCovenantApi()
+      if (!defaultApi) return
+      const accountIds: string[] = []
+      if (defaultApi && hasCovenantStatusAllApi(defaultApi)) {
+        const allStatus = await defaultApi.statusAll()
+        if (cancelled) return
+        if (allStatus.ok) {
+          for (const [id, statusRow] of Object.entries(allStatus.data)) {
+            if (statusRow.signedIn) accountIds.push(id)
+          }
         }
       }
+      if (accountIds.length === 0) {
+        accountIds.push('')
+      }
+
+      let signedInCount = 0
+      const perAccount = await mapWithConcurrency(
+        accountIds,
+        COVENANT_REQUEST_LIMIT,
+        async id => {
+          const covenant = getCovenantApi(id)
+          if (!covenant || !hasCovenantWorkspacesApi(covenant)) return [] as WorkspaceOption[]
+          const status = await covenant.status()
+          if (cancelled) return [] as WorkspaceOption[]
+          if (!status.ok || !status.data.signedIn) return [] as WorkspaceOption[]
+          const login = status.data.login?.trim() ?? ''
+          if (!login) return [] as WorkspaceOption[]
+          signedInCount += 1
+          const orgsResult = await covenant.orgsList()
+          if (!orgsResult.ok || cancelled) return [] as WorkspaceOption[]
+          const next: WorkspaceOption[] = []
+          for (const org of orgsResult.data) {
+            const slug = org.slug?.trim()
+            if (!slug) continue
+            const list = await covenant.workspacesList(slug)
+            if (!list.ok || cancelled) continue
+            const orgRole = org.role?.trim() ?? ''
+            let isOrgAdmin = orgRole === 'owner' || orgRole === 'admin'
+            if (!isOrgAdmin && hasCovenantOrgAdminsApi(covenant)) {
+              const admins = await covenant.orgAdminsList(slug)
+              if (cancelled) return [] as WorkspaceOption[]
+              if (admins.ok) isOrgAdmin = admins.data.some(a => sameGithubLogin(a, login))
+            }
+            for (const workspace of list.data as CovenantWorkspace[]) {
+              const workspaceId = workspace.id?.trim()
+              const name = workspace.name?.trim()
+              if (!workspaceId || !name) continue
+              if (!canAccessOrgWorkspace({
+                login,
+                orgRole: org.role ?? '',
+                isOrgAdmin,
+                createdBy: workspace.createdBy,
+                admins: workspace.admins,
+                assignees: workspace.assignees,
+              })) continue
+              next.push({
+                value: encodeOptionValue(id, slug, workspaceId),
+                slug,
+                workspaceId,
+                name,
+                orgName: org.name || slug,
+                login,
+                accountId: id,
+                label: `${org.name || slug} · ${name}`,
+                canPublish: canRenameOrgWorkspace({
+                  login,
+                  orgRole,
+                  isOrgAdmin,
+                  createdBy: workspace.createdBy,
+                  admins: workspace.admins,
+                }),
+              })
+            }
+          }
+          return next
+        },
+      )
       if (cancelled) return
+      const next = perAccount.flat()
+      setSignedInAccountCount(signedInCount)
       setOptions(prev => {
         const prevKey = prev.map(o => o.value).join('|')
         const nextKey = next.map(o => o.value).join('|')
@@ -192,19 +214,28 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [open, accountId])
+  }, [open])
+
+  const multiAccount = useMemo(
+    () => new Set(options.map(o => o.login)).size > 1,
+    [options],
+  )
 
   // Agrupado por org y filtrado: con más de tres orgs una lista plana no se lee.
   const groups = useMemo(() => {
+    const needle = query.trim().toLowerCase()
     const byOrg = new Map<string, WorkspaceOption[]>()
     for (const option of options) {
-      if (!matchesWorkspaceQuery(option, query)) continue
-      const bucket = byOrg.get(option.orgName)
+      const matches = matchesWorkspaceQuery(option, query)
+        || (needle ? option.login.toLowerCase().includes(needle) : false)
+      if (!matches) continue
+      const groupKey = multiAccount ? `${option.login} · ${option.orgName}` : option.orgName
+      const bucket = byOrg.get(groupKey)
       if (bucket) bucket.push(option)
-      else byOrg.set(option.orgName, [option])
+      else byOrg.set(groupKey, [option])
     }
     return [...byOrg.entries()].map(([orgName, items]) => ({ orgName, items }))
-  }, [options, query])
+  }, [options, query, multiAccount])
 
   function describeConfirmError(raw: string): string {
     // 'Not signed in' es el literal que lanza electron/covenantApi.ts en el 401; si cambia allá, cambiarlo acá.
@@ -218,33 +249,33 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
     }
-    const decoded = decodeWorkspaceValue(target)
     const option = options.find(item => item.value === target)
-    if (!decoded || !option) {
+    if (!option) {
       onConfirm({ agents: [], contexts: [], catalogKey: '' })
       return
     }
-    const covenant = getCovenantApi(accountId)
-    const catalogKey = covenantWorkspaceCatalogKey(decoded.slug, decoded.workspaceId)
+    const covenant = getCovenantApi(option.accountId)
+    const catalogKey = covenantWorkspaceCatalogKey(option.slug, option.workspaceId)
     if (!covenant || !hasCovenantWorkspaceContentApi(covenant)) {
       onConfirm({
         orgWorkspace: {
-          slug: decoded.slug,
-          workspaceId: decoded.workspaceId,
+          slug: option.slug,
+          workspaceId: option.workspaceId,
           name: option.name,
           canPublish: option.canPublish,
         },
         agents: [],
         contexts: [],
         catalogKey,
+        accountId: option.accountId,
       })
       return
     }
     setBusy(true)
     setError(null)
     const [agentsResult, contextsResult] = await Promise.all([
-      covenant.workspaceAgentsList(decoded.slug, decoded.workspaceId),
-      covenant.workspaceContextsList(decoded.slug, decoded.workspaceId),
+      covenant.workspaceAgentsList(option.slug, option.workspaceId),
+      covenant.workspaceContextsList(option.slug, option.workspaceId),
     ])
     setBusy(false)
     if (!agentsResult.ok) {
@@ -257,17 +288,18 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
     }
     onConfirm({
       orgWorkspace: {
-        slug: decoded.slug,
-        workspaceId: decoded.workspaceId,
+        slug: option.slug,
+        workspaceId: option.workspaceId,
         name: option.name,
         canPublish: option.canPublish,
       },
       agents: projectAgentsFromWorkspaceAgents(agentsResult.data),
       contexts: tabContextsFromWorkspaceContexts(contextsResult.data, {
-        slug: decoded.slug,
-        workspaceId: decoded.workspaceId,
+        slug: option.slug,
+        workspaceId: option.workspaceId,
       }),
       catalogKey,
+      accountId: option.accountId,
     })
   }
 
@@ -327,7 +359,7 @@ export const OrgWorkspaceTabPickerModal: React.FC<Props> = ({
               </span>
             </button>
           </li>
-          {accountSignedIn === false ? (
+          {signedInAccountCount === 0 ? (
             <li>
               <p className="orgs-empty">{t('organizations.newTabWorkspaceSignedOut')}</p>
             </li>

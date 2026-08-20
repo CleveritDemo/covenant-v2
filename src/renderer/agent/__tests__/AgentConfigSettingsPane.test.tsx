@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { AgentPaneMeta } from '@shared/tabSession'
 
 vi.mock('@i18n/useT', () => ({
@@ -177,5 +177,29 @@ describe('AgentConfigSettingsPane engine fallback', () => {
     renderEngine({ provider: undefined }, { onChangeProviderPair })
     fireEvent.click(screen.getByRole('button', { name: /Claude/i }))
     expect(onChangeProviderPair).toHaveBeenCalledWith({ provider: 'claude' })
+  })
+
+  it('muestra error cuando el respaldo no puede listar modelos', async () => {
+    vi.mocked(window.api.listAgentCliModels).mockResolvedValue({
+      models: [],
+      source: 'fallback',
+      error: 'pi no pudo listar modelos',
+    })
+    renderEngine({ fallbackProvider: 'pi' })
+    await waitFor(() => {
+      expect(screen.getByText('agentPane.modelLoadErrorDetail')).toBeTruthy()
+    })
+  })
+
+  it('no muestra error de respaldo cuando listAgentCliModels no devuelve error', async () => {
+    vi.mocked(window.api.listAgentCliModels).mockResolvedValue({
+      models: [{ id: 'pi-model', label: 'Pi Model' }],
+      source: 'cli',
+    })
+    renderEngine({ fallbackProvider: 'pi' })
+    await waitFor(() => {
+      expect(window.api.listAgentCliModels).toHaveBeenCalledWith('pi')
+    })
+    expect(screen.queryByText('agentPane.modelLoadErrorDetail')).toBeNull()
   })
 })

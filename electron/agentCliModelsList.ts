@@ -163,16 +163,25 @@ export function parseOpencodeModelsStdout(stdout: string): AgentModelOption[] {
 /** Pi: `pi --list-models` — tabla de ancho fijo `provider model …`. */
 export function parsePiModelsStdout(stdout: string): AgentModelOption[] {
   const models: AgentModelOption[] = []
-  const header = 'provider           model                       context  max-out  thinking  images'
+  const providerRe = /^[A-Za-z0-9._-]+$/
+  const modelRe = /^[A-Za-z0-9._\/-]+$/
+  const sizeRe = /^\d+(\.\d+)?[KMB]?$/i
+  const ynRe = /^(yes|no)$/i
+
   for (const raw of stdout.split(/\r?\n/)) {
-    const line = raw.trimEnd()
-    if (!line.trim() || line === header) continue
-    const tokens = line.trim().split(/\s+/)
-    if (tokens.length < 2) continue
-    if (tokens[0] === 'provider' && tokens[1] === 'model') continue
+    const line = raw.trim()
+    if (!line) continue
+    const tokens = line.split(/\s+/)
+    if (tokens.length < 6) continue
+    if (!providerRe.test(tokens[0]!)) continue
+    if (!modelRe.test(tokens[1]!)) continue
+    if (!sizeRe.test(tokens[2]!)) continue
+    if (!sizeRe.test(tokens[3]!)) continue
+    if (!ynRe.test(tokens[4]!)) continue
+    if (!ynRe.test(tokens[5]!)) continue
     models.push({
       id: `${tokens[0]}/${tokens[1]}`,
-      label: humanizeModelId(tokens[1]),
+      label: humanizeModelId(tokens[1]!),
     })
   }
   return dedupeModels(models)
@@ -181,12 +190,13 @@ export function parsePiModelsStdout(stdout: string): AgentModelOption[] {
 const LIST_SPECS: Partial<Record<AgentCliProvider, {
   args: string[]
   parse: (o: string) => AgentModelOption[]
+  stdoutOnly?: boolean
 }>> = {
   claude: { args: ['--help'], parse: parseClaudeModelsStdout },
   cursor: { args: ['--list-models'], parse: parseCursorModelsStdout },
   copilot: { args: ['help'], parse: parseCopilotModelsStdout },
   opencode: { args: ['models'], parse: parseOpencodeModelsStdout },
-  pi: { args: ['--list-models'], parse: parsePiModelsStdout },
+  pi: { args: ['--list-models'], parse: parsePiModelsStdout, stdoutOnly: true },
 }
 
 export function parseModelsStdout(
@@ -390,8 +400,10 @@ export async function listAgentCliModels(
   }
 
   const result = await runCliCapture(command, spec.args, LIST_TIMEOUT_MS)
-  const combined = [result.stdout, result.stderr].filter(Boolean).join('\n')
-  let models = parseModelsStdout(provider, combined)
+  const parserInput = spec.stdoutOnly
+    ? result.stdout
+    : [result.stdout, result.stderr].filter(Boolean).join('\n')
+  let models = parseModelsStdout(provider, parserInput)
 
   // Copilot `help` suele devolver un parse parcial; umbral = 8 (fallback tiene 20).
   if (provider === 'copilot' && models.length < 8) {

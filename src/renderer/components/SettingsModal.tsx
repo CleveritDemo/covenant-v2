@@ -17,6 +17,7 @@ import { SettingToggle } from './ui/SettingToggle'
 import { Icon } from './ui/Icon'
 import { AgentCliTable } from './AgentCliTable'
 import { GitHubAccountsField } from './GitHubAccountsField'
+import { JiraAccountsField } from './JiraAccountsField'
 import { JiraConnectionField } from './JiraConnectionField'
 import { AiMarkdown } from './AiMarkdown'
 import { HeroConfirmOverlay } from './HeroConfirmOverlay'
@@ -25,6 +26,7 @@ import { replaySplash } from '../splash'
 import { previewReleaseNotes, previewUpdateBanner } from '../updateBannerPreview'
 import { changelogRecentModifications } from '@shared/changelog'
 import type { UpdateState } from '@shared/updateState'
+import type { JiraAccount } from '@shared/jiraAccounts'
 import { isStoreBuild } from '../platform'
 // El CHANGELOG viaja dentro del bundle: no hay que leerlo del disco ni empaquetarlo aparte.
 import changelogMd from '../../../CHANGELOG.md?raw'
@@ -78,7 +80,7 @@ const SEARCH_INDEX = [
   { category: 'telemetry', anchor: 'settings-telemetry', titleKey: 'settings.telemetrySection', termKeys: ['settings.telemetryHint', 'settings.telemetryEndpointLabel', 'settings.telemetryHeadersLabel', 'settings.telemetryEnabledTitle', 'settings.telemetryLogPromptsTitle', 'settings.telemetryLogToolIOTitle'] },
   { category: 'cli', anchor: 'settings-cli', titleKey: 'settings.agentCliSection', termKeys: ['settings.agentCliHint', 'settings.cliCommandLabel'] },
   { category: 'github', anchor: 'settings-github', titleKey: 'settings.githubSection', termKeys: ['settings.githubTokenLabel', 'settings.githubTokenHint', 'settings.githubAccountsTitle', 'settings.githubAddAccount'] },
-  { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint'] },
+  { category: 'jira', anchor: 'settings-jira', titleKey: 'jira.section', termKeys: ['jira.siteLabel', 'jira.tokenHint', 'jiraAccounts.title', 'jiraAccounts.hint', 'jiraAccounts.addAccount'] },
   { category: 'appearance', anchor: 'settings-typography', titleKey: 'settings.typographySection', termKeys: ['settings.fontUiLabel', 'settings.fontMonoLabel', 'settings.fontCustomLabel', 'settings.terminalLineHeightLabel'] },
   { category: 'appearance', anchor: 'settings-language', titleKey: 'settings.languageSection', termKeys: ['settings.languageLabel'] },
   { category: 'appearance', anchor: 'settings-motion', titleKey: 'settings.motionSection', termKeys: ['settings.reduceMotionTitle', 'settings.reduceMotionDescription'] },
@@ -186,6 +188,14 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
   const [updateState, setUpdateState] = useState<UpdateState>({ kind: 'idle' })
   /** Preview del confirm de salida (no cierra la app). */
   const [quitPreview, setQuitPreview] = useState(false)
+  const [jiraAccounts, setJiraAccounts] = useState<JiraAccount[]>([])
+  const [jiraDefaultAccountId, setJiraDefaultAccountId] = useState('')
+  const [jiraWorkspaceAccountId, setJiraWorkspaceAccountId] = useState('')
+  const [jiraAccountsBusyId, setJiraAccountsBusyId] = useState<string | undefined>()
+  const [jiraAccountsError, setJiraAccountsError] = useState('')
+  const [jiraVerifyResultById, setJiraVerifyResultById] = useState<
+    Record<string, { ok: boolean; message?: string }>
+  >({})
   /**
    * Snapshot al abrir (copia profunda de mapas). No se reescribe tras autosave:
    * «Descartar» vuelve siempre a este estado de apertura.
@@ -278,6 +288,75 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       setForcing(false)
     }
   }
+
+  const hasJiraAccountsApi = typeof window.api?.jiraAccountsList === 'function'
+  const hasProjectFolder = Boolean(cwd.trim())
+
+  const loadJiraAccounts = useCallback(async (): Promise<void> => {
+    if (!hasJiraAccountsApi) return
+    setJiraAccountsError('')
+    const listResult = await window.api.jiraAccountsList()
+    if (!listResult.ok) {
+      setJiraAccountsError(listResult.error)
+      return
+    }
+    setJiraAccounts(listResult.accounts)
+    setJiraDefaultAccountId(listResult.defaultAccountId)
+    if (!hasProjectFolder) {
+      setJiraWorkspaceAccountId('')
+      return
+    }
+    const workspaceResult = await window.api.jiraWorkspaceAccountGet(cwd)
+    if (!workspaceResult.ok) {
+      setJiraAccountsError(workspaceResult.error)
+      return
+    }
+    setJiraWorkspaceAccountId(workspaceResult.accountId ?? '')
+  }, [cwd, hasJiraAccountsApi, hasProjectFolder])
+
+  useEffect(() => {
+    if (category !== 'jira' || !hasJiraAccountsApi) return
+    void loadJiraAccounts()
+  }, [category, hasJiraAccountsApi, loadJiraAccounts])
+
+  const runJiraAccountsMutation = useCallback(async (
+    accountId: string | undefined,
+    mutate: () => Promise<{ ok: true } | { ok: false; error: string }>,
+  ): Promise<void> => {
+    setJiraAccountsError('')
+    setJiraAccountsBusyId(accountId)
+    try {
+      const result = await mutate()
+      if (!result.ok) {
+        setJiraAccountsError(result.error)
+        return
+      }
+      await loadJiraAccounts()
+    } finally {
+      setJiraAccountsBusyId(undefined)
+    }
+  }, [loadJiraAccounts])
+
+  const runJiraAccountVerify = useCallback(async (id: string): Promise<void> => {
+    setJiraAccountsError('')
+    setJiraAccountsBusyId(id)
+    try {
+      const result = await window.api.jiraAccountCheck(id)
+      if (result.ok) {
+        const message = result.email?.trim()
+          ? `${result.displayName} (${result.email})`
+          : result.displayName
+        setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: true, message } }))
+        return
+      }
+      setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: false, message: result.error } }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: false, message } }))
+    } finally {
+      setJiraAccountsBusyId(undefined)
+    }
+  }, [])
 
   // Sin efecto de resync desde `config`: AppModals remonta el modal al abrirlo, y
   // reescribir el form tras cada guardado pisaría lo que se esté escribiendo.
@@ -585,6 +664,53 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
 
           {category === 'jira' && (
             <SettingsSection title={t('jira.section')} anchor="settings-jira">
+              {hasJiraAccountsApi ? (
+                <>
+                  <JiraAccountsField
+                    accounts={jiraAccounts}
+                    defaultAccountId={jiraDefaultAccountId}
+                    workspaceAccountId={jiraWorkspaceAccountId}
+                    hasProject={hasProjectFolder}
+                    busyAccountId={jiraAccountsBusyId}
+                    verifyResultById={jiraVerifyResultById}
+                    onVerify={id => {
+                      void runJiraAccountVerify(id)
+                    }}
+                    onSetDefault={id => {
+                      void runJiraAccountsMutation(id, () => window.api.jiraAccountSetDefault(id))
+                    }}
+                    onDelete={id => {
+                      void runJiraAccountsMutation(id, async () => {
+                        const result = await window.api.jiraAccountDelete(id)
+                        if (result.ok) onAccountDeleted?.(id)
+                        return result
+                      })
+                    }}
+                    onUseInWorkspace={id => {
+                      if (!hasProjectFolder) return
+                      void runJiraAccountsMutation(id || undefined, () =>
+                        window.api.jiraWorkspaceAccountSet(cwd, id),
+                      )
+                    }}
+                    onAdd={input => {
+                      void (async () => {
+                        setJiraAccountsError('')
+                        const result = await window.api.jiraAccountUpsert(input)
+                        if (!result.ok) {
+                          setJiraAccountsError(result.error)
+                          return
+                        }
+                        await loadJiraAccounts()
+                      })()
+                    }}
+                  />
+                  {jiraAccountsError ? (
+                    <div className="settings-errors">
+                      <p>{jiraAccountsError}</p>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
               <JiraConnectionField cwd={cwd} />
             </SettingsSection>
           )}

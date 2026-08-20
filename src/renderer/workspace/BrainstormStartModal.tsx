@@ -282,6 +282,7 @@ export const BrainstormStartModal: React.FC<BrainstormStartModalProps> = ({
       closeLabel={t('common.cancel')}
       onClose={onClose}
       seatCount={invitableAgents.length}
+      rightAnchor="brainstorm-participants"
       chrome={(
         <BrainstormModuleTabs
           tab="new"

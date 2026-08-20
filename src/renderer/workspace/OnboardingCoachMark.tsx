@@ -21,6 +21,8 @@ export interface OnboardingCoachMarkProps {
    * (pasos informativos). Por defecto `true`.
    */
   blocking?: boolean
+  /** Raíz del plano de la tab activa; si falta, cae a document. */
+  scopeRef?: React.RefObject<HTMLElement | null>
 }
 
 type Rect = {
@@ -30,12 +32,12 @@ type Rect = {
   height: number
 }
 
-function queryAnchor(anchor: string): Element | null {
-  return document.querySelector(`[data-onboarding="${anchor}"]`)
+function queryAnchor(anchor: string, scope: ParentNode | null): Element | null {
+  return (scope ?? document).querySelector(`[data-onboarding="${anchor}"]`)
 }
 
-function measureAnchor(anchor: string): Rect | null {
-  const el = queryAnchor(anchor)
+function measureAnchor(anchor: string, scope: ParentNode | null): Rect | null {
+  const el = queryAnchor(anchor, scope)
   if (!el) return null
   const r = el.getBoundingClientRect()
   if (r.width <= 0 && r.height <= 0) return null
@@ -58,6 +60,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   onDismiss,
   dismissLabel,
   blocking = true,
+  scopeRef,
 }) => {
   const [rect, setRect] = useState<Rect | null>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -65,11 +68,12 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   const reduceMotion = isReduceMotionActive()
 
   useLayoutEffect(() => {
+    const scope = scopeRef?.current ?? null
     const sync = (): void => {
-      setRect(measureAnchor(anchor))
+      setRect(measureAnchor(anchor, scope))
     }
     sync()
-    const el = queryAnchor(anchor)
+    const el = queryAnchor(anchor, scope)
     if (!el) return
 
     const ro = typeof ResizeObserver !== 'undefined'

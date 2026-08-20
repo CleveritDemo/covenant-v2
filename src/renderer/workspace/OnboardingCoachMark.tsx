@@ -68,27 +68,53 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   const reduceMotion = isReduceMotionActive()
 
   useLayoutEffect(() => {
+    // Hoy un paso cuya ancla monta un commit después queda sin rect y sin reintento,
+    // así que el coach mark no se pinta nunca y el usuario se queda sin guía.
     const scope = scopeRef?.current ?? null
     const sync = (): void => {
       setRect(measureAnchor(anchor, scope))
     }
     sync()
     const el = queryAnchor(anchor, scope)
-    if (!el) return
 
-    const ro = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(sync)
-      : null
-    ro?.observe(el)
-    window.addEventListener('scroll', sync, true)
-    window.addEventListener('resize', sync)
+    let mo: MutationObserver | null = null
+    let ro: ResizeObserver | null = null
+    let listening = false
+
+    const bindTarget = (target: Element): void => {
+      if (listening) return
+      listening = true
+      ro = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(sync)
+        : null
+      ro?.observe(target)
+      window.addEventListener('scroll', sync, true)
+      window.addEventListener('resize', sync)
+    }
+
+    if (!el) {
+      if (typeof MutationObserver !== 'undefined') {
+        mo = new MutationObserver(() => {
+          const found = queryAnchor(anchor, scope)
+          if (!found) return
+          sync()
+          mo?.disconnect()
+          mo = null
+          bindTarget(found)
+        })
+        mo.observe(scope ?? document.body, { childList: true, subtree: true })
+      }
+    } else {
+      bindTarget(el)
+    }
 
     return () => {
+      mo?.disconnect()
       ro?.disconnect()
       window.removeEventListener('scroll', sync, true)
       window.removeEventListener('resize', sync)
     }
-  }, [anchor])
+  }, [anchor, scopeRef])
 
   useLayoutEffect(() => {
     const h = tooltipRef.current?.getBoundingClientRect().height ?? 0

@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.100.1
+### Onboarding
+- En Planear, si ya tenías agentes en el catálogo, al crear el equipo la ceremonia de brainstorm se abre sola: la decisión sale del estado actual, no del bootstrap.
+- Si todavía no tenés ningún CLI instalado, la app espera a que la sonda de CLIs responda antes de abrir la ceremonia, así el aviso que te lleva a instalar el CLI no se saltea.
+
 ## v0.100.0
 ### Cuentas y organizaciones
 - Cada cuenta Covenant tiene su propio catálogo de workspaces de organización. Crear un workspace ya no falla con un error de permisos: la app usa la cuenta del tab en el que estás, no la primera que encuentra. Lo mismo al sincronizar, renombrar, elegir carpeta y en el clon de arranque.

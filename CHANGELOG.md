@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.99.0
+Organizations deja de saltar al abrir: skeletons de carga mientras llegan los datos, y el separador superior ya no tapa la barra de pestañas. Dentro de un workspace, personas, repos, agentes y contextos viven en pestañas. Si eres dueño de una organización que no es la personal, puedes borrarla desde Ajustes con confirmación. En las salas de brainstorm el borde superior del overlay queda alineado.
+
 ## v0.98.11
 La marca Covenant vuelve al centro de la barra superior. Si aparece el aviso de actualización, la marca se aparta para dejarle el sitio.
 

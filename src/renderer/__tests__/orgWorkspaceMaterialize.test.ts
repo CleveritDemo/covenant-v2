@@ -3,6 +3,7 @@ import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
 import {
   downloadOrgWorkspaceToLocal,
+  planOrgWorkspaceUpload,
   uploadOrgWorkspaceFromLocal,
   type OrgWorkspaceMaterializeDeps,
 } from '../orgWorkspaceMaterialize'
@@ -364,6 +365,67 @@ describe('downloadOrgWorkspaceToLocal', () => {
     expect(phases[0]).toBe('agents')
     expect(result.agentsOk).toBe(true)
     expect(result.contextsOk).toBe(true)
+  })
+})
+
+describe('planOrgWorkspaceUpload', () => {
+  it('lists local and remote without remote mutations', async () => {
+    const upsertRemoteAgent = vi.fn(async () => ({
+      ok: true as const,
+      data: { agentId: 'x', definition: {} },
+    }))
+    const deleteRemoteAgent = vi.fn(async () => ({ ok: true as const, data: undefined }))
+    const upsertRemoteContext = vi.fn(async () => ({
+      ok: true as const,
+      data: { contextId: 'x', kind: 'notes' as const, name: 'x', body: '' },
+    }))
+    const deleteRemoteContext = vi.fn(async () => ({ ok: true as const, data: undefined }))
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [
+          { agentId: 'qa', definition: {} },
+          { agentId: 'gone', definition: {} },
+        ],
+      }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [
+          { contextId: 'about', kind: 'notes', name: 'About', body: '' },
+          { contextId: 'old-notes', kind: 'notes', name: 'Old', body: '' },
+        ],
+      }),
+      listLocalAgents: async () => [
+        agent('qa'),
+        agent('fe-2', { localOnly: true }),
+      ],
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [
+          context('about', 'notes'),
+          context('iaterminal:result:qa', 'agentResult'),
+        ],
+      }),
+      upsertRemoteAgent,
+      deleteRemoteAgent,
+      upsertRemoteContext,
+      deleteRemoteContext,
+    })
+
+    const result = await planOrgWorkspaceUpload('/ws', deps)
+    expect(result).toEqual({
+      ok: true,
+      plan: {
+        agentUpsertIds: ['qa'],
+        contextUpsertIds: ['about'],
+        agentIdsToDelete: ['gone'],
+        contextIdsToDelete: ['old-notes'],
+      },
+    })
+    expect(upsertRemoteAgent).not.toHaveBeenCalled()
+    expect(deleteRemoteAgent).not.toHaveBeenCalled()
+    expect(upsertRemoteContext).not.toHaveBeenCalled()
+    expect(deleteRemoteContext).not.toHaveBeenCalled()
   })
 })
 

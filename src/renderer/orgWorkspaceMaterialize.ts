@@ -19,14 +19,15 @@ import {
   type WorkspaceContextBodyScope,
 } from '@shared/orgWorkspaceContent'
 import {
+  buildOrgWorkspaceUploadPlan,
   filterSyncableOrgWorkspaceAgents,
   filterSyncableOrgWorkspaceContexts,
   localContextsToWipeOnOrgResync,
   mergeRemoteAgentPreservingLocalResultContextIds,
-  orgWorkspaceRemoteIdsToDelete,
   pickLocalAgentResultContextIds,
   stampProjectAgentsPlaneOrder,
   stripAgentResultContextIdsForUpload,
+  type OrgWorkspaceUploadPlan,
 } from '@shared/orgWorkspaceLocalSync'
 import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
 import type { TabContext } from '@shared/tabContext'
@@ -332,10 +333,88 @@ export type OrgWorkspaceUploadResult = {
 
 export type OrgWorkspaceUploadOptions = {
   orderedAgentIds?: readonly string[]
+  /** Default true: si false, no upserta ni borra agentes remotos. */
+  includeAgents?: boolean
   /** 0–85: el caller reserva 86–100 para wiki u otras fases posteriores. */
   onProgress?: (percent: number) => void
   /** Si devuelve true, corta sin más mutaciones remotas. */
   shouldCancel?: () => boolean
+}
+
+/**
+ * Lista remoto y local syncable → plan puro de subida (sin mutaciones remotas).
+ */
+export async function planOrgWorkspaceUpload(
+  cwd: string,
+  deps: OrgWorkspaceMaterializeDeps,
+  options: { includeAgents?: boolean } = {},
+): Promise<{ ok: true; plan: OrgWorkspaceUploadPlan } | { ok: false; error: string }> {
+  const gathered = await gatherOrgWorkspaceUploadSnapshot(cwd, deps)
+  if (!gathered.ok) return gathered
+
+  const { localAgents, localContexts, remoteAgentIds, remoteContextIds } = gathered.snapshot
+  const includeAgents = options.includeAgents !== false
+  const plan = buildOrgWorkspaceUploadPlan({
+    localAgentIds: localAgents.map(a => a.id),
+    localContextIds: localContexts.map(c => c.id),
+    remoteAgentIds,
+    remoteContextIds,
+    includeAgents,
+  })
+  return { ok: true, plan }
+}
+
+type OrgWorkspaceUploadSnapshot = {
+  localAgents: ProjectAgentDefinition[]
+  localContexts: TabContext[]
+  remoteAgentIds: string[]
+  remoteContextIds: string[]
+}
+
+async function gatherOrgWorkspaceUploadSnapshot(
+  cwd: string,
+  deps: OrgWorkspaceMaterializeDeps,
+): Promise<
+  | { ok: true; snapshot: OrgWorkspaceUploadSnapshot }
+  | { ok: false; error: string }
+> {
+  const root = cwd.trim()
+  if (!root) return { ok: false, error: 'missing cwd' }
+
+  const [agentsResult, contextsResult] = await Promise.all([
+    deps.listRemoteAgents(),
+    deps.listRemoteContexts(),
+  ])
+  if (!agentsResult.ok) {
+    return { ok: false, error: agentsResult.error || 'agents list failed' }
+  }
+  if (!contextsResult.ok) {
+    return { ok: false, error: contextsResult.error || 'contexts list failed' }
+  }
+
+  const localAgents = filterSyncableOrgWorkspaceAgents(await deps.listLocalAgents(root))
+  const discovered = await deps.discoverLocalContexts(root)
+  if (!discovered.ok) {
+    return { ok: false, error: discovered.error || 'discover contexts failed' }
+  }
+  const localContexts = filterSyncableOrgWorkspaceContexts(discovered.contexts)
+
+  const remoteAgentIds = agentsResult.data
+    .map(item => (typeof item.agentId === 'string' ? item.agentId.trim() : ''))
+    .filter(Boolean)
+  const remoteContextIds = contextsResult.data
+    .map(item => (typeof item.contextId === 'string' ? item.contextId.trim() : ''))
+    .filter(Boolean)
+
+  return {
+    ok: true,
+    snapshot: {
+      localAgents,
+      localContexts,
+      remoteAgentIds,
+      remoteContextIds,
+    },
+  }
 }
 
 /**
@@ -352,43 +431,32 @@ export async function uploadOrgWorkspaceFromLocal(
   const root = cwd.trim()
   if (!root) return { ok: false, error: 'missing cwd' }
 
+  const includeAgents = options.includeAgents !== false
   const isCancelled = () => options.shouldCancel?.() === true
   const cancelledResult = (): OrgWorkspaceUploadResult => (
     { ok: false, cancelled: true, error: 'cancelled' }
   )
 
-  const [agentsResult, contextsResult] = await Promise.all([
-    deps.listRemoteAgents(),
-    deps.listRemoteContexts(),
-  ])
-  if (!agentsResult.ok) {
-    return { ok: false, error: agentsResult.error || 'agents list failed' }
-  }
-  if (!contextsResult.ok) {
-    return { ok: false, error: contextsResult.error || 'contexts list failed' }
-  }
+  const gathered = await gatherOrgWorkspaceUploadSnapshot(root, deps)
+  if (!gathered.ok) return gathered
 
-  const localAgents = filterSyncableOrgWorkspaceAgents(await deps.listLocalAgents(root))
-  const agentsToUpload = options.orderedAgentIds?.length
+  const { localAgents, localContexts, remoteAgentIds, remoteContextIds } = gathered.snapshot
+  const agentsToUpload = includeAgents && options.orderedAgentIds?.length
     ? stampProjectAgentsPlaneOrder(localAgents, options.orderedAgentIds)
-    : localAgents
-  const discovered = await deps.discoverLocalContexts(root)
-  if (!discovered.ok) {
-    return { ok: false, error: discovered.error || 'discover contexts failed' }
-  }
-  const localContexts = filterSyncableOrgWorkspaceContexts(discovered.contexts)
+    : includeAgents
+      ? localAgents
+      : []
 
-  const localAgentIds = new Set(localAgents.map(a => a.id))
-  const remoteAgentIds = agentsResult.data
-    .map(item => (typeof item.agentId === 'string' ? item.agentId.trim() : ''))
-    .filter(Boolean)
-  const localContextIds = new Set(localContexts.map(c => c.id))
-  const remoteContextIds = contextsResult.data
-    .map(item => (typeof item.contextId === 'string' ? item.contextId.trim() : ''))
-    .filter(Boolean)
+  const plan = buildOrgWorkspaceUploadPlan({
+    localAgentIds: localAgents.map(a => a.id),
+    localContextIds: localContexts.map(c => c.id),
+    remoteAgentIds,
+    remoteContextIds,
+    includeAgents,
+  })
+  const agentIdsToDelete = plan.agentIdsToDelete
+  const contextIdsToDelete = plan.contextIdsToDelete
 
-  const agentIdsToDelete = orgWorkspaceRemoteIdsToDelete(localAgentIds, remoteAgentIds)
-  const contextIdsToDelete = orgWorkspaceRemoteIdsToDelete(localContextIds, remoteContextIds)
   const totalSteps = 1 + agentsToUpload.length + agentIdsToDelete.length
     + localContexts.length + contextIdsToDelete.length
   let completedSteps = 0

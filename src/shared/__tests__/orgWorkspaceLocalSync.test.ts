@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ProjectAgentDefinition } from '../projectAgentCatalog'
 import type { TabContext } from '../tabContext'
 import {
+  buildOrgWorkspaceUploadPlan,
   canUploadOrgWorkspaceChanges,
   filterContextIdsAfterDiscover,
   filterSyncableOrgWorkspaceAgents,
@@ -84,6 +85,53 @@ describe('orgWorkspaceRemoteIdsToDelete', () => {
   it('returns remote ids missing locally', () => {
     expect(orgWorkspaceRemoteIdsToDelete(['a', 'b'], ['a', 'c', 'd'])).toEqual(['c', 'd'])
     expect(orgWorkspaceRemoteIdsToDelete(new Set(['a']), ['a', 'b'])).toEqual(['b'])
+  })
+})
+
+describe('buildOrgWorkspaceUploadPlan', () => {
+  it('puts remote ids missing locally in delete lists', () => {
+    expect(buildOrgWorkspaceUploadPlan({
+      localAgentIds: ['qa'],
+      localContextIds: ['about'],
+      remoteAgentIds: ['qa', 'gone-agent'],
+      remoteContextIds: ['about', 'old-notes'],
+      includeAgents: true,
+    })).toEqual({
+      agentUpsertIds: ['qa'],
+      contextUpsertIds: ['about'],
+      agentIdsToDelete: ['gone-agent'],
+      contextIdsToDelete: ['old-notes'],
+    })
+  })
+
+  it('with includeAgents false keeps agent lists empty', () => {
+    expect(buildOrgWorkspaceUploadPlan({
+      localAgentIds: ['qa', 'frontend'],
+      localContextIds: ['about'],
+      remoteAgentIds: ['qa', 'gone-agent'],
+      remoteContextIds: ['about', 'old-notes'],
+      includeAgents: false,
+    })).toEqual({
+      agentUpsertIds: [],
+      contextUpsertIds: ['about'],
+      agentIdsToDelete: [],
+      contextIdsToDelete: ['old-notes'],
+    })
+  })
+
+  it('with identical local and remote sets yields empty delete lists', () => {
+    expect(buildOrgWorkspaceUploadPlan({
+      localAgentIds: ['qa'],
+      localContextIds: ['about'],
+      remoteAgentIds: ['qa'],
+      remoteContextIds: ['about'],
+      includeAgents: true,
+    })).toEqual({
+      agentUpsertIds: ['qa'],
+      contextUpsertIds: ['about'],
+      agentIdsToDelete: [],
+      contextIdsToDelete: [],
+    })
   })
 })
 

@@ -83,6 +83,45 @@ export function orgWorkspaceLocalIdsToUpsert(
   return out
 }
 
+export type OrgWorkspaceUploadPlan = {
+  agentUpsertIds: string[]
+  contextUpsertIds: string[]
+  agentIdsToDelete: string[]
+  contextIdsToDelete: string[]
+}
+
+/** Plan puro de subida org: upserts locales + borrados remotos ausentes en local syncable. */
+export function buildOrgWorkspaceUploadPlan(input: {
+  localAgentIds: readonly string[]
+  localContextIds: readonly string[]
+  remoteAgentIds: readonly string[]
+  remoteContextIds: readonly string[]
+  includeAgents: boolean
+}): OrgWorkspaceUploadPlan {
+  const contextUpsertIds = orgWorkspaceLocalIdsToUpsert(input.localContextIds)
+  const contextIdsToDelete = orgWorkspaceRemoteIdsToDelete(
+    input.localContextIds,
+    input.remoteContextIds,
+  )
+  if (!input.includeAgents) {
+    return {
+      agentUpsertIds: [],
+      contextUpsertIds,
+      agentIdsToDelete: [],
+      contextIdsToDelete,
+    }
+  }
+  return {
+    agentUpsertIds: orgWorkspaceLocalIdsToUpsert(input.localAgentIds),
+    contextUpsertIds,
+    agentIdsToDelete: orgWorkspaceRemoteIdsToDelete(
+      input.localAgentIds,
+      input.remoteAgentIds,
+    ),
+    contextIdsToDelete,
+  }
+}
+
 /**
  * Orden visual de agentes en el tab (paneIds → agentId).
  * Fuente local canónica; session.json lo persiste igual que en workspaces personales.

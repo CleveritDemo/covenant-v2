@@ -169,14 +169,35 @@ const contextDeliveryMetrics: ContextDeliveryMetrics = {
   outputTokens: 0,
 }
 
-/** Suma el uso reportado por el CLI en el evento final de un turno. */
-export function recordTurnUsage(usage: { inputTokens?: number; outputTokens?: number }): void {
+/** Evento interno normalizador→runtime; no se reenvía al renderer. */
+type AgentCliUsageUiEvent = { type: 'usage'; inputTokens: number; outputTokens: number }
+
+const turnUsageByRunKey = new Map<string, { inputTokens: number; outputTokens: number }>()
+
+function isUsageUiEvent(event: AgentCliUiEvent): event is AgentCliUsageUiEvent {
+  return (event as { type?: string }).type === 'usage'
+}
+
+/** Acumula el uso reportado por el CLI para un runKey concreto. */
+export function recordTurnUsage(
+  runKey: string,
+  usage: { inputTokens?: number; outputTokens?: number },
+): void {
+  const current = turnUsageByRunKey.get(runKey) ?? { inputTokens: 0, outputTokens: 0 }
   if (Number.isFinite(usage.inputTokens)) {
-    contextDeliveryMetrics.inputTokens += usage.inputTokens as number
+    current.inputTokens += usage.inputTokens as number
   }
   if (Number.isFinite(usage.outputTokens)) {
-    contextDeliveryMetrics.outputTokens += usage.outputTokens as number
+    current.outputTokens += usage.outputTokens as number
   }
+  turnUsageByRunKey.set(runKey, current)
+}
+
+/** Devuelve el uso acumulado del runKey y borra la entrada. */
+export function takeTurnUsage(runKey: string): { inputTokens: number; outputTokens: number } {
+  const usage = turnUsageByRunKey.get(runKey) ?? { inputTokens: 0, outputTokens: 0 }
+  turnUsageByRunKey.delete(runKey)
+  return usage
 }
 
 export function getContextDeliveryMetrics(): ContextDeliveryMetrics {
@@ -451,7 +472,7 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
       out.push({ type: 'assistant_delta', text: delta.text })
     }
   } else if (obj.type === 'result') {
-    recordTurnUsage(claudeTurnUsage(obj))
+    out.push({ type: 'usage', ...claudeTurnUsage(obj) } as AgentCliUiEvent)
     const outage = claudeResultErrorText(obj)
     if (outage) {
       out.push({ type: 'harness_outage', text: outage })
@@ -603,6 +624,29 @@ export function describeCursorToolCall(toolCall: unknown): { name: string; detai
   }
 }
 
+function readUsageNumber(record: Record<string, unknown>, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return null
+}
+
+/** Emite usage solo si el objeto trae al menos un contador numérico. */
+function pushUsageFromRecord(out: AgentCliUiEvent[], usage: unknown): void {
+  if (!usage || typeof usage !== 'object') return
+  const record = usage as Record<string, unknown>
+  const inputBase = readUsageNumber(record, 'input_tokens', 'inputTokens')
+  const cached = readUsageNumber(record, 'cached_input_tokens', 'cachedInputTokens') ?? 0
+  const output = readUsageNumber(record, 'output_tokens', 'outputTokens')
+  if (inputBase === null && output === null) return
+  out.push({
+    type: 'usage',
+    inputTokens: (inputBase ?? 0) + cached,
+    outputTokens: output ?? 0,
+  } as AgentCliUiEvent)
+}
+
 export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
   if (!value || typeof value !== 'object') return []
   const obj = value as Record<string, unknown>
@@ -638,6 +682,7 @@ export function normalizeCursorEvent(value: unknown): AgentCliUiEvent[] {
       out.push({ type: 'assistant_delta', text: `\n\n${planText}`, source: 'create_plan' })
     }
   }
+  pushUsageFromRecord(out, obj.usage)
   return out
 }
 
@@ -649,6 +694,7 @@ export function normalizeCopilotEvent(value: unknown): AgentCliUiEvent[] {
   const data = obj.data && typeof obj.data === 'object'
     ? obj.data as Record<string, unknown>
     : null
+  pushUsageFromRecord(out, obj.usage ?? data?.usage)
 
   if (obj.type === 'assistant.message_delta' && data) {
     const delta = typeof data.deltaContent === 'string' ? data.deltaContent : ''
@@ -723,6 +769,23 @@ export function normalizeCodexEvent(value: unknown): AgentCliUiEvent[] {
       ?? stringAt(obj.error, 'message')
       ?? 'Codex falló'
     out.push({ type: 'error', message })
+    return out
+  }
+
+  if (obj.type === 'turn.completed') {
+    const usage = obj.usage
+    if (usage && typeof usage === 'object') {
+      const record = usage as Record<string, unknown>
+      const num = (key: string): number => {
+        const value = record[key]
+        return typeof value === 'number' && Number.isFinite(value) ? value : 0
+      }
+      out.push({
+        type: 'usage',
+        inputTokens: num('input_tokens') + num('cached_input_tokens'),
+        outputTokens: num('output_tokens'),
+      } as AgentCliUiEvent)
+    }
     return out
   }
 
@@ -1184,6 +1247,10 @@ export function runAgentCliSpawn(
 
     const emit = (events: AgentCliUiEvent[]): void => {
       for (const event of events) {
+        if (isUsageUiEvent(event)) {
+          recordTurnUsage(runKey, event)
+          continue
+        }
         if (event.type === 'harness_outage') {
           providerOutageText = event.text
           handlers.onEvent(event)
@@ -1313,7 +1380,6 @@ export function startAgentTurn(
   const initialPrompt = composePrompt(request, cwd, imagePaths, contextDelivery.prompt, projectCwd)
   let contextDeliveryCommitted = false
   const turnStartedAt = Date.now()
-  const tokensAtStart = getContextDeliveryMetrics()
   /**
    * Repo y rama del turno, resueltos una sola vez: los tres eventos de Pulse que
    * puede emitir un turno (prompt, resultado, delegación) llevan la misma
@@ -1411,6 +1477,10 @@ export function startAgentTurn(
     const emit = (events: AgentCliUiEvent[]): void => {
       {
         for (const event of events) {
+          if (isUsageUiEvent(event)) {
+            recordTurnUsage(runKey, event)
+            continue
+          }
           if (event.type === 'harness_outage') {
             providerOutageText = event.text
             continue
@@ -1671,22 +1741,20 @@ export function startAgentTurn(
    * hicieron falta. Solo se llama en el cierre real (las continuaciones
    * retornan antes).
    *
-   * ponytail: los tokens salen del delta del contador global, no de una
-   * atribución por panel. Con varios paneles corriendo a la vez el reparto
-   * entre turnos puede sesgarse, pero el total —que es lo que muestra el
-   * hero band— queda exacto. Si algún día hace falta el desglose por
-   * agente/modelo, el upgrade es propagar el usage por paneId desde el parser.
+   * ponytail: los tokens salen de takeTurnUsage(runKey), acumulados desde
+   * eventos `usage` del normalizador. Varios paneles en paralelo no se
+   * mezclan; si un harness no reporta usage, Pulse ve 0 (no inventamos).
    */
   function recordTurnInPulse(): void {
-    const after = getContextDeliveryMetrics()
+    const { inputTokens, outputTokens } = takeTurnUsage(runKey)
     const event: PulseEvent = {
       ts: turnStartedAt,
       kind: 'prompt',
       provider: request.provider,
       permissionMode: request.permissionMode,
       ...pulseTags,
-      tokensIn: Math.max(0, after.inputTokens - tokensAtStart.inputTokens),
-      tokensOut: Math.max(0, after.outputTokens - tokensAtStart.outputTokens),
+      tokensIn: inputTokens,
+      tokensOut: outputTokens,
       durationMs: Math.max(0, Date.now() - turnStartedAt),
       ...(request.viaLoop ? { viaLoop: true } : {}),
     }

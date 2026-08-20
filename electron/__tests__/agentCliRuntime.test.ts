@@ -18,6 +18,9 @@ import {
   normalizeClaudeEvent,
   normalizeCursorEvent,
   normalizeCopilotEvent,
+  normalizeCodexEvent,
+  recordTurnUsage,
+  takeTurnUsage,
   closeAgentCliStdin,
   writeAgentCliPrompt,
   reserveAgentRun,
@@ -817,6 +820,7 @@ describe('agent CLI event normalization', () => {
       session_id: 'x',
     })).toEqual([
       { type: 'session', cliSessionId: 'x' },
+      { type: 'usage', inputTokens: 0, outputTokens: 0 },
       { type: 'harness_outage', text: 'API Error: 529 Overloaded.' },
     ])
   })
@@ -983,6 +987,100 @@ describe('agent CLI event normalization', () => {
       source: 'create_plan',
       text: '\n\n# Virtualizar chat\n\nVirtualizar burbujas\n\n# Plan\n\nUsar @tanstack/react-virtual.',
     })
+  })
+})
+
+describe('turn usage por runKey', () => {
+  it('acumula y takeTurnUsage borra la entrada', () => {
+    recordTurnUsage('pane:main', { inputTokens: 1200, outputTokens: 300 })
+    recordTurnUsage('pane:main', { inputTokens: 800, outputTokens: 150 })
+    expect(takeTurnUsage('pane:main')).toEqual({ inputTokens: 2000, outputTokens: 450 })
+    expect(takeTurnUsage('pane:main')).toEqual({ inputTokens: 0, outputTokens: 0 })
+  })
+
+  it('ignora valores que no son números finitos', () => {
+    recordTurnUsage('pane:a', { inputTokens: Number.NaN, outputTokens: 10 })
+    expect(takeTurnUsage('pane:a')).toEqual({ inputTokens: 0, outputTokens: 10 })
+  })
+
+  it('dos runKeys acumulan en paralelo sin mezclarse', () => {
+    recordTurnUsage('pane:one', { inputTokens: 100, outputTokens: 10 })
+    recordTurnUsage('pane:two', { inputTokens: 200, outputTokens: 20 })
+    expect(takeTurnUsage('pane:one')).toEqual({ inputTokens: 100, outputTokens: 10 })
+    expect(takeTurnUsage('pane:two')).toEqual({ inputTokens: 200, outputTokens: 20 })
+  })
+})
+
+describe('usage en normalizadores', () => {
+  it('codex turn.completed emite usage cuando hay objeto usage', () => {
+    expect(normalizeCodexEvent({
+      type: 'turn.completed',
+      usage: {
+        input_tokens: 10,
+        cached_input_tokens: 5,
+        output_tokens: 3,
+      },
+    })).toEqual([{ type: 'usage', inputTokens: 15, outputTokens: 3 }])
+  })
+
+  it('codex turn.completed sin usage no emite nada', () => {
+    expect(normalizeCodexEvent({ type: 'turn.completed' })).toEqual([])
+  })
+
+  it('cursor emite usage con snake_case y camelCase', () => {
+    expect(normalizeCursorEvent({
+      type: 'result',
+      result: 'ok',
+      usage: { input_tokens: 4, cached_input_tokens: 1, output_tokens: 2 },
+    })).toEqual([
+      { type: 'assistant_final', text: 'ok' },
+      { type: 'usage', inputTokens: 5, outputTokens: 2 },
+    ])
+
+    expect(normalizeCursorEvent({
+      type: 'result',
+      result: 'ok',
+      usage: { inputTokens: 4, cachedInputTokens: 1, outputTokens: 2 },
+    })).toEqual([
+      { type: 'assistant_final', text: 'ok' },
+      { type: 'usage', inputTokens: 5, outputTokens: 2 },
+    ])
+  })
+
+  it('cursor sin usage no emite usage', () => {
+    expect(normalizeCursorEvent({ type: 'result', result: 'ok' })).toEqual([
+      { type: 'assistant_final', text: 'ok' },
+    ])
+  })
+
+  it('copilot emite usage desde obj.data con ambas grafías', () => {
+    expect(normalizeCopilotEvent({
+      type: 'result',
+      sessionId: 's',
+      data: { usage: { input_tokens: 8, output_tokens: 4 } },
+    })).toEqual([
+      { type: 'usage', inputTokens: 8, outputTokens: 4 },
+      { type: 'session', cliSessionId: 's' },
+    ])
+
+    expect(normalizeCopilotEvent({
+      type: 'assistant.message',
+      data: {
+        content: 'hola',
+        usage: { inputTokens: 6, cachedInputTokens: 2, outputTokens: 1 },
+      },
+    })).toEqual([
+      { type: 'usage', inputTokens: 8, outputTokens: 1 },
+      { type: 'assistant_final', text: 'hola' },
+    ])
+  })
+
+  it('copilot sin usage no emite usage', () => {
+    expect(normalizeCopilotEvent({
+      type: 'result',
+      sessionId: 'copilot-session',
+      exitCode: 0,
+    })).toEqual([{ type: 'session', cliSessionId: 'copilot-session' }])
   })
 })
 

@@ -236,4 +236,15 @@ describe('normalizeCodexEvent', () => {
   it('el razonamiento no ensucia el chat', () => {
     expect(normalizeCodexEvent({ type: 'item.completed', item: { type: 'reasoning' } })).toEqual([])
   })
+
+  it('turn.completed sin usage no emite usage', () => {
+    expect(normalizeCodexEvent({ type: 'turn.completed' })).toEqual([])
+  })
+
+  it('turn.completed con usage suma cached al input', () => {
+    expect(normalizeCodexEvent({
+      type: 'turn.completed',
+      usage: { input_tokens: 1, cached_input_tokens: 2, output_tokens: 3 },
+    })).toEqual([{ type: 'usage', inputTokens: 3, outputTokens: 3 }])
+  })
 })

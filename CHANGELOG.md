@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.101.1
+
+- El reporte de un contexto Markdown ahora se lee como documento y no como un mensaje de chat: títulos con escala propia, ancho de lectura acotado y listas con viñeta discreta.
+- Las listas escritas con •, ‣, ·, – o — ya se reconocen como listas; antes cada línea caía como un párrafo suelto con el carácter colgando delante.
+- El detalle de un contexto gana jerarquía: nombre a mayor escala, tipo en versalitas y la ruta del archivo en monoespaciada.
+
 ## v0.101.0
 ### Salas de brainstorming
 - El idioma de la sala sale del objetivo que escribiste: si lo planteas en español, los agentes responden en español aunque tengas la app en inglés. Con títulos muy cortos, donde no hay señal suficiente, se mantiene el idioma de la app.

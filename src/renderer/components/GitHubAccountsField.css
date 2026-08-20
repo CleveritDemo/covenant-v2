@@ -48,23 +48,113 @@
   background: var(--surface);
 }
 
-.github-accounts__row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.github-accounts__row + .github-accounts__row {
+.github-accounts__card + .github-accounts__card {
   border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
 }
 
-.github-accounts__row-actions,
-.github-accounts__add-actions {
+.github-accounts__card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.github-accounts__avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  background: var(--plane-node-bg);
+  border: 1px solid color-mix(in srgb, var(--plane-border) 28%, transparent);
+}
+
+.github-accounts__identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.github-accounts__primary {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-accounts__secondary {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-accounts__aside {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 52%;
+}
+
+.github-accounts__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.github-accounts__chip[data-state='ok'] {
+  color: var(--accent);
+}
+
+.github-accounts__chip[data-state='error'] {
+  color: var(--danger);
+}
+
+.github-accounts__status-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.github-accounts__error-detail {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--danger);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.github-accounts__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 .github-accounts__add {
@@ -73,12 +163,26 @@
   gap: 8px;
 }
 
+.github-accounts__add--panel {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
 .github-accounts__add-title {
   margin: 0;
   font-family: var(--font-ui);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text);
+}
+
+.github-accounts__add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .github-accounts__status {

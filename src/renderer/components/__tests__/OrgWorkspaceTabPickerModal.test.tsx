@@ -5,7 +5,7 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { CovenantApi } from '../../covenantApi'
-import type { OrgWorkspaceCatalogEntry } from '../../../shared/orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogEntry, OrgWorkspaceCatalogMap } from '../../../shared/orgWorkspaceCatalog'
 import { OrgWorkspaceTabPickerModal } from '../OrgWorkspaceTabPickerModal'
 
 vi.mock('@i18n/useT', () => ({
@@ -33,6 +33,16 @@ vi.mock('../../covenantApi', async importOriginal => {
 const catalog: OrgWorkspaceCatalogEntry[] = [
   { slug: 'acme', orgName: 'Acme', workspaceId: 'ws-1', name: 'Atlas', canRename: true },
 ]
+
+const catalogMap: OrgWorkspaceCatalogMap = {
+  byAccount: {
+    'acc-bound': {
+      login: 'alice',
+      fetchedAt: 1,
+      entries: catalog,
+    },
+  },
+}
 
 function stubApi(overrides: Partial<CovenantApi> = {}): CovenantApi {
   const noop = vi.fn().mockResolvedValue({ ok: true, data: [] })
@@ -65,14 +75,16 @@ function renderModal(
   overrides: Partial<React.ComponentProps<typeof OrgWorkspaceTabPickerModal>> = {},
 ) {
   getCovenantApi.mockReset()
-  getCovenantApi.mockReturnValue(api)
+  getCovenantApi.mockImplementation((accountId?: string) => {
+    if (accountId === undefined || accountId === '') return api
+    return api
+  })
   const onConfirm = vi.fn()
   const onClose = vi.fn()
   render(
     <OrgWorkspaceTabPickerModal
       open
-      catalog={catalog}
-      accountId="acc-bound"
+      catalogMap={catalogMap}
       onClose={onClose}
       onConfirm={onConfirm}
       {...overrides}
@@ -186,7 +198,7 @@ describe('OrgWorkspaceTabPickerModal signed-out gate', () => {
     expect(await screen.findByText('workspace down')).toBeTruthy()
   })
 
-  it('no toca accountSignedIn si no hay API y sigue pintando el catálogo', async () => {
+  it('no toca signedInAccountCount si no hay API y sigue pintando el catálogo', async () => {
     renderModal(undefined)
     expect(screen.getByText('Atlas')).toBeTruthy()
     await act(async () => {

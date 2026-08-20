@@ -23,6 +23,8 @@ export type OrgWorkspaceCatalog = {
 /** Catálogos org indexados por accountId Covenant; `''` = cuenta por defecto. */
 export type OrgWorkspaceCatalogMap = { byAccount: Record<string, OrgWorkspaceCatalog> }
 
+export type OrgWorkspaceCatalogOption = OrgWorkspaceCatalogEntry & { accountId: string; login: string }
+
 /** Input al construir el catálogo (permisos ya resueltos por el caller). */
 export type OrgWorkspaceCatalogWorkspaceInput = {
   id: string
@@ -218,6 +220,38 @@ export function accountIdsInCatalogMap(
 ): string[] {
   if (!map) return []
   return Object.keys(map.byAccount).sort()
+}
+
+/**
+ * Aplana el mapa multi-cuenta a opciones del picker Cmd+T.
+ * Claves no vacías primero para que el dedupe conserve el accountId real frente a `''`.
+ */
+export function orgWorkspaceOptionsFromCatalogMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+): OrgWorkspaceCatalogOption[] {
+  if (!map) return []
+  const rows = Object.entries(map.byAccount)
+  const sorted = [
+    ...rows.filter(([key]) => key.trim() !== ''),
+    ...rows.filter(([key]) => key.trim() === ''),
+  ]
+  const seen = new Set<string>()
+  const out: OrgWorkspaceCatalogOption[] = []
+  for (const [accountId, cat] of sorted) {
+    const login = cat.login.trim()
+    if (!login) continue
+    for (const entry of cat.entries) {
+      const dedupeKey = `${normalizeGithubLogin(login)}|${entry.slug}|${entry.workspaceId}`
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
+      out.push({
+        ...entry,
+        accountId: accountId.trim(),
+        login,
+      })
+    }
+  }
+  return out
 }
 
 /**

@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react'
 import { mergeWithDefaults, type AppConfig } from '@shared/configSchema'
-import type { OrgWorkspaceCatalogEntry } from '../../shared/orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogMap } from '../../shared/orgWorkspaceCatalog'
 import type { AgentCliProvider } from '../../shared/tabSession'
 import {
   AgentProviderPickerModal,
@@ -29,8 +29,7 @@ interface Props {
   settingsOpen: boolean
   orgModalOpen: boolean
   orgWorkspacePickerOpen: boolean
-  orgWorkspacePickerAccountId?: string
-  orgWorkspaceCatalogEntries?: OrgWorkspaceCatalogEntry[]
+  orgWorkspaceCatalogMap?: OrgWorkspaceCatalogMap | null
   themePickerOpen: boolean
   agentPicker: { tabId: string; fromPaneId?: string } | null
   agentCreate: { tabId: string; fromPaneId?: string; provider: AgentCliProvider } | null
@@ -69,8 +68,7 @@ export const AppModals: React.FC<Props> = ({
   settingsOpen,
   orgModalOpen,
   orgWorkspacePickerOpen,
-  orgWorkspacePickerAccountId,
-  orgWorkspaceCatalogEntries,
+  orgWorkspaceCatalogMap,
   themePickerOpen,
   agentPicker,
   agentCreate,
@@ -146,10 +144,9 @@ export const AppModals: React.FC<Props> = ({
 
       <OrgWorkspaceTabPickerModal
         open={orgWorkspacePickerOpen}
-        accountId={orgWorkspacePickerAccountId}
         onClose={onCloseOrgWorkspacePicker}
         onConfirm={onConfirmOrgWorkspacePicker}
-        catalog={orgWorkspaceCatalogEntries}
+        catalogMap={orgWorkspaceCatalogMap ?? undefined}
       />
 
       <PromoteWorkspaceModal

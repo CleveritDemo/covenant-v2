@@ -13,6 +13,7 @@ import {
   findOrgWorkspaceCatalogEntryInMap,
   isCatalogFresh,
   orgWorkspaceTokenMissing,
+  orgWorkspaceOptionsFromCatalogMap,
   parseOrgWorkspaceCatalogMap,
   patchOrgWorkspaceCatalogName,
   syncTabTitlesFromOrgWorkspaceCatalog,
@@ -350,6 +351,58 @@ function sampleCatalog(login = 'alice') {
     entries: [sampleEntry],
   }
 }
+
+describe('orgWorkspaceOptionsFromCatalogMap', () => {
+  it('devuelve [] con mapa vacío o ausente', () => {
+    expect(orgWorkspaceOptionsFromCatalogMap(null)).toEqual([])
+    expect(orgWorkspaceOptionsFromCatalogMap(undefined)).toEqual([])
+    expect(orgWorkspaceOptionsFromCatalogMap({ byAccount: {} })).toEqual([])
+  })
+
+  it('aplana dos cuentas distintas', () => {
+    const map = {
+      byAccount: {
+        'acc-1': {
+          login: 'alice',
+          fetchedAt: 1,
+          entries: [{ slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha' }],
+        },
+        'acc-2': {
+          login: 'bob',
+          fetchedAt: 1,
+          entries: [{ slug: 'beta', orgName: 'Beta', workspaceId: 'w2', name: 'Bravo' }],
+        },
+      },
+    }
+    const options = orgWorkspaceOptionsFromCatalogMap(map)
+    expect(options).toHaveLength(2)
+    expect(options.map(o => o.login).sort()).toEqual(['alice', 'bob'])
+    expect(options.find(o => o.accountId === 'acc-1')?.name).toBe('Alpha')
+    expect(options.find(o => o.accountId === 'acc-2')?.name).toBe('Bravo')
+  })
+
+  it('dedupe login+slug+workspaceId conservando el accountId no vacío', () => {
+    const entry = { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true }
+    const map = {
+      byAccount: {
+        'acc-default': {
+          login: 'alice',
+          fetchedAt: 1,
+          entries: [entry],
+        },
+        '': {
+          login: 'alice',
+          fetchedAt: 2,
+          entries: [entry],
+        },
+      },
+    }
+    const options = orgWorkspaceOptionsFromCatalogMap(map)
+    expect(options).toHaveLength(1)
+    expect(options[0]?.accountId).toBe('acc-default')
+    expect(options[0]?.canRename).toBe(true)
+  })
+})
 
 describe('parseOrgWorkspaceCatalogMap', () => {
   it('migra la forma legacy a la clave vacía', () => {

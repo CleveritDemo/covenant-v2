@@ -2727,6 +2727,7 @@ export const App: React.FC = () => {
     })) return
     const map = orgWorkspaceCatalogMapRef.current
     if (map && Object.values(map.byAccount).some(catalogHasWorkspaces)) {
+      void loadOrgWorkspaceCatalog(false)
       setOrgWorkspacePickerOpen(true)
       return
     }
@@ -8254,15 +8255,7 @@ export const App: React.FC = () => {
         settingsOpen={settingsOpen}
         orgModalOpen={orgModalOpen}
         orgWorkspacePickerOpen={orgWorkspacePickerOpen}
-        orgWorkspacePickerAccountId={accountIdForCwd(
-          tabs.find(item => item.id === activeTabId)?.projectFolder,
-        )}
-        orgWorkspaceCatalogEntries={
-          catalogForAccount(
-            orgWorkspaceCatalogMap,
-            accountIdForCwd(tabs.find(item => item.id === activeTabId)?.projectFolder),
-          )?.entries
-        }
+        orgWorkspaceCatalogMap={orgWorkspaceCatalogMap}
         themePickerOpen={themePickerOpen}
         agentPicker={agentPicker}
         agentCreate={agentCreate}

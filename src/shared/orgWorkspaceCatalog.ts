@@ -253,6 +253,20 @@ export function findOrgWorkspaceCatalogEntry(
   return catalog.entries.find(e => e.slug === s && e.workspaceId === id)
 }
 
+/** Busca una entrada en cualquier catálogo del mapa (p. ej. labels de Pulse). */
+export function findOrgWorkspaceCatalogEntryInMap(
+  map: OrgWorkspaceCatalogMap | null | undefined,
+  slug: string,
+  workspaceId: string,
+): OrgWorkspaceCatalogEntry | undefined {
+  if (!map) return undefined
+  for (const catalog of Object.values(map.byAccount)) {
+    const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
+    if (entry) return entry
+  }
+  return undefined
+}
+
 /** Sin catálogo → false; con entrada → `canRename`; sin entrada → true (el server decide). */
 export function canUploadOrgWorkspaceFromCatalog(
   catalog: OrgWorkspaceCatalog | null | undefined,

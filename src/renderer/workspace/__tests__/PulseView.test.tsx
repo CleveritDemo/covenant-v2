@@ -77,14 +77,18 @@ describe('PulseView workspace labels', () => {
     pulseSnapshot.mockResolvedValue(snapshot)
     getConfig.mockResolvedValue({
       orgWorkspaceCatalogCache: {
-        login: 'carlos',
-        fetchedAt: 1,
-        entries: [{
-          slug: 'rodrigoanti',
-          orgName: 'Rodrigoanti',
-          workspaceId: WORKSPACE_ID,
-          name: 'Covenant',
-        }],
+        byAccount: {
+          '': {
+            login: 'carlos',
+            fetchedAt: 1,
+            entries: [{
+              slug: 'rodrigoanti',
+              orgName: 'Rodrigoanti',
+              workspaceId: WORKSPACE_ID,
+              name: 'Covenant',
+            }],
+          },
+        },
       },
     })
     ;(window as unknown as { api: Record<string, unknown> }).api = {

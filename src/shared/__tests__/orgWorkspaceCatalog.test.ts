@@ -10,6 +10,7 @@ import {
   catalogForLogin,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
+  findOrgWorkspaceCatalogEntryInMap,
   isCatalogFresh,
   orgWorkspaceTokenMissing,
   parseOrgWorkspaceCatalogMap,
@@ -409,6 +410,21 @@ describe('catalogForAccount', () => {
   })
 })
 
+describe('findOrgWorkspaceCatalogEntryInMap', () => {
+  it('encuentra la entrada en la cuenta correcta del mapa', () => {
+    const entry = { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha' }
+    const map = {
+      byAccount: {
+        '': { login: 'a', fetchedAt: 1, entries: [] },
+        'acc-2': { login: 'b', fetchedAt: 1, entries: [entry] },
+      },
+    }
+    expect(findOrgWorkspaceCatalogEntryInMap(map, 'acme', 'w1')).toEqual(entry)
+    expect(findOrgWorkspaceCatalogEntryInMap(map, 'acme', 'missing')).toBeUndefined()
+    expect(findOrgWorkspaceCatalogEntryInMap(null, 'acme', 'w1')).toBeUndefined()
+  })
+})
+
 describe('upsertAccountCatalog', () => {
   it('no muta el mapa de entrada y reemplaza solo esa cuenta', () => {
     const original = {
@@ -426,12 +442,16 @@ describe('upsertAccountCatalog', () => {
 describe('mergeWithDefaults orgWorkspaceCatalogCache', () => {
   it('migra la forma legacy al leer config', () => {
     const legacy = sampleCatalog()
-    const merged = mergeWithDefaults({ orgWorkspaceCatalogCache: legacy })
+    const merged = mergeWithDefaults({
+      orgWorkspaceCatalogCache: legacy as unknown as Parameters<typeof mergeWithDefaults>[0]['orgWorkspaceCatalogCache'],
+    })
     expect(merged.orgWorkspaceCatalogCache).toEqual({ byAccount: { '': legacy } })
   })
 
   it('elimina la clave si el valor es basura', () => {
-    const merged = mergeWithDefaults({ orgWorkspaceCatalogCache: { foo: 'bar' } })
+    const merged = mergeWithDefaults({
+      orgWorkspaceCatalogCache: { foo: 'bar' } as unknown as Parameters<typeof mergeWithDefaults>[0]['orgWorkspaceCatalogCache'],
+    })
     expect(merged.orgWorkspaceCatalogCache).toBeUndefined()
     expect(Object.prototype.hasOwnProperty.call(merged, 'orgWorkspaceCatalogCache')).toBe(false)
   })

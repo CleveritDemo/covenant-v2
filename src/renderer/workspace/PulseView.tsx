@@ -11,7 +11,8 @@ import {
   type PulseSnapshot,
 } from '@shared/pulseEvents'
 import { foldPulseReplicas, type PulseAgentGroup } from '@shared/pulseReplicas'
-import type { OrgWorkspaceCatalog } from '@shared/orgWorkspaceCatalog'
+import type { OrgWorkspaceCatalogMap } from '@shared/orgWorkspaceCatalog'
+import { findOrgWorkspaceCatalogEntryInMap, parseOrgWorkspaceCatalogMap } from '@shared/orgWorkspaceCatalog'
 import { pulseWorkspaceLabel } from '@shared/pulseWorkspaceLabels'
 import { relativeTime } from '@shared/relativeTime'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
@@ -314,7 +315,7 @@ export const PulseView: React.FC<PulseViewProps> = ({ open, active = true, onClo
   const [range, setRange] = useState<Range>('all')
   const [workspace, setWorkspace] = useState(ALL)
   const [repo, setRepo] = useState(ALL)
-  const [orgCatalog, setOrgCatalog] = useState<OrgWorkspaceCatalog | null>(null)
+  const [orgCatalogMap, setOrgCatalogMap] = useState<OrgWorkspaceCatalogMap | null>(null)
 
   // Escape cierra la vista — salvo que haya un modal portaled encima
   // (confirmaciones, pickers): ese Escape es del modal.
@@ -357,10 +358,10 @@ export const PulseView: React.FC<PulseViewProps> = ({ open, active = true, onClo
     void window.api
       .getConfig()
       .then(cfg => {
-        if (!cancelled) setOrgCatalog(cfg.orgWorkspaceCatalogCache ?? null)
+        if (!cancelled) setOrgCatalogMap(parseOrgWorkspaceCatalogMap(cfg.orgWorkspaceCatalogCache))
       })
       .catch(() => {
-        if (!cancelled) setOrgCatalog(null)
+        if (!cancelled) setOrgCatalogMap(null)
       })
     return () => {
       cancelled = true
@@ -388,10 +389,23 @@ export const PulseView: React.FC<PulseViewProps> = ({ open, active = true, onClo
     const tags = scopes?.workspaces ?? []
     return [
       { value: ALL, label: t('pulse.scope_all') },
-      ...tags.map(w => ({ value: w, label: pulseWorkspaceLabel(w, orgCatalog, tags) })),
+      ...tags.map(w => {
+        const slash = w.indexOf('/')
+        const entry = slash > 0 && slash < w.length - 1
+          ? findOrgWorkspaceCatalogEntryInMap(
+            orgCatalogMap,
+            w.slice(0, slash),
+            w.slice(slash + 1),
+          )
+          : undefined
+        const label = entry
+          ? `${entry.slug}/${entry.name}`
+          : pulseWorkspaceLabel(w, null, tags)
+        return { value: w, label }
+      }),
       ...(scopes?.hasPersonal ? [{ value: PERSONAL_SCOPE, label: t('pulse.scope_personal') }] : []),
     ]
-  }, [snapshot, orgCatalog, t])
+  }, [snapshot, orgCatalogMap, t])
 
   const repoOptions = useMemo(
     () => [

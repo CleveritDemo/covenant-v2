@@ -52,6 +52,7 @@ const jiraAccountDelete = vi.fn()
 const jiraAccountSetDefault = vi.fn()
 const jiraWorkspaceAccountGet = vi.fn()
 const jiraWorkspaceAccountSet = vi.fn()
+const jiraAccountCheck = vi.fn()
 const setConfig = vi.fn()
 const config = { ...CONFIG_DEFAULTS, musicEnabled: true }
 const projectCwd = '/repo'
@@ -67,6 +68,11 @@ beforeEach(() => {
   jiraAccountSetDefault.mockReset().mockResolvedValue({ ok: true })
   jiraWorkspaceAccountGet.mockReset().mockResolvedValue({ ok: true, accountId: 'j2' })
   jiraWorkspaceAccountSet.mockReset().mockResolvedValue({ ok: true })
+  jiraAccountCheck.mockReset().mockResolvedValue({
+    ok: true,
+    displayName: 'Alice',
+    email: 'alice@acme.com',
+  })
   setConfig.mockReset().mockResolvedValue({ ok: true })
 
   vi.stubGlobal('window', Object.assign(window, {
@@ -84,6 +90,7 @@ beforeEach(() => {
       jiraAccountSetDefault,
       jiraWorkspaceAccountGet,
       jiraWorkspaceAccountSet,
+      jiraAccountCheck,
     },
   }))
 })
@@ -110,7 +117,57 @@ describe('SettingsModal Jira accounts', () => {
     await waitFor(() => expect(jiraWorkspaceAccountGet).toHaveBeenCalledWith(projectCwd))
     expect(screen.getByText('acme.atlassian.net · dev@acme.com')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Beta beta.atlassian.net' }).getAttribute('aria-pressed')).toBe('true')
-    expect(screen.queryByRole('button', { name: 'jiraAccounts.verify Acme' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' })).toBeTruthy()
+  })
+
+  it('verificar llama jiraAccountCheck con el id de esa ficha', async () => {
+    openJiraSection()
+    await waitFor(() => expect(jiraAccountsList).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' }))
+    await waitFor(() => expect(jiraAccountCheck).toHaveBeenCalledWith('j1'))
+  })
+
+  it('ok:true muestra chip de éxito solo en esa cuenta', async () => {
+    openJiraSection()
+    await waitFor(() => expect(jiraAccountsList).toHaveBeenCalled())
+    expect(screen.getAllByText('jiraAccounts.notChecked')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' }))
+    await waitFor(() => expect(screen.getByText('jiraAccounts.verifyOk')).toBeTruthy())
+    expect(screen.getAllByText('jiraAccounts.verifyOk')).toHaveLength(1)
+    expect(screen.getAllByText('jiraAccounts.notChecked')).toHaveLength(1)
+  })
+
+  it('ok:false muestra el mensaje de error devuelto', async () => {
+    jiraAccountCheck.mockResolvedValueOnce({ ok: false, error: '401 Unauthorized' })
+
+    openJiraSection()
+    await waitFor(() => expect(jiraAccountsList).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' }))
+    await waitFor(() => expect(screen.getByText('jiraAccounts.verifyFailed:401 Unauthorized')).toBeTruthy())
+    expect(screen.getByText('401 Unauthorized')).toBeTruthy()
+  })
+
+  it('durante la llamada la ficha queda busy y al terminar deja de estarlo', async () => {
+    let resolveCheck!: (value: unknown) => void
+    jiraAccountCheck.mockReturnValueOnce(new Promise(resolve => {
+      resolveCheck = resolve
+    }))
+
+    openJiraSection()
+    await waitFor(() => expect(jiraAccountsList).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' }))
+    await waitFor(() => expect(screen.getByText('jiraAccounts.verifyChecking')).toBeTruthy())
+    expect(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'jiraAccounts.verify Beta' })).toHaveProperty('disabled', false)
+
+    resolveCheck({ ok: true, displayName: 'Alice', email: 'alice@acme.com' })
+    await waitFor(() => expect(screen.getByText('jiraAccounts.verifyOk')).toBeTruthy())
+    expect(screen.queryByText('jiraAccounts.verifyChecking')).toBeNull()
+    expect(screen.getByRole('button', { name: 'jiraAccounts.verify Acme' })).toHaveProperty('disabled', false)
   })
 
   it('elige cuenta para el workspace y heredar llama jiraWorkspaceAccountSet', async () => {

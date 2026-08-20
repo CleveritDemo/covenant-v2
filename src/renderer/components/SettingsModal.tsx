@@ -193,6 +193,9 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
   const [jiraWorkspaceAccountId, setJiraWorkspaceAccountId] = useState('')
   const [jiraAccountsBusyId, setJiraAccountsBusyId] = useState<string | undefined>()
   const [jiraAccountsError, setJiraAccountsError] = useState('')
+  const [jiraVerifyResultById, setJiraVerifyResultById] = useState<
+    Record<string, { ok: boolean; message?: string }>
+  >({})
   /**
    * Snapshot al abrir (copia profunda de mapas). No se reescribe tras autosave:
    * «Descartar» vuelve siempre a este estado de apertura.
@@ -333,6 +336,27 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
       setJiraAccountsBusyId(undefined)
     }
   }, [loadJiraAccounts])
+
+  const runJiraAccountVerify = useCallback(async (id: string): Promise<void> => {
+    setJiraAccountsError('')
+    setJiraAccountsBusyId(id)
+    try {
+      const result = await window.api.jiraAccountCheck(id)
+      if (result.ok) {
+        const message = result.email?.trim()
+          ? `${result.displayName} (${result.email})`
+          : result.displayName
+        setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: true, message } }))
+        return
+      }
+      setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: false, message: result.error } }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setJiraVerifyResultById(prev => ({ ...prev, [id]: { ok: false, message } }))
+    } finally {
+      setJiraAccountsBusyId(undefined)
+    }
+  }, [])
 
   // Sin efecto de resync desde `config`: AppModals remonta el modal al abrirlo, y
   // reescribir el form tras cada guardado pisaría lo que se esté escribiendo.
@@ -648,6 +672,10 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose, cwd = 
                     workspaceAccountId={jiraWorkspaceAccountId}
                     hasProject={hasProjectFolder}
                     busyAccountId={jiraAccountsBusyId}
+                    verifyResultById={jiraVerifyResultById}
+                    onVerify={id => {
+                      void runJiraAccountVerify(id)
+                    }}
                     onSetDefault={id => {
                       void runJiraAccountsMutation(id, () => window.api.jiraAccountSetDefault(id))
                     }}

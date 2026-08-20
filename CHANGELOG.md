@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.101.0
+### Salas de brainstorming
+- El idioma de la sala sale del objetivo que escribiste: si lo planteas en español, los agentes responden en español aunque tengas la app en inglés. Con títulos muy cortos, donde no hay señal suficiente, se mantiene el idioma de la app.
+- El acta de la sala tiene un botón nuevo, «Añadir al backlog en Jira». Propone un árbol de historias y subtareas a partir de lo acordado, y antes de crear nada puedes renombrar, cambiar el tipo, mover o quitar cada issue. Los tipos que ofrece son los reales de tu proyecto de Jira, y al crear cada fila muestra su clave o el error que dio: si una falla, las demás siguen.
+
 ## v0.100.1
 ### Onboarding
 - En Planear, si ya tenías agentes en el catálogo, al crear el equipo la ceremonia de brainstorm se abre sola: la decisión sale del estado actual, no del bootstrap.

@@ -5,6 +5,18 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.103.0
+
+### Onboarding guiado
+
+- Los avisos del recorrido cambian de forma: en vez de una capa que tapaba media pantalla, el control del que se habla queda iluminado y latiendo, el resto se oscurece suave y un globo con punta apunta justo a ese control. Nada queda bloqueado: puedes seguir operando el plano mientras el aviso está en pantalla.
+- Cada paso trae ahora un título con la acción («Habla con un agente») y debajo una explicación de para qué sirve, no solo la orden.
+- Los pasos que solo cuentan algo se cierran con «OK». Los que piden una acción esperan a que la hagas: escribir el objetivo, enviar el mensaje, arrastrar el contexto al agente.
+- En Planear el recorrido llega hasta el final: elegir formato, intervenir en la sala, detener la conversación, cerrarla y ver dónde quedan las actas guardadas.
+- En Ejecutar se enseña el alta de un contexto paso a paso —tipo, nombre y guardar— y después cómo dárselo a un agente arrastrándolo con el mouse.
+- Al crear el equipo en Planear ya no se abre la ceremonia sola: el propio recorrido te enseña dónde está Brainstorm en el rail.
+- Los avisos aparecen con una entrada escalonada: el globo nace desde el control, el aro se cierra sobre él y el texto entra después. Con «reducir movimiento» activado no se anima nada.
+
 ## v0.102.0
 
 ### Cuentas de Jira

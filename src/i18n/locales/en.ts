@@ -1960,6 +1960,18 @@ const en = {
     agent_delegationsIn: 'Delegations received',
     agent_results: 'Results written',
     delegations: 'Delegations',
+    harness_title: 'Harnesses',
+    harness_sub: 'Usage by CLI: turns and token cost per harness in this scope.',
+    harness_colHarness: 'Harness',
+    harness_colTurns: 'Turns',
+    harness_colTokensIn: 'Tokens in',
+    harness_colTokensOut: 'Tokens out',
+    harness_colTotal: 'Total',
+    harness_colAgents: 'Agents',
+    harness_colLast: 'Last use',
+    harness_noMeasure: 'This CLI does not report token usage',
+    harness_partial: 'Measured on {{measured}} of {{turns}} turns',
+    harness_empty: 'No harness turns in this scope yet.',
   },
 
   lsp: {

@@ -20,7 +20,9 @@ import { Icon } from '../components/ui/Icon'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { Select } from '../components/ui/Select'
 import { Tooltip } from '../components/ui/Tooltip'
+import { PulseHarnessTable } from './PulseHarnessTable'
 import './PulseView.css'
+import './PulseHarnessTable.css'
 
 export interface PulseViewProps {
   open: boolean
@@ -672,6 +674,19 @@ export const PulseView: React.FC<PulseViewProps> = ({ open, active = true, onClo
                   ))}
                 </div>
               )}
+            </section>
+
+            {/* ─── Sección 3: harnesses ─────────────────────────────────────── */}
+            <section className="pulse__section">
+              <header className="pulse__section-head">
+                <span className="pulse__rail pulse__rail--harness" />
+                <span className="pulse__section-titles">
+                  <h3 className="pulse__section-title">{t('pulse.harness_title')}</h3>
+                  <p className="pulse__section-sub">{t('pulse.harness_sub')}</p>
+                </span>
+              </header>
+
+              <PulseHarnessTable providers={snapshot.providers ?? []} />
             </section>
           </div>
         )}

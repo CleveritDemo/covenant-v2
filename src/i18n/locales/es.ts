@@ -1962,6 +1962,18 @@ const es = {
     agent_delegationsIn: 'Delegaciones recibidas',
     agent_results: 'Resultados escritos',
     delegations: 'Delegaciones',
+    harness_title: 'Harnesses',
+    harness_sub: 'Uso por CLI: turnos y costo en tokens por harness en este alcance.',
+    harness_colHarness: 'Harness',
+    harness_colTurns: 'Turnos',
+    harness_colTokensIn: 'Entrada',
+    harness_colTokensOut: 'Salida',
+    harness_colTotal: 'Total',
+    harness_colAgents: 'Agentes',
+    harness_colLast: 'Último uso',
+    harness_noMeasure: 'Este CLI no reporta uso de tokens',
+    harness_partial: 'Medido en {{measured}} de {{turns}} turnos',
+    harness_empty: 'Todavía no hay turnos de harness en este alcance.',
   },
 
   lsp: {

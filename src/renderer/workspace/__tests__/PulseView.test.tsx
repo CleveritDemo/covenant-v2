@@ -28,6 +28,7 @@ const snapshot: PulseSnapshot = {
   avgPrompts30d: 0,
   days: [],
   agents: [],
+  providers: [],
   scopes: {
     workspaces: [TAG],
     repos: [],

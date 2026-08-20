@@ -19,6 +19,10 @@
   display: grid;
   grid-template-rows: 40px minmax(0, 1fr);
   background: var(--bg);
+  /* Separador del canto: esta vista es fixed y tapa el TabBar, cuyo border-bottom
+     al 16% es el único separador del resto de módulos. Mismo alpha porque el
+     fondo también es --bg. Ver [[tabbar-divider-vs-overlays]]. */
+  border-top: 1px solid color-mix(in srgb, var(--border) 16%, transparent);
   font-family: var(--font-ui);
   color: var(--text);
 }

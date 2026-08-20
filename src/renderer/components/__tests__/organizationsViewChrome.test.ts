@@ -62,4 +62,9 @@ describe('OrganizationsView chrome', () => {
     )
     expect(viewCss).not.toMatch(/-webkit-app-region/)
   })
+
+  it('pinta su propio separador superior porque tapa el TabBar', () => {
+    const root = block(viewCss, '.organizations-view')
+    expect(root).toMatch(/border-top:\s*1px solid color-mix\(in srgb, var\(--border\) 16%, transparent\)/)
+  })
 })

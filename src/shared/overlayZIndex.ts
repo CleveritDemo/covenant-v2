@@ -2,6 +2,14 @@
 export const APP_OVERLAY_MODAL_Z = 670
 
 /**
+ * Coach mark del onboarding in-plane: por encima de BrainstormOverlay (670) y de los
+ * haces de asignación elevados (671), y por debajo de fab/pool elevated (675),
+ * PlaneContextChipMenu (676), modales de sala (680), pool (690), chrome (700) y
+ * Tooltip (1000).
+ */
+export const ONBOARDING_COACH_MARK_Z = APP_OVERLAY_MODAL_Z + 4
+
+/**
  * Chrome de nivel app (titlebar, theme picker, scope de resync, aviso de actualización).
  * Por encima de los overlays del plano (APP_OVERLAY_MODAL_Z = 670) y de los modales
  * internos de la sala y del explorador (680); por debajo de SettingsModal (720) para

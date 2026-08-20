@@ -1,6 +1,7 @@
-import React, { useLayoutEffect, useState } from 'react'
+import React, { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
+import { ONBOARDING_COACH_MARK_Z } from '@shared/overlayZIndex'
+import { resolveCoachMarkTooltipTop } from '@shared/onboardingCoachMarkGeometry'
 import { Button } from '../components/ui'
 import { isReduceMotionActive } from '../reduceMotion'
 import './OnboardingCoachMark.css'
@@ -59,6 +60,8 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   blocking = true,
 }) => {
   const [rect, setRect] = useState<Rect | null>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [tooltipH, setTooltipH] = useState(96)
   const reduceMotion = isReduceMotionActive()
 
   useLayoutEffect(() => {
@@ -83,6 +86,13 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
     }
   }, [anchor])
 
+  useLayoutEffect(() => {
+    const h = tooltipRef.current?.getBoundingClientRect().height ?? 0
+    if (h > 0 && h !== tooltipH) {
+      setTooltipH(h)
+    }
+  }, [anchor, message, rect])
+
   if (!rect || typeof document === 'undefined') return null
 
   const vw = window.innerWidth
@@ -91,8 +101,12 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   const bottom = top + height
   const right = left + width
 
-  const tooltipAbove = bottom + 12 + 96 > vh
-  const tooltipTop = tooltipAbove ? Math.max(12, top - 12) : bottom + 12
+  const { top: tooltipTop, above: tooltipAbove } = resolveCoachMarkTooltipTop({
+    anchorTop: top,
+    anchorBottom: bottom,
+    tooltipHeight: tooltipH,
+    viewportHeight: vh,
+  })
   const tooltipLeft = Math.min(Math.max(left + width / 2, 160), vw - 160)
 
   const blockClass = [
@@ -104,7 +118,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
   return createPortal(
     <div
       className="onboarding-coach-mark"
-      style={{ zIndex: APP_OVERLAY_MODAL_Z - 20 }}
+      style={{ zIndex: ONBOARDING_COACH_MARK_Z }}
       role="presentation"
     >
       <div
@@ -136,6 +150,7 @@ export const OnboardingCoachMark: React.FC<OnboardingCoachMarkProps> = ({
         aria-hidden
       />
       <div
+        ref={tooltipRef}
         className={[
           'onboarding-coach-mark__tooltip',
           tooltipAbove ? 'onboarding-coach-mark__tooltip--above' : '',

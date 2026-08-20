@@ -14,9 +14,9 @@
   --plane-context-link-node-opacity: 0.9;
 }
 
-/* Sala abierta: sobre su overlay (670) y bajo el pool elevado (675). */
+/* Sala abierta, sobre su overlay (670) y bajo el coach mark del onboarding (674). */
 .plane-context-assignment-links--elevated {
-  z-index: 674;
+  z-index: 671;
 }
 
 .plane-context-assignment-links__path {

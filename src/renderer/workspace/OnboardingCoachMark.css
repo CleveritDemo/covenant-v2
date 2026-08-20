@@ -50,7 +50,7 @@
 }
 
 .onboarding-coach-mark__tooltip--above {
-  transform: translate(-50%, -100%);
+  transform: translateX(-50%);
 }
 
 .onboarding-coach-mark__tooltip--actionable {

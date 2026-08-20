@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import type { PlaneMapEntity } from '../PlaneMap'
 import { TabAgenticPlane, type TabAgenticPlaneProps } from '../TabAgenticPlane'
+import { PlaneFabStack } from '../PlaneFabStack'
+import { PlaneOnboardingHome } from '../PlaneOnboardingHome'
 
 vi.mock('@i18n/useT', () => ({
   useT: () => ({ t: (key: string) => key, i18n: { language: 'es' } }),
@@ -185,6 +187,7 @@ describe('anclas de onboarding con equipo montado', () => {
     renderPlaneWithTeam({
       orchestratorPath: 'engineer',
       openChatAgentId: 'agent-1',
+      tabActive: true,
       onboardingGuideStep: {
         step: 'send_message',
         anchor: 'composer-input',
@@ -195,5 +198,71 @@ describe('anclas de onboarding con equipo montado', () => {
     expect(document.querySelector('[data-onboarding="composer-input"]')).toBeTruthy()
     expect(document.querySelector('.onboarding-coach-mark')).toBeTruthy()
     expect(document.body.textContent).toContain('tabs.onboardingGuide.sendMessage')
+  })
+
+  it('OnboardingCoachMark solo se monta en la pestaña activa', () => {
+    stubAnchorRects()
+
+    const guideStep = {
+      step: 'send_message' as const,
+      anchor: 'composer-input' as const,
+      messageKey: 'tabs.onboardingGuide.sendMessage',
+    }
+
+    const { unmount } = renderPlaneWithTeam({
+      orchestratorPath: 'engineer',
+      openChatAgentId: 'agent-1',
+      tabActive: false,
+      onboardingGuideStep: guideStep,
+    })
+    expect(document.querySelector('.onboarding-coach-mark')).toBeNull()
+
+    unmount()
+    renderPlaneWithTeam({
+      orchestratorPath: 'engineer',
+      openChatAgentId: 'agent-1',
+      tabActive: true,
+      onboardingGuideStep: guideStep,
+    })
+    expect(document.querySelector('.onboarding-coach-mark')).toBeTruthy()
+  })
+
+  it('el FAB bootstrap lleva data-onboarding create-team', () => {
+    render(
+      <PlaneFabStack
+        canAdd
+        agentTitle="Agregar agente"
+        terminalTitle="Agregar terminal"
+        onAddAgent={vi.fn()}
+        onAddTerminal={vi.fn()}
+        showBootstrapAgents
+        bootstrapAgentsTitle="Crear equipo"
+        onBootstrapAgents={vi.fn()}
+      />,
+    )
+
+    expect(document.querySelector('[data-onboarding="create-team"]')).toBeTruthy()
+  })
+
+  it('path-picker contiene el botón de invitación cuando hay onInviteToOrg', () => {
+    render(
+      <PlaneOnboardingHome
+        onSelectPath={vi.fn()}
+        onInviteToOrg={vi.fn()}
+      />,
+    )
+
+    const anchor = document.querySelector('[data-onboarding="path-picker"]')!
+    const inviteBtn = anchor.querySelector('.plane-onboarding-home__invite button')!
+    expect(anchor.contains(inviteBtn)).toBe(true)
+    expect(anchor.querySelectorAll('.option-row').length).toBe(2)
+  })
+
+  it('path-picker sin onInviteToOrg solo contiene las dos OptionRow', () => {
+    render(<PlaneOnboardingHome onSelectPath={vi.fn()} />)
+
+    const anchor = document.querySelector('[data-onboarding="path-picker"]')!
+    expect(anchor.querySelector('.plane-onboarding-home__invite')).toBeNull()
+    expect(anchor.querySelectorAll('.option-row').length).toBe(2)
   })
 })

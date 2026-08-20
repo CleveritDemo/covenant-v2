@@ -190,7 +190,7 @@ describe('track business con equipo montado', () => {
     ).toBe('start_ceremony')
   })
 
-  it('con sala viva y sin intervención humana pide join_round', () => {
+  it('con sala viva en rooms sin intervención humana pide openLiveRoom', () => {
     expect(
       resolveStep({
         ...teamTabBase,
@@ -201,7 +201,7 @@ describe('track business con equipo montado', () => {
         humanSpokeByRoom: {},
         doneSteps: [],
       }),
-    ).toBe('join_round')
+    ).toBe('open_brainstorm')
   })
 
   it('tras hablar pide saved_rooms y luego agota la escalera', () => {
@@ -221,6 +221,6 @@ describe('track business con equipo montado', () => {
         ...spokeTab,
         doneSteps: ['saved_rooms'],
       }),
-    ).toBeNull()
+    ).toBe('open_brainstorm')
   })
 })

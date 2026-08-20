@@ -1358,7 +1358,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {onboardingGuideStep ? (
+      {onboardingGuideStep && tabActive ? (
         <OnboardingCoachMark
           anchor={onboardingGuideStep.anchor}
           message={t(onboardingGuideStep.messageKey)}

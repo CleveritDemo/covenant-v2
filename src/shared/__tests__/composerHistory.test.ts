@@ -115,6 +115,8 @@ describe('isHostInjectedFollowUp', () => {
     expect(isHostInjectedFollowUp('## Orchestration limit\nround: 1')).toBe(true)
     expect(isHostInjectedFollowUp('## Delegation fence problem\nagent: qa')).toBe(true)
     expect(isHostInjectedFollowUp('## Delegación duplicada\nLa delegación a frontend no se despachó')).toBe(true)
+    // El encargo tampoco lo escribió el usuario: no entra al historial ↑/↓.
+    expect(isHostInjectedFollowUp('## Delegation brief\nfrom: tl\n\nRevisa el login.')).toBe(true)
   })
 
   it('no confunde menciones a mitad de párrafo', () => {

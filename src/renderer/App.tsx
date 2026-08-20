@@ -141,6 +141,7 @@ import {
   buildBatchedDelegationFollowUp,
   isDuplicateOrchestrationQueueItem,
   orchestrationFollowUpKey,
+  formatOrchestrationRoundLabel,
   resolveOrchestrationMaxRounds,
   resolveOrchestrationWorkStyle,
   isOrchestrationRoundsUnlimited,
@@ -5135,6 +5136,10 @@ export const App: React.FC = () => {
           orchestrationJobId: job.jobId,
           threadId,
           ...(worktreePath ? { cwd: worktreePath } : {}),
+          // Solo para la tarjeta del encargo en el panel destino.
+          fromAgentId: fromMeta.id,
+          round: formatOrchestrationRoundLabel(nextRound, maxRounds),
+          ...(job.parentDelegationId ? { nested: true } : {}),
         },
       })
       if (!queued) {
@@ -5329,6 +5334,9 @@ export const App: React.FC = () => {
     const contextHint = next.delegation.contextIds?.length
       ? `\n\nPreferred context ids: ${next.delegation.contextIds.join(', ')}`
       : ''
+    const deferredFromMeta = tab
+      ? resolveTabAgentMeta(tab, fromPaneId, projectAgentsByCwdRef.current)
+      : undefined
     enqueueOrchestrationSend(next.toPaneId, {
       text: `${next.delegation.objective}${contextHint}`,
       focusPane: false,
@@ -5339,6 +5347,13 @@ export const App: React.FC = () => {
         orchestrationJobId: job.jobId,
         threadId,
         ...(worktreePath ? { cwd: worktreePath } : {}),
+        // Solo para la tarjeta del encargo en el panel destino.
+        ...(deferredFromMeta ? { fromAgentId: deferredFromMeta.id } : {}),
+        round: formatOrchestrationRoundLabel(
+          job.round || 1,
+          orchestrationMaxRoundsForPane(fromPaneId, next.tabId),
+        ),
+        ...(job.parentDelegationId ? { nested: true } : {}),
       },
     })
     syncAwaitingFromPending()

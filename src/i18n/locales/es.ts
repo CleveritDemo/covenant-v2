@@ -155,6 +155,15 @@ const es = {
     telemetryLogToolIOWarning: '⚠ La entrada/salida de herramientas — incluyendo contenidos de archivos — saldrá de esta máquina.',
   },
 
+  delegationBrief: {
+    kind: 'encargo',
+    kindNested: 'subencargo',
+    round: 'ola {{round}}',
+    worktree: 'worktree · {{name}}',
+    agentUnknown: 'Orquestador',
+    emptyObjective: '(sin objetivo)',
+  },
+
   delegationCard: {
     status_ok: 'listo',
     status_fail: 'falló',
@@ -501,7 +510,6 @@ const es = {
     orchestrationMaxRoundsUnlimited: 'Sin límite',
     maxDelegationsPerTurnHint: 'Máximo de delegaciones que este coordinador puede emitir en un turno. «Sin límite» no aplica tope.',
     maxDelegationsPerTurnLabel: 'Delegaciones por turno',
-    delegationViaOrchestrator: 'vía orquestador',
     delegationDispatched: 'Delegado a: {{agents}}',
     awaitingDelegationsPlaceholder: 'Esperando resultados de las delegaciones…',
     turboAwaitingPlaceholder: 'Puedes seguir enviando mientras llegan las delegaciones…',

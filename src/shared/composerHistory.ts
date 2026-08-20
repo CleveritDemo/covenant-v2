@@ -7,6 +7,7 @@
  * (las flechas son del textarea), cualquier número es navegación.
  */
 
+import { looksLikeDelegationBrief } from './delegationBriefCard'
 import { looksLikeDelegationResultFollowUp } from './delegationResultCards'
 
 /** Entradas por sesión y por chat. Suficiente para ↑ sin buscador. */
@@ -39,6 +40,7 @@ export function isHostInjectedFollowUp(content: string): boolean {
   const trimmed = content.trimStart()
   return (
     looksLikeDelegationResultFollowUp(content)
+    || looksLikeDelegationBrief(content)
     || trimmed.startsWith('## Orchestration limit')
     || trimmed.startsWith('## Delegation fence problem')
     || trimmed.startsWith('## Delegación duplicada')

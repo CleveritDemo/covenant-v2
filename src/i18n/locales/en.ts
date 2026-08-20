@@ -153,6 +153,15 @@ const en = {
     telemetryLogToolIOWarning: '⚠ Tool input/output — including file contents — will leave this machine.',
   },
 
+  delegationBrief: {
+    kind: 'task',
+    kindNested: 'subtask',
+    round: 'wave {{round}}',
+    worktree: 'worktree · {{name}}',
+    agentUnknown: 'Orchestrator',
+    emptyObjective: '(no objective)',
+  },
+
   delegationCard: {
     status_ok: 'done',
     status_fail: 'failed',
@@ -499,7 +508,6 @@ const en = {
     orchestrationMaxRoundsUnlimited: 'Unlimited',
     maxDelegationsPerTurnHint: 'Maximum delegations this coordinator can emit in one turn. “Unlimited” means no cap.',
     maxDelegationsPerTurnLabel: 'Delegations per turn',
-    delegationViaOrchestrator: 'via orchestrator',
     delegationDispatched: 'Delegated to: {{agents}}',
     awaitingDelegationsPlaceholder: 'Waiting for delegation results…',
     turboAwaitingPlaceholder: 'You can keep sending while delegations come back…',

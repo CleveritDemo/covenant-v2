@@ -1,0 +1,33 @@
+.tab-context-source-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  padding: 10px 12px 0;
+}
+
+.tab-context-source-view__pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: 0 0 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tab-context-source-view__pre mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: inherit;
+}
+
+.tab-context-source-view__mark--active {
+  background: color-mix(in srgb, var(--accent) 52%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+}

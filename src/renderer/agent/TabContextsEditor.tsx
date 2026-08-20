@@ -24,6 +24,8 @@ import { TabContextBudgetMeter } from './TabContextBudgetMeter'
 import { TabContextFilePicker } from './TabContextFilePicker'
 import { TabContextKindCard } from './TabContextKindCard'
 import { TabContextRootPathField } from './TabContextRootPathField'
+import { TabContextMarkdownField } from './TabContextMarkdownField'
+import { TabContextSourceView } from './TabContextSourceView'
 
 export type PreviewState =
   | { status: 'idle' }
@@ -289,7 +291,7 @@ export const TabContextsEditor: React.FC<Props> = ({
           </div>
         ) : (
           <>
-            {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' ? (
+            {draft.kind !== 'notes' && draft.kind !== 'changelog' && draft.kind !== 'jira' && draft.kind !== 'skill' ? (
               <TabContextRootPathField
                 value={draft.rootPath ?? ''}
                 projectCwd={projectCwd}
@@ -389,19 +391,29 @@ export const TabContextsEditor: React.FC<Props> = ({
         )}
 
         {draft.kind === 'notes' && (
-          <label>
-            <span>{t('tabContexts.notes')}</span>
-            <small>{t('tabContexts.customHint')}</small>
-            <TextArea
-              rows={8}
-              value={notesContent}
-              placeholder={t('tabContexts.notesPlaceholder')}
-              onChange={event => {
-                onNotesContentChange(event.target.value)
-                onPreviewReset()
-              }}
-            />
-          </label>
+          <TabContextMarkdownField
+            label={t('tabContexts.notes')}
+            hint={t('tabContexts.customHint')}
+            placeholder={t('tabContexts.notesPlaceholder')}
+            value={notesContent}
+            onChange={v => {
+              onNotesContentChange(v)
+              onPreviewReset()
+            }}
+          />
+        )}
+
+        {draft.kind === 'skill' && (
+          <TabContextMarkdownField
+            label={t('tabContexts.skillBody')}
+            hint={t('tabContexts.skillBodyHint')}
+            placeholder={t('tabContexts.notesPlaceholder')}
+            value={notesContent}
+            onChange={v => {
+              onNotesContentChange(v)
+              onPreviewReset()
+            }}
+          />
         )}
 
         {draft.kind === 'jira' && (
@@ -590,7 +602,7 @@ export const TabContextsEditor: React.FC<Props> = ({
         )}
         {preview.status === 'success' && (
           previewView === 'source'
-            ? <pre className="tab-contexts__preview">{preview.content}</pre>
+            ? <TabContextSourceView content={preview.content} />
             : (
               <div className="tab-contexts__preview-rendered">
                 {/* Mismo Reporte que el modal de vista previa: árbol de carpetas,

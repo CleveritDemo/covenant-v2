@@ -119,6 +119,56 @@ describe('parsePiModelsStdout', () => {
       { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
     ])
   })
+
+  it('parses multi-row table including model ids with slash', () => {
+    const stdout = [
+      'provider           model                       context  max-out  thinking  images',
+      'anthropic          claude-opus-5              1M       128K     yes       yes',
+      'anthropic          claude-haiku-4-5            200K     64K      yes       yes',
+      'cf-gateway-clever  dynamic/balanced            200K     16.4K    no        no',
+    ].join('\n')
+    expect(parsePiModelsStdout(stdout)).toEqual([
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
+      { id: 'anthropic/claude-haiku-4-5', label: 'Claude Haiku 4 5' },
+      { id: 'cf-gateway-clever/dynamic/balanced', label: 'Dynamic/Balanced' },
+    ])
+  })
+
+  it('rejects asdf node resolution error text', () => {
+    const stdout = [
+      'No preset version installed for command node',
+      'Please install a version by running one of the following:',
+      '',
+      'asdf install nodejs 20.18.1',
+      '',
+      'or add one of the following versions in your config file at /Users/x/.tool-versions',
+      'nodejs 20.18.1',
+    ].join('\n')
+    expect(parsePiModelsStdout(stdout)).toEqual([])
+  })
+
+  it('returns only valid table rows when mixed with error text', () => {
+    const stdout = [
+      'No preset version installed for command node',
+      'Please install a version by running one of the following:',
+      '',
+      'asdf install nodejs 20.18.1',
+      '',
+      'or add one of the following versions in your config file at /Users/x/.tool-versions',
+      'nodejs 20.18.1',
+      'anthropic          claude-opus-5              1M       128K     yes       yes',
+    ].join('\n')
+    expect(parsePiModelsStdout(stdout)).toEqual([
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
+    ])
+  })
+
+  it('accepts rows with extra trailing columns', () => {
+    const stdout = 'anthropic claude-opus-5 1M 128K yes yes extra'
+    expect(parsePiModelsStdout(stdout)).toEqual([
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5' },
+    ])
+  })
 })
 
 describe('parseModelsStdout + fallback', () => {

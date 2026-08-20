@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ContextTransferTarget } from '@shared/contextTransfer'
+import { canTransferContextKind } from '@shared/contextTransfer'
 import type { TabContext } from '@shared/tabContext'
 import { isProjectContext } from '@shared/tabContext'
 import { APP_OVERLAY_MODAL_Z } from '@shared/overlayZIndex'
@@ -14,6 +16,7 @@ import {
   disarmHtml5Drag,
 } from '../html5DragArm'
 import { PlaneContextAssignModal } from './PlaneContextAssignModal'
+import { PlaneContextTransferModal } from './PlaneContextTransferModal'
 import { PlaneContextChipMenu } from './PlaneContextChipMenu'
 import type { PlaneContextChipMenuItem } from './PlaneContextChipMenu'
 import {
@@ -54,6 +57,14 @@ export interface PlaneContextPoolProps {
   /** Aria del contador del chip, ya interpolado. */
   assignedCountLabel: (count: number) => string
   editLabel: string
+  /** Etiqueta del menú «Enviar a…». */
+  transferLabel?: string
+  /** Título del modal de envío a otro workspace. */
+  transferModalTitle?: string
+  /** Texto cuando no hay pestañas destino disponibles. */
+  transferEmptyHint?: string
+  /** Pestañas abiertas que pueden recibir el contexto copiado. */
+  transferTargets?: ContextTransferTarget[]
   deleteLabel: string
   deleteConfirmMessage: (name: string) => string
   deleteConfirmDetail: string
@@ -74,6 +85,8 @@ export interface PlaneContextPoolProps {
   onOpenContext?: (contextId: string) => void
   /** Elimina el contexto (tras ConfirmTerminalModal en el menú del chip). */
   onDeleteContext?: (contextId: string) => void
+  /** Copia el contexto a otro workspace (modal «Enviar a…»). */
+  onTransferContext?: (contextId: string, target: ContextTransferTarget) => void
   /** Asigna/desasigna un contexto a un agente. */
   onToggleAssign: (paneId: string, contextId: string) => void
   /** Sube el z-index cuando un overlay del plano está abierto. */
@@ -89,6 +102,10 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   assignEmptyHint,
   assignedCountLabel,
   editLabel,
+  transferLabel,
+  transferModalTitle,
+  transferEmptyHint,
+  transferTargets,
   deleteLabel,
   deleteConfirmMessage,
   deleteConfirmDetail,
@@ -102,6 +119,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   onCreate,
   onOpenContext,
   onDeleteContext,
+  onTransferContext,
   onToggleAssign,
   elevated = false,
 }) => {
@@ -114,6 +132,7 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
   const [rovingIndex, setRovingIndex] = useState(0)
   const [chipMenu, setChipMenu] = useState<{ contextId: string; anchor: DOMRect } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [pendingTransfer, setPendingTransfer] = useState<{ id: string; name: string } | null>(null)
 
   const visibleContexts = useMemo(
     () => contexts.filter(isProjectContext),
@@ -257,6 +276,18 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         onSelect: () => onOpenContext(id),
       })
     }
+    if (
+      onTransferContext
+      && transferLabel
+      && canTransferContextKind(chipMenuContext.kind)
+    ) {
+      items.push({
+        key: 'transfer',
+        label: transferLabel,
+        icon: 'folder' as const,
+        onSelect: () => setPendingTransfer({ id, name }),
+      })
+    }
     if (onDeleteContext) {
       items.push({
         key: 'delete',
@@ -271,8 +302,10 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
     chipMenu,
     chipMenuContext,
     editLabel,
+    transferLabel,
     deleteLabel,
     onOpenContext,
+    onTransferContext,
     onDeleteContext,
     requestDelete,
   ])
@@ -394,6 +427,21 @@ export const PlaneContextPool: React.FC<PlaneContextPoolProps> = ({
         onClose={closeAssignModal}
         onToggleAssign={onToggleAssign}
         onEdit={onOpenContext}
+      />
+
+      <PlaneContextTransferModal
+        open={Boolean(pendingTransfer)}
+        title={transferModalTitle ?? ''}
+        contextName={pendingTransfer?.name ?? ''}
+        targets={transferTargets ?? []}
+        emptyHint={transferEmptyHint ?? ''}
+        onClose={() => setPendingTransfer(null)}
+        onSelect={target => {
+          const id = pendingTransfer?.id
+          setPendingTransfer(null)
+          setChipMenu(null)
+          if (id) onTransferContext?.(id, target)
+        }}
       />
 
       <ConfirmTerminalModal

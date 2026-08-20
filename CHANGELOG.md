@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.104.0
+
+- Los modales pueden abrirse a pantalla completa. El editor de contextos estrena el botón: pulsa el círculo amarillo de la esquina superior izquierda y la ventana ocupa toda la pantalla; púlsalo otra vez para volver al tamaño normal. Escribir notas largas deja de ser incómodo.
+- El cuerpo del contexto ya no tiene buscador. Estorbaba más de lo que ayudaba y se comía espacio del editor. Si necesitas buscar dentro del contenido, la búsqueda sigue estando en la vista Fuente del panel derecho.
+
 ## v0.103.0
 
 ### Onboarding guiado

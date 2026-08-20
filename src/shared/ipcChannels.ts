@@ -441,6 +441,8 @@ export const IPC = {
   JIRA_ACCOUNT_DELETE: 'jira:accounts:delete',
   /** Renderer → main (invoke): marcar cuenta por defecto */
   JIRA_ACCOUNT_SET_DEFAULT: 'jira:accounts:setDefault',
+  /** Renderer → main (invoke): verificar una cuenta del llavero con sus credenciales */
+  JIRA_ACCOUNT_CHECK: 'jira:account:check',
   /** Renderer → main (invoke): cuenta ligada al workspace (cwd) */
   JIRA_WORKSPACE_ACCOUNT_GET: 'jira:workspaceAccount:get',
   /** Renderer → main (invoke): ligar/desligar cuenta al workspace */

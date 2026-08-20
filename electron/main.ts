@@ -125,6 +125,7 @@ import {
   searchJiraQuick,
   listJiraIssueTypes,
   createJiraIssues,
+  checkJiraAccount,
   bindJiraConfigAccess,
   seedJiraAccountsFromLegacyCredentials,
   DISCONNECTED as JIRA_DISCONNECTED,
@@ -1288,6 +1289,12 @@ function registerIpc(): void {
     } catch (e) {
       return { ok: false as const, error: e instanceof Error ? e.message : String(e) }
     }
+  })
+
+  ipcMain.handle(IPC.JIRA_ACCOUNT_CHECK, async (_e, rawId: unknown) => {
+    const id = typeof rawId === 'string' ? rawId.trim() : ''
+    if (!id) return { ok: false as const, error: 'id inválido' }
+    return checkJiraAccount(id)
   })
 
   ipcMain.handle(IPC.JIRA_WORKSPACE_ACCOUNT_GET, (_e, cwd: unknown) => {

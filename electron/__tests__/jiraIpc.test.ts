@@ -9,6 +9,7 @@ describe('canales de Jira', () => {
     expect(IPC.JIRA_CONNECT).toBe('jira:connect')
     expect(IPC.JIRA_SEARCH).toBe('jira:search')
     expect(IPC.JIRA_ACCOUNTS_LIST).toBe('jira:accounts:list')
+    expect(IPC.JIRA_ACCOUNT_CHECK).toBe('jira:account:check')
     expect(IPC.JIRA_WORKSPACE_ACCOUNT_GET).toBe('jira:workspaceAccount:get')
   })
 
@@ -17,6 +18,7 @@ describe('canales de Jira', () => {
     for (const method of [
       'jiraAccountsList',
       'jiraAccountUpsert',
+      'jiraAccountCheck',
       'jiraWorkspaceAccountGet',
       'jiraWorkspaceAccountSet',
     ]) {
@@ -30,6 +32,7 @@ describe('canales de Jira', () => {
       'JIRA_ACCOUNTS_LIST',
       'JIRA_ACCOUNT_UPSERT',
       'JIRA_ACCOUNT_DELETE',
+      'JIRA_ACCOUNT_CHECK',
       'JIRA_WORKSPACE_ACCOUNT_SET',
     ]) {
       expect(main).toContain(`IPC.${channel}`)

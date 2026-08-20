@@ -580,6 +580,29 @@ export async function createJiraIssues(
   return { ok: createdCount > 0, results }
 }
 
+export async function checkJiraAccount(
+  accountId: string,
+): Promise<{ ok: true; displayName: string; email: string } | { ok: false; error: string }> {
+  const config = requireConfigAccess().read()
+  const account = config.jiraAccounts.find(entry => entry.id === accountId)
+  if (!account) {
+    return { ok: false, error: 'Cuenta Jira desconocida.' }
+  }
+  const apiToken = readJiraToken(accountId)
+  if (!apiToken) {
+    return { ok: false, error: 'Falta la credencial de esta cuenta.' }
+  }
+  const probe = await jiraMyself({ site: account.site, email: account.email, apiToken })
+  if (!probe.ok) {
+    return { ok: false, error: probe.error ?? 'No se pudo verificar la cuenta.' }
+  }
+  return {
+    ok: true,
+    displayName: probe.displayName ?? '',
+    email: (probe as { emailAddress?: string }).emailAddress ?? '',
+  }
+}
+
 export async function searchJiraQuick(cwd: string, query: string): Promise<JiraSearchResult> {
   if (!hasProject(cwd)) return { issues: [] }
   const config = readJiraConfig(cwd)

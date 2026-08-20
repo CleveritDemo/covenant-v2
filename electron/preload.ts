@@ -1357,6 +1357,13 @@ const api = {
   jiraAccountSetDefault(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_SET_DEFAULT, id)
   },
+  jiraAccountCheck(
+    accountId: string,
+  ): Promise<
+    { ok: true; displayName: string; email: string } | { ok: false; error: string }
+  > {
+    return ipcRenderer.invoke(IPC.JIRA_ACCOUNT_CHECK, accountId)
+  },
   jiraWorkspaceAccountGet(
     cwd: string,
   ): Promise<{ ok: true; accountId: string | null } | { ok: false; error: string }> {

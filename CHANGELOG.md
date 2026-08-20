@@ -5,6 +5,9 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.99.3
+En la mini del agente, el motor queda a la derecha con un chip corto del modelo (FB5, O48, C25…). El nombre completo sigue en el tooltip; en la config no cambia.
+
 ## v0.99.2
 En Ajustes → Cuentas GitHub, cada cuenta es una ficha con avatar o inicial, chip de estado (sin comprobar, comprobando, conectado o error), badge si es la cuenta por defecto, renombrar solo cuando lo pides y alta colapsada. Borrar pasa a un icono discreto en lugar del botón más pesado de la fila.
 

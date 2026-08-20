@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { parseJiraConfig } from '../jiraConfig'
+import { normalizeJiraSite, parseJiraConfig } from '../jiraConfig'
+
+describe('normalizeJiraSite', () => {
+  it('exportada con el mismo contrato que parseJiraConfig', () => {
+    expect(normalizeJiraSite('HTTPS://X.Atlassian.net/')).toBe('https://x.atlassian.net')
+    expect(normalizeJiraSite('http://x.atlassian.net')).toBe('')
+    expect(normalizeJiraSite('no-es-una-url')).toBe('')
+  })
+})
 
 describe('parseJiraConfig', () => {
   it('rellena los defaults documentados', () => {

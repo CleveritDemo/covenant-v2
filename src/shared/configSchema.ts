@@ -1,5 +1,6 @@
 import { isAgentCliProvider, type AgentCliProvider } from './agentCliProviders'
 import { parseGithubAccounts, type GithubAccount } from './githubAccounts'
+import { parseJiraAccounts, type JiraAccount } from './jiraAccounts'
 import type { OrgWorkspaceCatalogMap } from './orgWorkspaceCatalog'
 import { parseOrgWorkspaceCatalogMap } from './orgWorkspaceCatalog'
 import {
@@ -62,6 +63,10 @@ export interface AppConfig {
   githubAccounts: GithubAccount[]
   /** Id de la cuenta por defecto del llavero. Vacío = ninguna. */
   githubDefaultAccountId: string
+  /** Cuentas del llavero Jira (id + label + site + email). Los tokens van en userData. */
+  jiraAccounts: JiraAccount[]
+  /** Id de la cuenta Jira por defecto del llavero. Vacío = ninguna. */
+  jiraDefaultAccountId: string
   /**
    * Carpeta raíz donde se instalan los workspaces organizacionales.
    * Vacío = sin carpeta por defecto configurada.
@@ -187,6 +192,8 @@ export const CONFIG_DEFAULTS: AppConfig = {
   githubToken: '',
   githubAccounts: [],
   githubDefaultAccountId: '',
+  jiraAccounts: [],
+  jiraDefaultAccountId: '',
   defaultWorkspacesDir: '',
   defaultModel: 'llama3.2',
   maxContextLines: 200,
@@ -275,7 +282,12 @@ export function migrateAgentCliCommands(
 }
 
 /** Solo las escriben los canales GITHUB_ACCOUNT_*; CONFIG_SET las ignora. */
-export const CONFIG_KEYS_OWNED_BY_MAIN = ['githubAccounts', 'githubDefaultAccountId'] as const
+export const CONFIG_KEYS_OWNED_BY_MAIN = [
+  'githubAccounts',
+  'githubDefaultAccountId',
+  'jiraAccounts',
+  'jiraDefaultAccountId',
+] as const
 
 export function stripMainOwnedConfigKeys(partial: Partial<AppConfig>): Partial<AppConfig> {
   const next: Partial<AppConfig> = { ...partial }
@@ -352,6 +364,14 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
   const githubDefaultAccountId = typeof partial.githubDefaultAccountId === 'string'
     ? partial.githubDefaultAccountId.trim()
     : CONFIG_DEFAULTS.githubDefaultAccountId
+  const jiraAccounts = parseJiraAccounts(
+    Object.prototype.hasOwnProperty.call(partial, 'jiraAccounts')
+      ? partial.jiraAccounts
+      : CONFIG_DEFAULTS.jiraAccounts,
+  )
+  const jiraDefaultAccountId = typeof partial.jiraDefaultAccountId === 'string'
+    ? partial.jiraDefaultAccountId.trim()
+    : CONFIG_DEFAULTS.jiraDefaultAccountId
   const merged = {
     ...CONFIG_DEFAULTS,
     ...partial,
@@ -371,6 +391,8 @@ export function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     wikiCurator,
     githubAccounts,
     githubDefaultAccountId,
+    jiraAccounts,
+    jiraDefaultAccountId,
   } as AppConfig & Record<string, unknown>
   for (const legacyKey of Object.keys(LEGACY_AGENT_CLI_KEYS)) delete merged[legacyKey]
   delete merged.soundFeedbackEnabled

@@ -49,7 +49,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
     ? value as Record<string, unknown>
     : null
 
-function normalizeSite(raw: unknown): string {
+export function normalizeJiraSite(raw: unknown): string {
   if (typeof raw !== 'string' || !raw.trim()) return ''
   try {
     const url = new URL(raw.trim())
@@ -81,7 +81,7 @@ export function isJiraProjectKey(value: string): boolean {
 export function parseJiraConfig(raw: unknown): JiraProjectConfig | null {
   const record = asRecord(raw)
   if (!record) return null
-  const site = normalizeSite(record.site)
+  const site = normalizeJiraSite(record.site)
   if (!site) return null
 
   const keys = Array.isArray(record.projectKeys) ? record.projectKeys : []

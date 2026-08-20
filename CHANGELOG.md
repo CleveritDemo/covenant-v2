@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.99.2
+En Ajustes → Cuentas GitHub, cada cuenta es una ficha con avatar o inicial, chip de estado (sin comprobar, comprobando, conectado o error), badge si es la cuenta por defecto, renombrar solo cuando lo pides y alta colapsada. Borrar pasa a un icono discreto en lugar del botón más pesado de la fila.
+
+El botón «Comprobar» valida el PAT de esa cuenta concreta, no el token global del entorno. Así evitas un falso positivo cuando otra cuenta o token del sistema sigue válido pero la que estás revisando no.
+
 ## v0.99.1
 Subir un workspace a la organización ahora pregunta antes de tocar nada. Puedes elegir si subes todo o solo los contextos, y el aviso te dice cuántos contextos y agentes se van a borrar del servidor por no existir en tu carpeta local. Si cancelas, no se sube ni se borra nada.
 

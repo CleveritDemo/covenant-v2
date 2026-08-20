@@ -589,6 +589,7 @@ export const TabContextFormModal: React.FC<Props> = ({
       titleId="tab-context-form-title"
       size="xxl"
       bodyLayout="flush"
+      maximizable
       zIndex={920}
       footer={(
         <>

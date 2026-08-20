@@ -1637,6 +1637,7 @@ const en = {
     confirmNo: 'esc no',
     confirmOk: '[enter] OK',
     closeAriaLabel: 'Close',
+    zoomAriaLabel: 'Toggle full screen',
   },
 
   aiCodeBlock: {

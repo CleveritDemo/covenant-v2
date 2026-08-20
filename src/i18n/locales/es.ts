@@ -1639,6 +1639,7 @@ const es = {
     confirmNo: 'esc no',
     confirmOk: '[enter] OK',
     closeAriaLabel: 'Cerrar',
+    zoomAriaLabel: 'Pantalla completa',
   },
 
   aiCodeBlock: {

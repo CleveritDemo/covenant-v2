@@ -65,6 +65,8 @@ export interface TerminalModalProps {
   onPositionChange?: (pos: TerminalModalPosition) => void
   /** Origen de la animación de entrada (mismo espacio que initialPosition). */
   enterOrigin?: { x: number; y: number }
+  /** Si true, el botón zoom del semáforo alterna pantalla completa dentro del modal. */
+  maximizable?: boolean
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -157,6 +159,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   portalContainerRef,
   onPositionChange,
   enterOrigin,
+  maximizable = false,
 }) => {
   const { t } = useT()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -171,6 +174,7 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
   const positionRef = useRef<{ x: number; y: number } | null>(null)
   const [portalTarget, setPortalTarget] = useState<HTMLElement>(document.body)
+  const [maximized, setMaximized] = useState(false)
   const visible = open && active
 
   positionRef.current = position
@@ -194,7 +198,10 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
   }, [visible, movable, portalContainerRef])
 
   useEffect(() => {
-    if (!visible) setPosition(null)
+    if (!visible) {
+      setPosition(null)
+      setMaximized(false)
+    }
   }, [visible])
 
   useLayoutEffect(() => {
@@ -414,8 +421,9 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
           panelVariant !== 'default' ? `terminal-modal-panel--${panelVariant}` : '',
           movable ? 'terminal-modal-panel--movable' : '',
           useFromOriginEnter ? 'terminal-modal-panel--from-origin' : '',
+          maximized ? 'terminal-modal-panel--maximized' : '',
         ].filter(Boolean).join(' ')}
-        style={panelEnterStyle}
+        style={maximized ? undefined : panelEnterStyle}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -431,10 +439,11 @@ export const TerminalModal: React.FC<TerminalModalProps> = ({
             <WindowControls
               closeLabel={t('ui.closeAriaLabel')}
               minimizeLabel=""
-              zoomLabel=""
+              zoomLabel={maximizable ? t('ui.zoomAriaLabel') : ''}
               onClose={() => onClose()}
+              onZoom={maximizable ? () => setMaximized(v => !v) : undefined}
               minimizeDisabled
-              zoomDisabled
+              zoomDisabled={!maximizable}
             />
             {!hasRichHeader && hasTitle ? (
               <h2 className="terminal-modal-title" id={titleId}>{title}</h2>

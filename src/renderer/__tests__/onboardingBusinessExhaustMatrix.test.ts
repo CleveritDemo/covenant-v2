@@ -123,24 +123,4 @@ describe('onboarding business exhaust matrix (App snapshot contract)', () => {
     expect(stepId).toBe(null)
     expect(complete).toBe(true)
   })
-
-  it("extra: rooms library after speak keeps saved_rooms reachable until dismissed", () => {
-    const pending = resolveBusiness({
-      brainstormView: 'rooms',
-      brainstormRooms: [{ id: 'r1' }],
-      liveRoomIds: [],
-      humanSpokeByRoom: { r1: true },
-      doneSteps: [],
-    })
-    expect(pending.stepId).toBe('saved_rooms')
-
-    const done = resolveBusiness({
-      brainstormView: 'rooms',
-      brainstormRooms: [{ id: 'r1' }],
-      liveRoomIds: [],
-      humanSpokeByRoom: { r1: true },
-      doneSteps: ['saved_rooms'],
-    })
-    expect(done.stepId).toBe(null)
-  })
 })

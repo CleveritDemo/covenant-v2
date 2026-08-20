@@ -5,6 +5,25 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.102.0
+
+### Cuentas de Jira
+
+- Ajustes → Jira ahora tiene un llavero de cuentas, como el de GitHub: das de alta varias con etiqueta, sitio, correo y token, marcas una como predeterminada y las borras cuando sobran.
+- Cada cuenta se verifica con sus propias credenciales, así que el resultado que ves corresponde a la ficha que pulsaste y no a otra.
+- Cada workspace elige con qué cuenta trabaja, o hereda la predeterminada. El sitio y el correo pasan a ser de la cuenta; el proyecto conserva sus claves, su JQL y su intervalo de refresco.
+- Las credenciales que ya tenías se migran solas al llavero la primera vez que abre la app, sin borrar nada de lo anterior.
+
+### Uso de tokens por harness
+
+- Pulse suma una sección nueva con una fila por CLI: turnos, tokens de entrada y salida, agentes que lo usaron y último uso.
+- Los tokens ahora se atribuyen al turno que los gastó, no a un contador global, así que el reparto entre agentes trabajando en paralelo deja de mezclarse. Codex, Cursor y Copilot pasan a reportar uso además de Claude.
+- Los CLIs que no publican consumo aparecen con un guion, nunca con un cero: no medir y gastar cero no son lo mismo.
+
+### Correcciones
+
+- Los desplegables ya no asoman un instante en la esquina superior izquierda antes de colocarse.
+
 ## v0.101.1
 
 - El reporte de un contexto Markdown ahora se lee como documento y no como un mensaje de chat: títulos con escala propia, ancho de lectura acotado y listas con viñeta discreta.

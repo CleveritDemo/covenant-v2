@@ -59,6 +59,38 @@ describe('diagnoseCloneError', () => {
       'not-found',
     )
     expect(diagnoseCloneError('The requested URL returned error: 404').kind).toBe('not-found')
+    expect(diagnoseCloneError('ERROR: Repository not found.').kind).toBe('not-found')
+  })
+
+  it('kind=ssh-auth por Permission denied (publickey)', () => {
+    const raw = `Cloning into '/tmp/x'...
+git@github-credicorp: Permission denied (publickey).
+fatal: Could not read from remote repository.`
+    const failure = diagnoseCloneError(raw, 'org/repo')
+    expect(failure.kind).toBe('ssh-auth')
+    expect(failure.repoFullName).toBe('org/repo')
+  })
+
+  it('kind=ssh-auth por Could not read from remote repository', () => {
+    const raw = `Cloning into '/tmp/x'...
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.`
+    expect(diagnoseCloneError(raw).kind).toBe('ssh-auth')
+  })
+
+  it('kind=ssh-auth por Host key verification failed', () => {
+    const raw = `Cloning into '/tmp/x'...
+Host key verification failed.
+fatal: Could not read from remote repository.`
+    expect(diagnoseCloneError(raw).kind).toBe('ssh-auth')
+  })
+
+  it('kind=forbidden no regresa ssh-auth cuando hay 403 con Permission denied', () => {
+    const raw =
+      "remote: Permission denied\nfatal: unable to access 'https://github.com/o/r.git/': The requested URL returned error: 403"
+    expect(diagnoseCloneError(raw, 'o/r').kind).toBe('forbidden')
   })
 
   it('kind=network', () => {

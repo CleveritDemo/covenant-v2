@@ -76,6 +76,8 @@ function cloneHeadline(failure: OrgWorkspaceCloneFailure, t: T): string {
       return t('organizations.reqCloneHeadlineUnauthorized')
     case 'not-found':
       return t('organizations.reqCloneHeadlineNotFound', { repo })
+    case 'ssh-auth':
+      return t('organizations.reqCloneHeadlineSshAuth')
     case 'network':
       return t('organizations.reqCloneHeadlineNetwork')
     case 'invalid-config':
@@ -95,6 +97,8 @@ function cloneHint(failure: OrgWorkspaceCloneFailure, t: T): string | null {
       return t('organizations.reqCloneHintUnauthorized')
     case 'forbidden':
       return t('organizations.reqCloneHintForbidden')
+    case 'ssh-auth':
+      return t('organizations.reqCloneHintSshAuth')
     default:
       return null
   }

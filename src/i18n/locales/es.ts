@@ -1418,6 +1418,7 @@ const es = {
     reqCloneHeadlineSamlSso: '{{org}} exige SAML SSO para acceder a sus repos',
     reqCloneHeadlineUnauthorized: 'El token de GitHub no es válido o expiró',
     reqCloneHeadlineNotFound: 'No se encontró el repositorio {{repo}}',
+    reqCloneHeadlineSshAuth: 'GitHub rechazó la llave SSH de este repositorio',
     reqCloneHeadlineNetwork: 'No se pudo conectar con GitHub',
     reqCloneHeadlineForbidden: 'Se denegó el acceso al repositorio',
     reqCloneHeadlineInvalidConfig: 'La configuración de clonado no es válida',
@@ -1425,6 +1426,8 @@ const es = {
     reqCloneHintSamlSso: 'Autoriza tu token para la organización y vuelve a intentarlo',
     reqCloneHintUnauthorized: 'Actualiza tu token de GitHub en Ajustes y vuelve a intentarlo',
     reqCloneHintForbidden: 'Revisa el acceso en Ajustes y vuelve a intentarlo',
+    reqCloneHintSshAuth:
+      'El workspace tiene este repo registrado con una URL SSH y esta máquina no tiene la llave ni el alias de host. Pide a un admin del workspace que registre una URL https://, o agrega la llave a tu configuración ssh.',
     reqCloneOrgFallback: 'La organización',
     reqCloneRepoFallback: 'el repositorio',
     reqCloneRepo: 'Repositorio: {{repo}}',

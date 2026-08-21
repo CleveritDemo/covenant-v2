@@ -1416,6 +1416,7 @@ const en = {
     reqCloneHeadlineSamlSso: '{{org}} requires SAML SSO to access its repos',
     reqCloneHeadlineUnauthorized: 'GitHub token is invalid or expired',
     reqCloneHeadlineNotFound: 'Repository {{repo}} was not found',
+    reqCloneHeadlineSshAuth: 'GitHub rejected the SSH key for this repository',
     reqCloneHeadlineNetwork: 'Could not connect to GitHub',
     reqCloneHeadlineForbidden: 'Access to the repository was denied',
     reqCloneHeadlineInvalidConfig: 'Clone configuration is invalid',
@@ -1423,6 +1424,8 @@ const en = {
     reqCloneHintSamlSso: 'Authorize your token for the organization and try again',
     reqCloneHintUnauthorized: 'Update your GitHub token in Settings and try again',
     reqCloneHintForbidden: 'Check access in Settings and try again',
+    reqCloneHintSshAuth:
+      'The workspace registers this repo with an SSH URL, and this machine has no key or host alias for it. Ask a workspace admin to register an https:// clone URL, or add the key to your ssh config.',
     reqCloneOrgFallback: 'The organization',
     reqCloneRepoFallback: 'the repository',
     reqCloneRepo: 'Repository: {{repo}}',

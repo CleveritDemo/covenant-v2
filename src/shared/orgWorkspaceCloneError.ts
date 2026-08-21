@@ -4,6 +4,7 @@ export type OrgWorkspaceCloneErrorKind =
   | 'forbidden'
   | 'unauthorized'
   | 'not-found'
+  | 'ssh-auth'
   | 'network'
   | 'invalid-config'
   | 'unknown'
@@ -57,6 +58,14 @@ export function diagnoseCloneError(
 
   if (/Repository not found/i.test(raw) || /(?:error:\s*|returned error:\s*)404\b/i.test(raw)) {
     return { kind: 'not-found', ...withRepo }
+  }
+
+  if (
+    /Permission denied \(publickey\)/i.test(raw) ||
+    /Could not read from remote repository/i.test(raw) ||
+    /Host key verification failed/i.test(raw)
+  ) {
+    return { kind: 'ssh-auth', ...withRepo }
   }
 
   const hasCredentials =

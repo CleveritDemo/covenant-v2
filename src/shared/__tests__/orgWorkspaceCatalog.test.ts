@@ -6,6 +6,7 @@ import {
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   canUploadOrgWorkspaceFromCatalog,
+  orgWorkspaceUploadGateState,
   catalogForAccount,
   catalogForLogin,
   catalogHasWorkspaces,
@@ -286,6 +287,31 @@ describe('syncTabTitlesFromOrgWorkspaceCatalog', () => {
   })
 })
 
+describe('orgWorkspaceUploadGateState', () => {
+  const cat = {
+    login: 'alice',
+    fetchedAt: 1,
+    entries: [
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true },
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w2', name: 'Beta', canRename: false },
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w3', name: 'Gamma' },
+    ],
+  }
+
+  const cases = [
+    { label: 'catalog null', catalog: null as null, slug: 'acme', workspaceId: 'w1', state: 'loading' as const },
+    { label: 'catalog undefined', catalog: undefined, slug: 'acme', workspaceId: 'w1', state: 'loading' as const },
+    { label: 'entry ausente', catalog: cat, slug: 'credicorp', workspaceId: 'ws-99', state: 'allowed' as const },
+    { label: 'canRename true', catalog: cat, slug: 'acme', workspaceId: 'w1', state: 'allowed' as const },
+    { label: 'canRename false', catalog: cat, slug: 'acme', workspaceId: 'w2', state: 'denied' as const },
+    { label: 'canRename undefined', catalog: cat, slug: 'acme', workspaceId: 'w3', state: 'unknown' as const },
+  ]
+
+  it.each(cases)('$label → $state', ({ catalog, slug, workspaceId, state }) => {
+    expect(orgWorkspaceUploadGateState(catalog, slug, workspaceId)).toBe(state)
+  })
+})
+
 describe('canUploadOrgWorkspaceFromCatalog', () => {
   const cat = {
     login: 'alice',
@@ -293,31 +319,21 @@ describe('canUploadOrgWorkspaceFromCatalog', () => {
     entries: [
       { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true },
       { slug: 'acme', orgName: 'Acme', workspaceId: 'w2', name: 'Beta', canRename: false },
+      { slug: 'acme', orgName: 'Acme', workspaceId: 'w3', name: 'Gamma' },
     ],
   }
 
-  it('false si el catálogo aún no cargó', () => {
-    expect(canUploadOrgWorkspaceFromCatalog(null, 'acme', 'w1')).toBe(false)
-    expect(canUploadOrgWorkspaceFromCatalog(undefined, 'acme', 'w1')).toBe(false)
-  })
+  const cases = [
+    { label: 'catalog null', catalog: null as null, slug: 'acme', workspaceId: 'w1', allowed: false },
+    { label: 'catalog undefined', catalog: undefined, slug: 'acme', workspaceId: 'w1', allowed: false },
+    { label: 'entry ausente', catalog: cat, slug: 'credicorp', workspaceId: 'ws-99', allowed: true },
+    { label: 'canRename true', catalog: cat, slug: 'acme', workspaceId: 'w1', allowed: true },
+    { label: 'canRename false', catalog: cat, slug: 'acme', workspaceId: 'w2', allowed: false },
+    { label: 'canRename undefined', catalog: cat, slug: 'acme', workspaceId: 'w3', allowed: false },
+  ]
 
-  it('true si la entrada tiene canRename true', () => {
-    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w1')).toBe(true)
-  })
-
-  it('false si la entrada tiene canRename false', () => {
-    expect(canUploadOrgWorkspaceFromCatalog(cat, 'acme', 'w2')).toBe(false)
-  })
-
-  it('true si el catálogo no conoce ese workspace (segunda cuenta Covenant)', () => {
-    const otherOrgCatalog = {
-      login: 'cleverit',
-      fetchedAt: 1,
-      entries: [
-        { slug: 'acme', orgName: 'Acme', workspaceId: 'w1', name: 'Alpha', canRename: true },
-      ],
-    }
-    expect(canUploadOrgWorkspaceFromCatalog(otherOrgCatalog, 'credicorp', 'ws-99')).toBe(true)
+  it.each(cases)('$label → allowed=$allowed (regresión booleano)', ({ catalog, slug, workspaceId, allowed }) => {
+    expect(canUploadOrgWorkspaceFromCatalog(catalog, slug, workspaceId)).toBe(allowed)
   })
 })
 

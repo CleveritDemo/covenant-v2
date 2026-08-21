@@ -301,16 +301,31 @@ export function findOrgWorkspaceCatalogEntryInMap(
   return undefined
 }
 
-/** Sin catálogo → false; con entrada → `canRename`; sin entrada → true (el server decide). */
+export type OrgWorkspaceUploadGate = 'allowed' | 'denied' | 'loading' | 'unknown'
+
+/**
+ * Estado del gate de publicación org. Solo `denied` es una negativa real; `loading` y `unknown`
+ * significan «todavía no sé» para que la UI pueda distinguirlos del rechazo explícito.
+ */
+export function orgWorkspaceUploadGateState(
+  catalog: OrgWorkspaceCatalog | null | undefined,
+  slug: string,
+  workspaceId: string,
+): OrgWorkspaceUploadGate {
+  if (catalog == null) return 'loading'
+  const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
+  if (!entry) return 'allowed'
+  if (entry.canRename === true) return 'allowed'
+  if (entry.canRename === false) return 'denied'
+  return 'unknown'
+}
+
 export function canUploadOrgWorkspaceFromCatalog(
   catalog: OrgWorkspaceCatalog | null | undefined,
   slug: string,
   workspaceId: string,
 ): boolean {
-  if (catalog == null) return false
-  const entry = findOrgWorkspaceCatalogEntry(catalog, slug, workspaceId)
-  if (entry) return entry.canRename === true
-  return true
+  return orgWorkspaceUploadGateState(catalog, slug, workspaceId) === 'allowed'
 }
 
 /**

@@ -17,32 +17,47 @@ import {
   sanitizeSlug,
 } from '../orgWorkspaceClone'
 
+function mockChild(opts?: { stdout?: string; stderr?: string; code?: number }): EventEmitter & {
+  stderr: EventEmitter
+  stdout: EventEmitter
+} {
+  const child = new EventEmitter() as EventEmitter & {
+    stderr: EventEmitter
+    stdout: EventEmitter
+  }
+  child.stderr = new EventEmitter()
+  child.stdout = new EventEmitter()
+  queueMicrotask(() => {
+    if (opts?.stdout) child.stdout.emit('data', Buffer.from(opts.stdout))
+    if (opts?.stderr) child.stderr.emit('data', Buffer.from(opts.stderr))
+    child.emit('close', opts?.code ?? 0)
+  })
+  return child
+}
+
 function mockSpawnSuccess(): void {
-  spawnMock.mockImplementation(() => {
-    const child = new EventEmitter() as EventEmitter & {
-      stderr: EventEmitter
-      stdout: EventEmitter
+  spawnMock.mockImplementation((_cmd: unknown, args: string[]) => {
+    if (args.includes('config') && args.includes('remote.origin.url')) {
+      return mockChild({ stdout: 'https://github.com/owner/repo-a.git\n' })
     }
-    child.stderr = new EventEmitter()
-    child.stdout = new EventEmitter()
-    queueMicrotask(() => child.emit('close', 0))
-    return child
+    return mockChild()
   })
 }
 
 function mockSpawnFail(stderr: string, code = 1): void {
-  spawnMock.mockImplementation(() => {
-    const child = new EventEmitter() as EventEmitter & {
-      stderr: EventEmitter
-      stdout: EventEmitter
+  spawnMock.mockImplementation(() => mockChild({ stderr, code }))
+}
+
+/** Responde origin por destino según el path `-C` del git config. */
+function mockSpawnWithOrigins(originsByDest: Record<string, string>): void {
+  spawnMock.mockImplementation((_cmd: unknown, args: string[]) => {
+    if (args[0] === '-C' && args.includes('config')) {
+      const dest = args[1] ?? ''
+      const origin = originsByDest[dest]
+      if (origin === undefined) return mockChild({ code: 1, stderr: 'missing' })
+      return mockChild({ stdout: `${origin}\n` })
     }
-    child.stderr = new EventEmitter()
-    child.stdout = new EventEmitter()
-    queueMicrotask(() => {
-      child.stderr.emit('data', Buffer.from(stderr))
-      child.emit('close', code)
-    })
-    return child
+    return mockChild()
   })
 }
 
@@ -91,9 +106,12 @@ describe('cloneOrgWorkspace', () => {
 
   it('crea rutas sanitizadas y skipea repos con .git existente', async () => {
     const base = tempDir()
-    const dest = join(base, 'org', 'ws', 'repo-a')
+    const workspaceDir = join(base, 'org', 'ws')
+    const dest = join(workspaceDir, 'repo-a')
     mkdirSync(join(dest, '.git'), { recursive: true })
-    mockSpawnSuccess()
+    mockSpawnWithOrigins({
+      [dest]: 'https://github.com/owner/repo-a.git',
+    })
 
     const result = await cloneOrgWorkspace({
       baseDir: base,
@@ -108,12 +126,13 @@ describe('cloneOrgWorkspace', () => {
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.workspaceDir).toBe(join(base, 'org', 'ws'))
+    expect(result.workspaceDir).toBe(workspaceDir)
     expect(result.skipped).toEqual(['owner/repo-a'])
     expect(result.cloned).toEqual(['owner/repo-b'])
-    expect(spawnMock).toHaveBeenCalledTimes(1)
-    const args = spawnMock.mock.calls[0]?.[1] as string[]
-    expect(args).toContain('clone')
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+    const cloneCall = spawnMock.mock.calls.find(c => (c[1] as string[]).includes('clone'))
+    expect(cloneCall).toBeTruthy()
+    const args = cloneCall?.[1] as string[]
     expect(args.join(' ')).not.toContain('secret-token')
     expect(args.some(a => a.startsWith('http.extraHeader=AUTHORIZATION: basic '))).toBe(true)
   })
@@ -157,12 +176,14 @@ describe('cloneOrgWorkspace', () => {
     expect(spawnMock).not.toHaveBeenCalled()
   })
 
-  it('marca skip cuando .git es archivo (worktree)', async () => {
+  it('marca skip cuando .git es archivo (worktree) y el origin coincide', async () => {
     const base = tempDir()
     const dest = join(base, 'org', 'ws', 'repo')
     mkdirSync(dest, { recursive: true })
     writeFileSync(join(dest, '.git'), 'gitdir: /tmp/elsewhere\n')
-    mockSpawnSuccess()
+    mockSpawnWithOrigins({
+      [dest]: 'https://github.com/o/repo.git',
+    })
 
     const result = await cloneOrgWorkspace({
       baseDir: base,
@@ -176,7 +197,8 @@ describe('cloneOrgWorkspace', () => {
     if (!result.ok) return
     expect(result.skipped).toEqual(['o/repo'])
     expect(result.cloned).toEqual([])
-    expect(spawnMock).not.toHaveBeenCalled()
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    expect((spawnMock.mock.calls[0]?.[1] as string[]).includes('config')).toBe(true)
   })
 
   it('usa folderName personalizado como carpeta destino', async () => {
@@ -206,10 +228,13 @@ describe('cloneOrgWorkspace', () => {
   it('skipea instalado por folderName y no busca el nombre remoto', async () => {
     const base = tempDir()
     const workspaceDir = join(base, 'org', 'ws')
-    mkdirSync(join(workspaceDir, 'custom-dir', '.git'), { recursive: true })
+    const customDest = join(workspaceDir, 'custom-dir')
+    mkdirSync(join(customDest, '.git'), { recursive: true })
     // Señuelo: .git bajo el nombre remoto no debe contar si hay folderName.
     mkdirSync(join(workspaceDir, 'repo-a', '.git'), { recursive: true })
-    mockSpawnSuccess()
+    mockSpawnWithOrigins({
+      [customDest]: 'https://github.com/owner/repo-a.git',
+    })
 
     const result = await cloneOrgWorkspace({
       baseDir: base,
@@ -227,7 +252,9 @@ describe('cloneOrgWorkspace', () => {
     if (!result.ok) return
     expect(result.skipped).toEqual(['owner/repo-a'])
     expect(result.cloned).toEqual([])
-    expect(spawnMock).not.toHaveBeenCalled()
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    const configArgs = spawnMock.mock.calls[0]?.[1] as string[]
+    expect(configArgs[1]).toBe(customDest)
   })
 
   it('con folderName no trata repo-a/.git como instalado', async () => {

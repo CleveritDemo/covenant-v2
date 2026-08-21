@@ -41,6 +41,59 @@ export function buildWorkspaceDir(baseDir: string, orgSlug: string, workspaceSlu
   return join(baseDir, orgSlug, workspaceSlug)
 }
 
+/**
+ * Nombre de carpeta destino para un repo: folderName saneado, o último segmento de repoFullName.
+ */
+export function resolveRepoDestName(
+  repo: { repoFullName: string; folderName?: string },
+): { ok: true; destName: string } | { ok: false; error: string } {
+  const fullName = repo.repoFullName.trim()
+  const customFolder = repo.folderName?.trim() ?? ''
+  if (customFolder) {
+    const safeFolder = sanitizeSlug(customFolder)
+    if (!safeFolder) {
+      return { ok: false, error: `invalid folder name for ${fullName}: ${customFolder}` }
+    }
+    return { ok: true, destName: safeFolder }
+  }
+  const destName = lastPathSegment(fullName)
+  if (!destName || destName === '.' || destName === '..' || destName.includes('/') || destName.includes('\\')) {
+    return { ok: false, error: `invalid repo name: ${fullName}` }
+  }
+  return { ok: true, destName }
+}
+
+/** Normaliza URLs de repo para comparar origen (https/ssh, .git, userinfo, host case). */
+export function sameRepoUrl(a: string, b: string): boolean {
+  return normalizeRepoUrl(a) === normalizeRepoUrl(b)
+}
+
+function normalizeRepoUrl(raw: string): string {
+  const trimmed = raw.trim()
+  const ssh = /^git@([^:]+):(.+)$/i.exec(trimmed)
+  if (ssh) {
+    const host = ssh[1].toLowerCase()
+    let path = ssh[2]
+    path = path.replace(/\.git$/i, '').replace(/\/+$/, '')
+    return `${host}/${path}`
+  }
+
+  let s = trimmed.replace(/^(https?:\/\/)([^/@]+@)/i, '$1')
+  try {
+    const u = new URL(s)
+    const host = u.hostname.toLowerCase()
+    let path = u.pathname.replace(/\.git$/i, '').replace(/\/+$/, '')
+    if (path.startsWith('/')) path = path.slice(1)
+    return `${host}/${path}`
+  } catch {
+    let fallback = s.replace(/^https?:\/\//i, '')
+    fallback = fallback.replace(/\.git$/i, '').replace(/\/+$/, '')
+    const slash = fallback.indexOf('/')
+    if (slash < 0) return fallback.toLowerCase()
+    return `${fallback.slice(0, slash).toLowerCase()}/${fallback.slice(slash + 1)}`
+  }
+}
+
 function redactSecret(text: string, token: string): string {
   if (!token) return text
   return text.split(token).join('***')
@@ -64,46 +117,59 @@ function authHeaderValue(token: string): string {
   return `AUTHORIZATION: basic ${basic}`
 }
 
-function runGitClone(
-  cloneUrl: string,
-  dest: string,
-  token: string,
-): Promise<{ exitCode: number | null; stderr: string }> {
+function runGit(
+  args: string[],
+  opts?: { extraHeader?: string },
+): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
   return new Promise(resolvePromise => {
     let settled = false
-    const finish = (r: { exitCode: number | null; stderr: string }): void => {
+    const finish = (r: { exitCode: number | null; stdout: string; stderr: string }): void => {
       if (settled) return
       settled = true
       resolvePromise(r)
     }
 
-    const child = spawn(
-      'git',
-      [
-        '-c',
-        `http.extraHeader=${authHeaderValue(token)}`,
-        'clone',
-        '--depth',
-        '1',
-        cloneUrl,
-        dest,
-      ],
-      {
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } as NodeJS.ProcessEnv,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
+    const gitArgs = opts?.extraHeader
+      ? ['-c', `http.extraHeader=${opts.extraHeader}`, ...args]
+      : args
 
+    const child = spawn('git', gitArgs, {
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } as NodeJS.ProcessEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    let stdout = ''
     let stderr = ''
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8')
+    })
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8')
     })
     child.on('error', (err: Error) => {
-      finish({ exitCode: null, stderr: err.message || String(err) })
+      finish({ exitCode: null, stdout, stderr: err.message || String(err) })
     })
     child.on('close', code => {
-      finish({ exitCode: code, stderr })
+      finish({ exitCode: code, stdout, stderr })
     })
+  })
+}
+
+function runGitClone(
+  cloneUrl: string,
+  dest: string,
+  token: string,
+): Promise<{ exitCode: number | null; stderr: string }> {
+  return runGit(['clone', '--depth', '1', cloneUrl, dest], {
+    extraHeader: authHeaderValue(token),
+  }).then(r => ({ exitCode: r.exitCode, stderr: r.stderr }))
+}
+
+function readRemoteOriginUrl(dest: string): Promise<string | null> {
+  return runGit(['-C', dest, 'config', '--get', 'remote.origin.url']).then(r => {
+    if (r.exitCode !== 0) return null
+    const url = r.stdout.trim()
+    return url || null
   })
 }
 
@@ -134,6 +200,29 @@ export async function cloneOrgWorkspace(
     return failResult(msg, { workspaceDir, diagnoseRaw: msg })
   }
 
+  const destNameToRepos = new Map<string, string[]>()
+  for (const repo of params.repos) {
+    const resolved = resolveRepoDestName(repo)
+    if (!resolved.ok) {
+      const fullName = repo.repoFullName.trim()
+      return failResult(resolved.error, {
+        workspaceDir,
+        ...(fullName ? { repoFullName: fullName } : {}),
+      })
+    }
+    const fullName = repo.repoFullName.trim()
+    const list = destNameToRepos.get(resolved.destName) ?? []
+    list.push(fullName)
+    destNameToRepos.set(resolved.destName, list)
+  }
+  for (const [destName, names] of destNameToRepos) {
+    if (names.length > 1) {
+      return failResult(`duplicate folder name '${destName}' for: ${names.join(', ')}`, {
+        workspaceDir,
+      })
+    }
+  }
+
   const cloned: string[] = []
   const skipped: string[] = []
 
@@ -147,26 +236,29 @@ export async function cloneOrgWorkspace(
         ...(fullName ? { repoFullName: fullName } : {}),
       })
     }
-    const customFolder = repo.folderName?.trim() ?? ''
-    let destName: string
-    if (customFolder) {
-      const safeFolder = sanitizeSlug(customFolder)
-      if (!safeFolder) {
-        const error = `invalid folder name for ${fullName}: ${customFolder}`
-        return failResult(error, { workspaceDir, repoFullName: fullName })
-      }
-      destName = safeFolder
-    } else {
-      destName = lastPathSegment(fullName)
-      if (!destName || destName === '.' || destName === '..' || destName.includes('/') || destName.includes('\\')) {
-        const error = `invalid repo name: ${fullName}`
-        return failResult(error, { workspaceDir, repoFullName: fullName })
-      }
+    const resolved = resolveRepoDestName(repo)
+    if (!resolved.ok) {
+      return failResult(resolved.error, { workspaceDir, repoFullName: fullName })
     }
-    const dest = join(workspaceDir, destName)
+    const dest = join(workspaceDir, resolved.destName)
     if (existsSync(join(dest, '.git'))) {
-      skipped.push(fullName)
-      continue
+      const origin = await readRemoteOriginUrl(dest)
+      if (origin === null) {
+        return failResult(`cannot verify repo in existing folder: ${dest}`, {
+          workspaceDir,
+          repoFullName: fullName,
+        })
+      }
+      if (sameRepoUrl(origin, cloneUrl)) {
+        skipped.push(fullName)
+        continue
+      }
+      const redactedOrigin = redactSecret(origin, token)
+      return failResult(`folder already has a different repo: ${dest} -> ${redactedOrigin}`, {
+        workspaceDir,
+        repoFullName: fullName,
+        diagnoseRaw: redactedOrigin,
+      })
     }
 
     const result = await runGitClone(cloneUrl, dest, token)

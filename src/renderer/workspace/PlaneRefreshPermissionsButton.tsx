@@ -3,20 +3,18 @@ import { Icon } from '../components/ui/Icon'
 import { Tooltip } from '../components/ui/Tooltip'
 import './PlaneLoopsButton.css'
 
-export interface PlaneUploadButtonProps {
+export interface PlaneRefreshPermissionsButtonProps {
   label: string
+  hint?: string
   busy: boolean
   onClick: () => void
-  disabled?: boolean
-  hint?: string
 }
 
-export const PlaneUploadButton: React.FC<PlaneUploadButtonProps> = ({
+export const PlaneRefreshPermissionsButton: React.FC<PlaneRefreshPermissionsButtonProps> = ({
   label,
+  hint,
   busy,
   onClick,
-  disabled,
-  hint,
 }) => (
   <Tooltip content={label} hint={hint}>
     <button
@@ -26,10 +24,10 @@ export const PlaneUploadButton: React.FC<PlaneUploadButtonProps> = ({
         'plane-loops-button--icon-only',
       ].filter(Boolean).join(' ')}
       aria-label={label}
-      disabled={busy || Boolean(disabled)}
+      disabled={busy}
       onClick={onClick}
     >
-      <Icon name="upload" size={12} />
+      <Icon name="key" size={12} />
     </button>
   </Tooltip>
 )

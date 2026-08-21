@@ -3,7 +3,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { TabAgenticPlane, type TabAgenticPlaneProps } from '../TabAgenticPlane'
 
 vi.mock('@i18n/useT', () => ({
@@ -56,6 +56,11 @@ beforeEach(() => {
 })
 
 afterEach(cleanup)
+
+function hoverTooltip(el: HTMLElement): void {
+  fireEvent.mouseEnter(el)
+  act(() => { vi.advanceTimersByTime(400) })
+}
 
 const baseProps = {
   emptyTitle: '',
@@ -179,6 +184,70 @@ describe('chrome org del plano', () => {
 
     expect(screen.getByRole('button', { name: 'Publicar en organización' })).toBeTruthy()
     expect(container.querySelector('.plane-top-left-workspace-actions')).toBeTruthy()
+  })
+})
+
+describe('gate de publicación del plano', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('pinta publicar deshabilitado con hint de denegado cuando gate=denied', () => {
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        canUploadWorkspace={false}
+        uploadWorkspaceGate="denied"
+        uploadWorkspaceLabel="Publicar cambios"
+        onUploadWorkspace={vi.fn()}
+      />,
+    )
+
+    const upload = screen.getByRole('button', { name: 'Publicar cambios' }) as HTMLButtonElement
+    expect(upload.disabled).toBe(true)
+    hoverTooltip(upload)
+    expect(screen.getByRole('tooltip').textContent).toContain('tabs.uploadWorkspaceDeniedHint')
+  })
+
+  it('sin uploadWorkspaceGate conserva el render de publicar de hoy', () => {
+    const { rerender } = render(
+      <TabAgenticPlane
+        {...baseProps}
+        canUploadWorkspace={false}
+        uploadWorkspaceLabel="Publicar cambios"
+        onUploadWorkspace={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Publicar cambios' })).toBeNull()
+
+    rerender(
+      <TabAgenticPlane
+        {...baseProps}
+        canUploadWorkspace
+        uploadWorkspaceLabel="Publicar cambios"
+        onUploadWorkspace={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Publicar cambios' })).toBeTruthy()
+  })
+
+  it('el botón de actualizar permisos llama onRefreshPermissions', () => {
+    const onRefreshPermissions = vi.fn()
+    render(
+      <TabAgenticPlane
+        {...baseProps}
+        canUploadWorkspace={false}
+        uploadWorkspaceGate="denied"
+        uploadWorkspaceLabel="Publicar cambios"
+        onUploadWorkspace={vi.fn()}
+        canRefreshPermissions
+        onRefreshPermissions={onRefreshPermissions}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'tabs.refreshPermissionsButton' }))
+    expect(onRefreshPermissions).toHaveBeenCalledTimes(1)
   })
 })
 

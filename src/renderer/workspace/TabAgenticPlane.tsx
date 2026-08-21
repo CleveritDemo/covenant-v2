@@ -26,6 +26,7 @@ import { OnboardingCoachMark } from './OnboardingCoachMark'
 import { PlaneProjectFolder } from './PlaneProjectFolder'
 import { PlaneRevealFolderButton } from './PlaneRevealFolderButton'
 import { PlaneResyncButton } from './PlaneResyncButton'
+import { PlaneRefreshPermissionsButton } from './PlaneRefreshPermissionsButton'
 import { PlaneUploadButton } from './PlaneUploadButton'
 import { PlanePromoteButton } from './PlanePromoteButton'
 import { PlaneGithubAccountButton } from './PlaneGithubAccountButton'
@@ -98,6 +99,8 @@ type WikiNodeModalState = {
 }
 
 export type { PlaneMapEntity }
+
+type PlaneUploadGate = 'allowed' | 'denied' | 'loading' | 'unknown'
 
 export interface TabAgenticPlaneProps {
   emptyTitle: string
@@ -281,6 +284,10 @@ export interface TabAgenticPlaneProps {
   uploadWorkspaceProgress?: number | null
   onCancelUploadWorkspace?: () => void
   canUploadWorkspace?: boolean
+  uploadWorkspaceGate?: PlaneUploadGate
+  canRefreshPermissions?: boolean
+  onRefreshPermissions?: () => void
+  refreshPermissionsBusy?: boolean
   /** Publica la carpeta local en una organización (tabs sin binding org). */
   onPromoteWorkspace?: () => void
   promoteWorkspaceLabel?: string
@@ -513,6 +520,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   uploadWorkspaceProgress = null,
   onCancelUploadWorkspace,
   canUploadWorkspace = false,
+  uploadWorkspaceGate,
+  canRefreshPermissions = false,
+  onRefreshPermissions,
+  refreshPermissionsBusy = false,
   onPromoteWorkspace,
   promoteWorkspaceLabel = '',
   promoteWorkspaceBusy = false,
@@ -1075,6 +1086,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
           ) : null}
           {(canResyncWorkspace && onResyncWorkspace)
             || (canUploadWorkspace && onUploadWorkspace)
+            || ((uploadWorkspaceGate === 'denied' || uploadWorkspaceGate === 'loading') && onUploadWorkspace)
             || (canPromoteWorkspace && onPromoteWorkspace) ? (
             <div className="plane-top-left-workspace-actions">
               {canResyncWorkspace && onResyncWorkspace ? (
@@ -1084,7 +1096,25 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   onClick={() => setPendingWorkspaceAction('resync')}
                 />
               ) : null}
-              {canUploadWorkspace && onUploadWorkspace ? (
+              {onUploadWorkspace && uploadWorkspaceGate === 'denied' ? (
+                <PlaneUploadButton
+                  label={uploadWorkspaceLabel || ''}
+                  busy={Boolean(uploadWorkspaceBusy)}
+                  disabled
+                  hint={t('tabs.uploadWorkspaceDeniedHint')}
+                  onClick={() => setPendingWorkspaceAction('upload')}
+                />
+              ) : null}
+              {onUploadWorkspace && uploadWorkspaceGate === 'loading' ? (
+                <PlaneUploadButton
+                  label={uploadWorkspaceLabel || ''}
+                  busy={Boolean(uploadWorkspaceBusy)}
+                  disabled
+                  hint={t('tabs.uploadWorkspaceLoadingHint')}
+                  onClick={() => setPendingWorkspaceAction('upload')}
+                />
+              ) : null}
+              {canUploadWorkspace && onUploadWorkspace && uploadWorkspaceGate !== 'denied' && uploadWorkspaceGate !== 'loading' ? (
                 <PlaneUploadButton
                   label={uploadWorkspaceLabel || ''}
                   busy={Boolean(uploadWorkspaceBusy)}
@@ -1096,6 +1126,14 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                   label={promoteWorkspaceLabel || ''}
                   busy={Boolean(promoteWorkspaceBusy)}
                   onClick={() => setPendingWorkspaceAction('promote')}
+                />
+              ) : null}
+              {canRefreshPermissions && onRefreshPermissions ? (
+                <PlaneRefreshPermissionsButton
+                  label={t('tabs.refreshPermissionsButton')}
+                  hint={t('tabs.refreshPermissionsHint')}
+                  busy={Boolean(refreshPermissionsBusy)}
+                  onClick={onRefreshPermissions}
                 />
               ) : null}
             </div>

@@ -307,4 +307,76 @@ describe('cloneOrgWorkspace', () => {
     expect(result.failure?.repoFullName).toBe('owner/repo-a')
     expect(spawnMock).not.toHaveBeenCalled()
   })
+
+  it('skipea cuando el mismo repo ya está clonado con otro nombre de carpeta', async () => {
+    const base = tempDir()
+    const workspaceDir = join(base, 'org', 'ws')
+    const origin = 'git@github-credicorp:credicorp-internal/brd-rimay-platform.git'
+    const siblingDir = join(workspaceDir, 'rimay-platform')
+    mkdirSync(join(siblingDir, '.git'), { recursive: true })
+    mockSpawnWithOrigins({
+      [siblingDir]: origin,
+    })
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'credicorp-internal/brd-rimay-platform',
+        cloneUrl: origin,
+        folderName: 'brd-rimay-platform',
+      }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.skipped).toEqual(['credicorp-internal/brd-rimay-platform'])
+    expect(result.cloned).toEqual([])
+    const cloneCalls = spawnMock.mock.calls.filter(
+      (call: unknown[]) => (call[1] as string[]).includes('clone'),
+    )
+    expect(cloneCalls).toHaveLength(0)
+  })
+
+  it('clona cuando la carpeta existente apunta a otro origin', async () => {
+    const base = tempDir()
+    const workspaceDir = join(base, 'org', 'ws')
+    const siblingDir = join(workspaceDir, 'rimay-platform')
+    mkdirSync(join(siblingDir, '.git'), { recursive: true })
+    spawnMock.mockImplementation((_cmd: unknown, args: string[]) => {
+      if (args[0] === '-C' && args.includes('config')) {
+        const dest = args[1] ?? ''
+        if (dest === siblingDir) {
+          return mockChild({ stdout: 'https://github.com/other/another-repo.git\n' })
+        }
+        return mockChild({ code: 1, stderr: 'missing' })
+      }
+      return mockChild()
+    })
+
+    const result = await cloneOrgWorkspace({
+      baseDir: base,
+      orgSlug: 'org',
+      workspaceSlug: 'ws',
+      token: 'tok',
+      repos: [{
+        repoFullName: 'credicorp-internal/brd-rimay-platform',
+        cloneUrl: 'git@github-credicorp:credicorp-internal/brd-rimay-platform.git',
+        folderName: 'brd-rimay-platform',
+      }],
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.skipped).toEqual([])
+    expect(result.cloned).toEqual(['credicorp-internal/brd-rimay-platform'])
+    const cloneCalls = spawnMock.mock.calls.filter(
+      (call: unknown[]) => (call[1] as string[]).includes('clone'),
+    )
+    expect(cloneCalls).toHaveLength(1)
+    const cloneArgs = cloneCalls[0]?.[1] as string[]
+    expect(cloneArgs[cloneArgs.length - 1]).toBe(join(workspaceDir, 'brd-rimay-platform'))
+  })
 })

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process'
-import { promises as fs, existsSync } from 'fs'
+import { promises as fs, existsSync, readdirSync } from 'fs'
 import { basename, join } from 'path'
 import type {
   OrgWorkspaceCloneRepo,
@@ -173,6 +173,28 @@ function readRemoteOriginUrl(dest: string): Promise<string | null> {
   })
 }
 
+async function findClonedElsewhere(workspaceDir: string, cloneUrl: string): Promise<string | null> {
+  let entries: ReturnType<typeof readdirSync>
+  try {
+    entries = readdirSync(workspaceDir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    const dir = join(workspaceDir, entry.name)
+    if (!existsSync(join(dir, '.git'))) continue
+    try {
+      const origin = await readRemoteOriginUrl(dir)
+      if (origin && sameRepoUrl(origin, cloneUrl)) return entry.name
+    } catch {
+      // sigue con la siguiente entrada
+    }
+  }
+  return null
+}
+
 /**
  * Clona repos de un workspace org bajo `baseDir/orgSlug/workspaceSlug`.
  * Auth vía header git (no en la URL). Token nunca se incluye en errores.
@@ -259,6 +281,11 @@ export async function cloneOrgWorkspace(
         repoFullName: fullName,
         diagnoseRaw: redactedOrigin,
       })
+    }
+    const elsewhere = await findClonedElsewhere(workspaceDir, cloneUrl)
+    if (elsewhere) {
+      skipped.push(fullName)
+      continue
     }
 
     const result = await runGitClone(cloneUrl, dest, token)

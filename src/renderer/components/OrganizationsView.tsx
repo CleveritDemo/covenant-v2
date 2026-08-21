@@ -133,19 +133,43 @@ function SignInPanel({
   error,
   busy,
   onSignIn,
+  accounts,
+  activeAccountId,
+  onAccountChange,
 }: {
   status: CovenantAuthStatus | null
   loading: boolean
   error: string | null
   busy: boolean
   onSignIn: () => void
+  accounts: GithubAccount[]
+  activeAccountId: string
+  onAccountChange: (id: string) => void
 }): React.ReactElement {
   const { t } = useT()
+  const activeAccountLabel = accounts.find(a => a.id === activeAccountId)?.label
   return (
     <div className="orgs-signin">
       <SectionStatus loading={loading} error={error} loadingLabel={t('organizations.loading')} />
+      {accounts.length > 1 ? (
+        <div className="orgs-signin__account">
+          <Select
+            size="sm"
+            variant="ghost"
+            value={activeAccountId}
+            options={accounts.map(a => ({ value: a.id, label: a.label }))}
+            onChange={onAccountChange}
+            aria-label={t('organizations.accountSelector')}
+          />
+        </div>
+      ) : null}
       <p className="orgs-signin__title">{t('organizations.signInPrompt')}</p>
       <p className="orgs-signin__hint">{t('organizations.signInHint')}</p>
+      {activeAccountLabel ? (
+        <p className="orgs-signin__account-hint">
+          {t('organizations.signInAccountHint', { label: activeAccountLabel })}
+        </p>
+      ) : null}
       <Button variant="primary" size="sm" disabled={busy || loading || !status} onClick={onSignIn}>
         {t('organizations.signIn')}
       </Button>
@@ -1365,6 +1389,9 @@ export const OrganizationsView: React.FC<Props> = ({
               error={authError}
               busy={authBusy}
               onSignIn={() => void handleSignIn()}
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              onAccountChange={setActiveAccountId}
             />
           ) : (
             <div className="orgs-shell">

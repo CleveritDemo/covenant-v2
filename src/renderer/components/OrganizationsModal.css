@@ -647,6 +647,18 @@
   color: var(--text-muted);
 }
 
+.orgs-signin__account {
+  margin-bottom: 10px;
+  max-width: 220px;
+  align-self: center;
+}
+
+.orgs-signin__account-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Usado por OrgWorkspaceTabPickerModal / OrgWorkspaceRequirementModal. */
 .orgs-stack {
   display: flex;

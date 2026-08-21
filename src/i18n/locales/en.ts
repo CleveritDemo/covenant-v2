@@ -1280,6 +1280,7 @@ const en = {
     signOut: 'Sign out',
     signInPrompt: 'Sign in to Covenant',
     signInHint: 'Connect your Covenant account to manage organizations.',
+    signInAccountHint: 'Signing in with the {{label}} GitHub account.',
     signedIn: 'Signed in',
     signInRequired: 'Sign in to manage organizations.',
     unavailable: 'Covenant is not available in this build.',

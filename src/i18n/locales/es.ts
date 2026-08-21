@@ -1282,6 +1282,7 @@ const es = {
     signOut: 'Cerrar sesión',
     signInPrompt: 'Inicia sesión en Covenant',
     signInHint: 'Conecta tu cuenta de Covenant para gestionar organizaciones.',
+    signInAccountHint: 'Firmando con la cuenta de GitHub {{label}}.',
     signedIn: 'Sesión iniciada',
     signInRequired: 'Inicia sesión para gestionar organizaciones.',
     unavailable: 'Covenant no está disponible en esta build.',

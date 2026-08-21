@@ -46,6 +46,54 @@ function lastPathSegment(path: string): string {
   return parts[parts.length - 1] ?? ''
 }
 
+function extractRemoteHost(remoteUrl: string): string | null {
+  if (remoteUrl.startsWith('ssh://')) {
+    try {
+      return new URL(remoteUrl).hostname || null
+    } catch {
+      return null
+    }
+  }
+  const at = remoteUrl.indexOf('@')
+  if (at === -1) return null
+  const colon = remoteUrl.indexOf(':', at + 1)
+  if (colon === -1) return null
+  const host = remoteUrl.slice(at + 1, colon)
+  return host || null
+}
+
+function isValidRepoFullName(repoFullName: string): boolean {
+  const slash = repoFullName.indexOf('/')
+  return slash > 0 && slash === repoFullName.lastIndexOf('/') && slash < repoFullName.length - 1
+}
+
+export function normalizeGitHubCloneUrl(remoteUrl: string, repoFullName: string): string {
+  const trimmed = remoteUrl.trim()
+  if (!trimmed) return remoteUrl
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed
+  }
+
+  const host = extractRemoteHost(trimmed)
+  if (!host) return trimmed
+
+  const hostLower = host.toLowerCase()
+  if (hostLower !== 'github.com' && !hostLower.startsWith('github')) {
+    return trimmed
+  }
+
+  const name = repoFullName.trim()
+  if (!isValidRepoFullName(name)) return trimmed
+
+  let path = name
+  if (path.endsWith('.git')) {
+    path = path.slice(0, -4)
+  }
+
+  return `https://github.com/${path}.git`
+}
+
 export function defaultPromotedWorkspaceName(folderPath: string): string {
   return lastPathSegment(folderPath)
 }
@@ -60,7 +108,7 @@ export function promoteReposFromDetected(
     if (!repoFullName || !remoteUrl) continue
     out.push({
       repoFullName,
-      cloneUrl: remoteUrl,
+      cloneUrl: normalizeGitHubCloneUrl(remoteUrl, repoFullName),
       folderName: lastPathSegment(row.path),
     })
   }

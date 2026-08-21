@@ -1270,6 +1270,7 @@ const en = {
     organizationsAriaLabel: 'Organizations',
     settingsAriaLabel: 'Settings',
     clockAriaLabel: 'Current time {{time}}',
+    offlineTooltip: 'Offline. What you write stays queued and sends when the connection is back.',
   },
 
   organizations: {

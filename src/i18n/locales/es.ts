@@ -1272,6 +1272,7 @@ const es = {
     organizationsAriaLabel: 'Organizaciones',
     settingsAriaLabel: 'Ajustes',
     clockAriaLabel: 'Hora actual {{time}}',
+    offlineTooltip: 'Sin conexión. Lo que escribas queda en cola y se envía cuando vuelva.',
   },
 
   organizations: {

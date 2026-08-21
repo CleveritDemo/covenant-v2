@@ -22,3 +22,20 @@
 .titlebar:has(.update-banner) .titlebar__wordmark {
   display: none;
 }
+
+.titlebar__wordmark--offline {
+  pointer-events: auto;
+  color: color-mix(in srgb, var(--text) 38%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.titlebar__wordmark-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+  flex: 0 0 auto;
+}

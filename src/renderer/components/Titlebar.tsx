@@ -9,6 +9,7 @@ import { ThemePickerTrigger } from './ThemePickerTrigger'
 import { UpdateBanner } from './UpdateBanner'
 import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
+import { Tooltip } from './ui/Tooltip'
 import './Titlebar.css'
 
 interface TitlebarProps {
@@ -25,6 +26,7 @@ interface TitlebarProps {
   onOpenSettings: () => void
   onMusicPausedChange?: (paused: boolean) => void
   hideOrganizations?: boolean
+  offline?: boolean
 }
 
 export const Titlebar: React.FC<TitlebarProps> = ({
@@ -41,14 +43,30 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   onOpenSettings,
   onMusicPausedChange,
   hideOrganizations = false,
+  offline = false,
 }) => {
   const { t } = useT()
   const theme = getTheme(config.themeId)
 
+  const wordmark = offline ? (
+    <Tooltip content={t('titlebar.offlineTooltip')}>
+      <div
+        className="titlebar__wordmark titlebar__wordmark--offline"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="titlebar__wordmark-dot" aria-hidden="true" />
+        Covenant
+      </div>
+    </Tooltip>
+  ) : (
+    <div className="titlebar__wordmark" aria-hidden="true">Covenant</div>
+  )
+
   return (
     <div className="titlebar">
       <div className="titlebar-drag" />
-      <div className="titlebar__wordmark" aria-hidden="true">Covenant</div>
+      {wordmark}
       <UpdateBanner />
       <div className="titlebar-actions">
         <FontSizeControl

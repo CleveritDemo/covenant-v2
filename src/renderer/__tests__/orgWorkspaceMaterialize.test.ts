@@ -54,7 +54,7 @@ function baseDeps(overrides: Partial<OrgWorkspaceMaterializeDeps> = {}): OrgWork
 }
 
 describe('downloadOrgWorkspaceToLocal', () => {
-  it('resync wipes syncable local and keeps agentResult', async () => {
+  it('resync wipe deletes only syncables absent from remote and keeps agentResult', async () => {
     const deletedAgents: string[] = []
     const deletedContexts: string[] = []
     const deps = baseDeps({
@@ -93,6 +93,63 @@ describe('downloadOrgWorkspaceToLocal', () => {
     expect(deletedAgents).toEqual(['old'])
     expect(deletedContexts).toEqual(['stale'])
     expect(result.deletedAgents).toBe(1)
+    expect(result.deletedContexts).toBe(1)
+  })
+
+  it('wipeLocal true keeps remote-present syncable agents and localOnly replicas', async () => {
+    const deletedAgents: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({
+        ok: true,
+        data: [{
+          agentId: 'qa',
+          definition: { id: 'qa', provider: 'cursor', permissionMode: 'auto' },
+        }],
+      }),
+      listRemoteContexts: async () => ({ ok: true, data: [] }),
+      listLocalAgents: async () => [
+        agent('qa'),
+        agent('stale'),
+        agent('fe-2', { localOnly: true }),
+      ],
+      deleteLocalAgent: async (_cwd, id) => {
+        deletedAgents.push(id)
+        return { ok: true }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, { wipeLocal: true })
+    expect(result.agentsOk).toBe(true)
+    expect(deletedAgents).toEqual(['stale'])
+    expect(result.deletedAgents).toBe(1)
+  })
+
+  it('wipeLocal true keeps remote-present syncable contexts and agentResult', async () => {
+    const deletedContexts: string[] = []
+    const deps = baseDeps({
+      listRemoteAgents: async () => ({ ok: true, data: [] }),
+      listRemoteContexts: async () => ({
+        ok: true,
+        data: [{ contextId: 'about', kind: 'notes', name: 'About', body: 'hi' }],
+      }),
+      listLocalAgents: async () => [],
+      discoverLocalContexts: async () => ({
+        ok: true,
+        contexts: [
+          context('about', 'notes'),
+          context('stale', 'notes'),
+          context('iaterminal:result:qa', 'agentResult'),
+        ],
+      }),
+      deleteLocalContext: async (ctx) => {
+        deletedContexts.push(ctx.id)
+        return { ok: true }
+      },
+    })
+
+    const result = await downloadOrgWorkspaceToLocal('/ws', deps, { wipeLocal: true })
+    expect(result.contextsOk).toBe(true)
+    expect(deletedContexts).toEqual(['stale'])
     expect(result.deletedContexts).toBe(1)
   })
 

@@ -135,7 +135,7 @@ export type OrgWorkspaceMaterializeDeps = {
 }
 
 /**
- * Lista remoto → (opcional wipeLocal: borra syncables locales) → upsert remoto en `.gravity`.
+ * Lista remoto → (opcional wipeLocal: borra syncables locales ausentes en remoto) → upsert.
  * Con wipeLocal: false (sync del botón) solo upserta y conserva extras locales.
  * Orden: `definition.order` si existe; si no, `preferredAgentIds` (plano local) y luego id.
  */
@@ -194,15 +194,24 @@ export async function downloadOrgWorkspaceToLocal(
         preferredAgentIds = localAgentsSnapshot.map(agent => agent.id)
       }
       deletedAgents = 0
-      for (const agent of localAgentsSnapshot) {
-        if (!isSyncableOrgWorkspaceAgent(agent)) continue
-        const deleted = await deps.deleteLocalAgent(root, agent.id)
-        if (deleted.ok) {
-          deletedAgents += 1
-        } else {
-          console.warn(
-            `[orgWorkspaceWipe] delete agent falló: ${agent.id}: ${deleted.error ?? 'unknown'}`,
-          )
+      // Solo diferencia: si la lista remota falló, no borrar agentes.
+      if (agentsResult?.ok) {
+        const remoteAgentIds = new Set(
+          agentsResult.data
+            .map(item => (typeof item.agentId === 'string' ? item.agentId.trim() : ''))
+            .filter(Boolean),
+        )
+        for (const agent of localAgentsSnapshot) {
+          if (!isSyncableOrgWorkspaceAgent(agent)) continue
+          if (remoteAgentIds.has(agent.id.trim())) continue
+          const deleted = await deps.deleteLocalAgent(root, agent.id)
+          if (deleted.ok) {
+            deletedAgents += 1
+          } else {
+            console.warn(
+              `[orgWorkspaceWipe] delete agent falló: ${agent.id}: ${deleted.error ?? 'unknown'}`,
+            )
+          }
         }
       }
     }
@@ -212,14 +221,23 @@ export async function downloadOrgWorkspaceToLocal(
     const discovered = await deps.discoverLocalContexts(root)
     if (discovered.ok) {
       deletedContexts = 0
-      for (const context of localContextsToWipeOnOrgResync(discovered.contexts)) {
-        const deleted = await deps.deleteLocalContext(context, root)
-        if (deleted.ok) {
-          deletedContexts += 1
-        } else {
-          console.warn(
-            `[orgWorkspaceWipe] delete context falló: ${context.id}: ${deleted.error ?? 'unknown'}`,
-          )
+      // Solo diferencia: si la lista remota falló, no borrar contextos.
+      if (contextsResult.ok) {
+        const remoteContextIds = new Set(
+          contextsResult.data
+            .map(item => (typeof item.contextId === 'string' ? item.contextId.trim() : ''))
+            .filter(Boolean),
+        )
+        for (const context of localContextsToWipeOnOrgResync(discovered.contexts)) {
+          if (remoteContextIds.has(context.id.trim())) continue
+          const deleted = await deps.deleteLocalContext(context, root)
+          if (deleted.ok) {
+            deletedContexts += 1
+          } else {
+            console.warn(
+              `[orgWorkspaceWipe] delete context falló: ${context.id}: ${deleted.error ?? 'unknown'}`,
+            )
+          }
         }
       }
     }

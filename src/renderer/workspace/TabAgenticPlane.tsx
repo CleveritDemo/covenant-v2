@@ -643,6 +643,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     slugs: string[],
     origins?: ReadonlyMap<string, { x: number; y: number }>,
   ) => {
+    if (!wikiMapOpen) return
     const trimmed = slugs.slice(0, 3)
     if (trimmed.length === 0) {
       setWikiNodeModals([])
@@ -690,7 +691,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     })
 
     setWikiNodeModals(previous => mergeWikiNodeModalsOpen(previous, incoming, 3))
-  }, [getWikiModalBounds])
+  }, [getWikiModalBounds, wikiMapOpen])
 
   const loadWikiGraph = useCallback(async (): Promise<{
     data: WikiGraphData | null
@@ -1557,7 +1558,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {/* Páginas reales de la wiki (cuerpo legible vía preprocess + AiMarkdown).
           Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}
-      {wikiNodeModals.map((modal, index) => {
+      {wikiMapOpen && wikiNodeModals.map((modal, index) => {
         const node = wikiGraphData?.nodes.find(item => item.slug === modal.slug)
         if (!node) return null
         return (

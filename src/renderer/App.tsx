@@ -6,6 +6,7 @@ import { agentCliSpec } from '@shared/agentCliProviders'
 import { fontStack } from '@shared/fontStacks'
 import { i18next } from '@i18n/index'
 import { useT } from '@i18n/useT'
+import { useNetworkStatus } from './useNetworkStatus'
 import {
   DEFAULT_FILE_EXPLORER_STATE,
   normalizeFileExplorerState,
@@ -659,6 +660,8 @@ export async function evaluateOnboardingPlaneSendPersistGuard(args: {
 
 export const App: React.FC = () => {
   const { t } = useT()
+  const networkStatus = useNetworkStatus()
+  const offline = networkStatus === 'offline'
   const [tabs, setTabs] = useState<TabSession[]>([])
   const [activeTabId, setActiveTabId] = useState<string>('')
   const [config, setConfig] = useState<AppConfig>(CONFIG_DEFAULTS)
@@ -7114,6 +7117,7 @@ export const App: React.FC = () => {
       return (
         <AgentPane
           paneId={paneId}
+          offline={offline}
           meta={resolveTabAgentMeta(tab, paneId, projectAgentsByCwd)}
           cwd={tab.projectFolder?.trim() ?? ''}
           cwdOverride={
@@ -7595,6 +7599,7 @@ export const App: React.FC = () => {
       <Titlebar
         config={config}
         configReady={configReady}
+        offline={offline}
         fontSize={config.fontSize ?? 13}
         fontSizeMin={MIN_FONT}
         fontSizeMax={MAX_FONT}

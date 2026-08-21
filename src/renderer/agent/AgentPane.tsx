@@ -351,6 +351,8 @@ interface Props {
   delegationThreadIds?: readonly string[]
   /** App aún tiene FIFO/preferSend de orquestación para este pane. */
   systemFollowUpsPending?: boolean
+  /** Interfaz de red caída: encolar sin bloquear el composer. */
+  offline?: boolean
   paneReorder?: {
     enabled: boolean
     isGrabbed: boolean
@@ -645,6 +647,7 @@ export const AgentPane: React.FC<Props> = ({
   delegationWorkActive = false,
   delegationThreadIds,
   systemFollowUpsPending = false,
+  offline = false,
   paneReorder,
   registerShortcutCloseInterceptor,
   onThreadClosed,
@@ -964,6 +967,7 @@ export const AgentPane: React.FC<Props> = ({
     delegationWorkActive: delegationWorkActiveForGate,
     systemFollowUpsPending,
     orchestrationWorkStyle,
+    offline,
   })
   const runKey = buildRunKey(paneId, activeThreadId)
   const prevActiveThreadIdRef = useRef(activeThreadId)
@@ -3204,6 +3208,7 @@ export const AgentPane: React.FC<Props> = ({
       systemFollowUpsPending: systemWorkPending,
       headIsDelegation,
       orchestrationWorkStyle,
+      offline,
     }
     const queueReady = headIsLaneDelegation
       ? loaded && !systemWorkPending

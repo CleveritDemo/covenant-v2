@@ -22,6 +22,7 @@ import {
   buildOrgWorkspaceUploadPlan,
   filterSyncableOrgWorkspaceAgents,
   filterSyncableOrgWorkspaceContexts,
+  isSyncableOrgWorkspaceAgent,
   localContextsToWipeOnOrgResync,
   mergeRemoteAgentPreservingLocalResultContextIds,
   pickLocalAgentResultContextIds,
@@ -42,6 +43,9 @@ export type OrgWorkspaceMaterializeListResult = {
   contextsError?: string
   wikiError?: string
   cancelled?: boolean
+  /** Cantidad borrada en wipeLocal; ausente o 0 si no hubo wipe. */
+  deletedAgents?: number
+  deletedContexts?: number
 }
 
 /** Page normalizada para el replace local (espejo de WikiSyncPage en main). */
@@ -163,6 +167,8 @@ export async function downloadOrgWorkspaceToLocal(
   let agentsError: string | undefined
   let contextsOk = true
   let contextsError: string | undefined
+  let deletedAgents: number | undefined
+  let deletedContexts: number | undefined
 
   if (includeAgents) {
     options.onPhase?.('agents')
@@ -187,8 +193,17 @@ export async function downloadOrgWorkspaceToLocal(
       if (!preferredAgentIds?.length) {
         preferredAgentIds = localAgentsSnapshot.map(agent => agent.id)
       }
+      deletedAgents = 0
       for (const agent of localAgentsSnapshot) {
-        await deps.deleteLocalAgent(root, agent.id)
+        if (!isSyncableOrgWorkspaceAgent(agent)) continue
+        const deleted = await deps.deleteLocalAgent(root, agent.id)
+        if (deleted.ok) {
+          deletedAgents += 1
+        } else {
+          console.warn(
+            `[orgWorkspaceWipe] delete agent falló: ${agent.id}: ${deleted.error ?? 'unknown'}`,
+          )
+        }
       }
     }
   }
@@ -196,8 +211,16 @@ export async function downloadOrgWorkspaceToLocal(
   if (options.wipeLocal) {
     const discovered = await deps.discoverLocalContexts(root)
     if (discovered.ok) {
+      deletedContexts = 0
       for (const context of localContextsToWipeOnOrgResync(discovered.contexts)) {
-        await deps.deleteLocalContext(context, root)
+        const deleted = await deps.deleteLocalContext(context, root)
+        if (deleted.ok) {
+          deletedContexts += 1
+        } else {
+          console.warn(
+            `[orgWorkspaceWipe] delete context falló: ${context.id}: ${deleted.error ?? 'unknown'}`,
+          )
+        }
       }
     }
   }
@@ -322,6 +345,8 @@ export async function downloadOrgWorkspaceToLocal(
     ...(agentsError ? { agentsError } : {}),
     ...(contextsError ? { contextsError } : {}),
     ...(wikiError ? { wikiError } : {}),
+    ...(deletedAgents !== undefined ? { deletedAgents } : {}),
+    ...(deletedContexts !== undefined ? { deletedContexts } : {}),
   }
 }
 

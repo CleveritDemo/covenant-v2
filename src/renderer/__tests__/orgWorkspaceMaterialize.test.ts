@@ -90,8 +90,10 @@ describe('downloadOrgWorkspaceToLocal', () => {
     const result = await downloadOrgWorkspaceToLocal('/ws', deps, { wipeLocal: true })
     expect(result.agentsOk).toBe(true)
     expect(result.contextsOk).toBe(true)
-    expect(deletedAgents.sort()).toEqual(['fe-2', 'old'])
+    expect(deletedAgents).toEqual(['old'])
     expect(deletedContexts).toEqual(['stale'])
+    expect(result.deletedAgents).toBe(1)
+    expect(result.deletedContexts).toBe(1)
   })
 
   it('wipeLocal false upserts remote and keeps local extras', async () => {

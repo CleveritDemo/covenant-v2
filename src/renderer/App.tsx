@@ -2907,7 +2907,7 @@ export const App: React.FC = () => {
     } finally {
       if (opGen === orgWorkspaceSyncUploadGenRef.current) {
         setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
-        if (wikiErrorToReport) setOrgWorkspaceRequirement({ wikiError: wikiErrorToReport })
+        if (wikiErrorToReport) setOrgWorkspaceRequirement(prev => ({ ...(prev ?? {}), wikiError: wikiErrorToReport }))
       }
     }
   }, [
@@ -3011,7 +3011,7 @@ export const App: React.FC = () => {
     } finally {
       if (opGen === orgWorkspaceSyncUploadGenRef.current) {
         setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
-        if (wikiErrorToReport) setOrgWorkspaceRequirement({ wikiError: wikiErrorToReport })
+        if (wikiErrorToReport) setOrgWorkspaceRequirement(prev => ({ ...(prev ?? {}), wikiError: wikiErrorToReport }))
       }
       setResyncingWorkspaceTabs(prev => {
         const next = new Set(prev)
@@ -3832,7 +3832,7 @@ export const App: React.FC = () => {
       } finally {
         if (opGen === orgWorkspaceSyncUploadGenRef.current) {
           setOrgWorkspaceRequirement(prev => (prev?.syncing ? null : prev))
-          if (wikiErrorToReport) setOrgWorkspaceRequirement({ wikiError: wikiErrorToReport })
+          if (wikiErrorToReport) setOrgWorkspaceRequirement(prev => ({ ...(prev ?? {}), wikiError: wikiErrorToReport }))
         }
       }
     }

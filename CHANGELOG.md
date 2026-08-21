@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.105.0
+
+- Un contexto se puede enviar a otro workspace abierto. En el chip del contexto, entre «Editar» y «Eliminar», aparece «Enviar a…»: eliges la pestaña destino y el contexto se copia allí, sin salir del plano. El original se queda donde estaba.
+- Solo viajan los contextos que significan lo mismo en cualquier carpeta: notas, skills y changelogs. Los que dependen del repo (archivos, símbolos, readme) y los resultados de agentes no aparecen en la lista de destinos.
+
 ## v0.104.0
 
 - Los modales pueden abrirse a pantalla completa. El editor de contextos estrena el botón: pulsa el círculo amarillo de la esquina superior izquierda y la ventana ocupa toda la pantalla; púlsalo otra vez para volver al tamaño normal. Escribir notas largas deja de ser incómodo.

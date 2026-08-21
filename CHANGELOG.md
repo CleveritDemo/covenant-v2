@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.107.0
+
+- El detalle de un workspace de organización ya muestra a los agentes como las tarjetas del plano: cara con sus iniciales, el CLI que usan, el modelo y los contextos que tienen asignados, en vez de una lista de iconos iguales.
+- Los contextos de un workspace de organización se ven con su icono y color propios, el nombre del archivo y quién los usa, en lugar de un icono gris con el tipo escrito al lado.
+- Cuando no puedes publicar los cambios de un workspace, el botón ya aparece y explica el motivo al pasar el mouse: o los permisos aún se están cargando, o la organización no te deja escribir en ese workspace.
+- Hay un botón nuevo para volver a comprobar tus permisos de organización sin esperar, y el aviso de Sincronizar ahora dice claro que solo baja cambios del servidor y no publica los tuyos.
+
 ## v0.106.1
 
 - Los contextos que apuntan a una carpeta ya se encuentran cuando el repo está dentro del workspace: la ruta se busca también un nivel más abajo, entre las carpetas de los repos.

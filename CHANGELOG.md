@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.109.0
+
+- Sin conexión la app ya no se bloquea: lo que escribes queda en cola y se envía solo cuando la red vuelve.
+- El nombre Covenant de la barra superior se atenúa y muestra un punto cuando no hay conexión, y al pasar el mouse explica que tus mensajes están en cola.
+- La tarjeta de un agente ya muestra el encargo que está atendiendo en lugar de la cabecera técnica del mensaje.
+- Los mensajes en cola también se leen como el encargo, sin los símbolos de formato del texto original.
+
 ## v0.108.0
 
 - Cmd+J desde el campo de chat lleva a la terminal de la pestaña: si ya hay una abierta la enfoca, y si no la crea con el cursor puesto.

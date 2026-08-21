@@ -90,6 +90,31 @@ describe('lastUserPromptFromMessages', () => {
     ]
     expect(lastUserPromptFromMessages(msgs)).toBe('Segunda petición')
   })
+
+  it('muestra el objetivo del encargo sin cabecera ni metadatos', () => {
+    const brief = [
+      '## Delegation brief',
+      'from: tech-lead-copy',
+      'to: frontend',
+      'round: 1/∞',
+      '',
+      'Añade un flag offline a las guardas de envío',
+    ].join('\n')
+    const msgs: AgentChatEntry[] = [
+      { id: 'u1', role: 'user', content: brief },
+    ]
+    const result = lastUserPromptFromMessages(msgs)
+    expect(result).toBe('Añade un flag offline a las guardas de envío')
+    expect(result).not.toContain('##')
+    expect(result).not.toContain('from:')
+  })
+
+  it('no altera un mensaje humano normal', () => {
+    const msgs: AgentChatEntry[] = [
+      { id: 'u1', role: 'user', content: 'Revisa los tests del header' },
+    ]
+    expect(lastUserPromptFromMessages(msgs)).toBe('Revisa los tests del header')
+  })
 })
 
 describe('collectRunningThreadActivities', () => {

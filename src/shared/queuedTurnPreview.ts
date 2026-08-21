@@ -1,5 +1,7 @@
 import type { DelegateResultStatus } from './agentOrchestration'
+import { looksLikeDelegationBrief } from './delegationBriefCard'
 import { parseDelegationResultCards } from './delegationResultCards'
+import { firstUsefulPromptLine, stripMarkdownForSnippet } from './promptSnippet'
 import {
   formatCatalogAgentDelegationLabel,
   type ProjectAgentDefinition,
@@ -59,18 +61,9 @@ export function resolveAgentLabel(
     : to
 }
 
-function stripMarkdownInline(text: string): string {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .trim()
-}
-
 function firstUsefulSummaryLine(summary: string): string {
   for (const raw of summary.split('\n')) {
-    const line = stripMarkdownInline(raw.trim())
+    const line = stripMarkdownForSnippet(raw.trim())
     if (!line) continue
     if (/^#{1,6}\s/.test(raw.trim())) continue
     return line
@@ -131,7 +124,7 @@ export function resolveQueuedTurnPreview(
     const cards = parseDelegationResultCards(item.text)
     if (cards.length === 0) {
       const cleaned = stripDelegationHeaders(item.text)
-      const truncated = truncateText(stripMarkdownInline(cleaned), 120)
+      const truncated = truncateText(stripMarkdownForSnippet(cleaned), 120)
       return truncated
         ? { kind: 'human', fallbackText: truncated }
         : { kind: 'human' }
@@ -145,6 +138,13 @@ export function resolveQueuedTurnPreview(
     return {
       kind: 'delegation_results_batch',
       items: cards.map(card => cardPreviewItem(card, cat)),
+    }
+  }
+
+  if (looksLikeDelegationBrief(item.text)) {
+    const line = firstUsefulPromptLine(item.text)
+    if (line) {
+      return { kind: 'human', fallbackText: truncateText(line, 120) }
     }
   }
 

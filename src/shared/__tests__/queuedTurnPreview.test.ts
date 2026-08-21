@@ -126,4 +126,24 @@ describe('resolveQueuedTurnPreview', () => {
       expect(preview.fallbackText).not.toContain('##')
     }
   })
+
+  it('human con brief trae fallbackText con el objetivo', () => {
+    const text = [
+      '## Delegation brief',
+      'from: tech-lead-copy',
+      'to: frontend',
+      '',
+      'Añade un flag offline a las guardas',
+    ].join('\n')
+    const preview = resolveQueuedTurnPreview({ text })
+    expect(preview).toEqual({
+      kind: 'human',
+      fallbackText: 'Añade un flag offline a las guardas',
+    })
+    expect(preview.fallbackText).not.toContain('##')
+  })
+
+  it('human normal sigue sin fallbackText', () => {
+    expect(resolveQueuedTurnPreview({ text: 'Fix login' })).toEqual({ kind: 'human' })
+  })
 })

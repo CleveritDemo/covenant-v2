@@ -61,6 +61,7 @@ import { resolveOrchestrationJobIdForTurn } from '@shared/orchestrationJobs'
 import type { DelegationRuntimeEntry } from '@shared/delegationRuntimeRegistry'
 import { buildDelegationBriefBlock } from '@shared/delegationBriefCard'
 import { looksLikeDelegationResultFollowUp } from '@shared/delegationResultCards'
+import { firstUsefulPromptLine } from '@shared/promptSnippet'
 import { useT } from '@i18n/useT'
 import { playAgentFinishSound } from '../uiSounds'
 import { ConfirmTerminalModal } from '../components/ConfirmTerminalModal'
@@ -403,7 +404,9 @@ export function lastUserPromptFromMessages(
     if (!entry || entry.role !== 'user') continue
     const text = entry.content.trim()
     if (!text || looksLikeDelegationResultFollowUp(text)) continue
-    return text.length > maxLen ? `${text.slice(0, maxLen - 3)}…` : text
+    const useful = firstUsefulPromptLine(text)
+    const display = useful || text
+    return display.length > maxLen ? `${display.slice(0, maxLen - 3)}…` : display
   }
   return ''
 }

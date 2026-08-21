@@ -495,6 +495,16 @@ export function orgCatalogForTab(
   return catalogForAccount(map, orgAccountIdForTab(tab, resolveAccountId))
 }
 
+/** Sets de ids de plan iguales tras trim y sin vacíos; el orden no importa. */
+function samePlanIds(a: string[], b: string[]): boolean {
+  const norm = (ids: string[]) => ids.map(id => id.trim()).filter(Boolean)
+  const left = norm(a)
+  const right = norm(b)
+  if (left.length !== right.length) return false
+  const rightSet = new Set(right)
+  return left.every(id => rightSet.has(id))
+}
+
 function removeAccountCatalog(
   map: OrgWorkspaceCatalogMap | null | undefined,
   accountId: string,
@@ -3146,9 +3156,12 @@ export const App: React.FC = () => {
 
   const executeUploadOrgWorkspace = useCallback(async (
     tab: TabSession,
-    options: { includeAgents: boolean; shownDeleteCount: number } = {
+    options: {
+      includeAgents: boolean
+      shownPlan: { agentIdsToDelete: string[]; contextIdsToDelete: string[] }
+    } = {
       includeAgents: true,
-      shownDeleteCount: 0,
+      shownPlan: { agentIdsToDelete: [], contextIdsToDelete: [] },
     },
   ) => {
     const org = tab.orgWorkspace
@@ -3178,9 +3191,15 @@ export const App: React.FC = () => {
       })
       if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
       if (planResult.ok) {
-        const recalculatedDeleteCount =
-          planResult.plan.agentIdsToDelete.length + planResult.plan.contextIdsToDelete.length
-        if (recalculatedDeleteCount > options.shownDeleteCount) {
+        const agentsSame = samePlanIds(
+          planResult.plan.agentIdsToDelete,
+          options.shownPlan.agentIdsToDelete,
+        )
+        const contextsSame = samePlanIds(
+          planResult.plan.contextIdsToDelete,
+          options.shownPlan.contextIdsToDelete,
+        )
+        if (!agentsSame || !contextsSame) {
           setOrgWorkspaceRequirement({
             uploadError: t('organizations.reqUploadPlanChanged'),
           })
@@ -8570,13 +8589,16 @@ export const App: React.FC = () => {
         }}
         onConfirm={({ includeAgents }) => {
           const tab = orgUploadScopeTab
-          const shownDeleteCount = orgUploadPlan
-            ? orgUploadPlan.agentIdsToDelete.length + orgUploadPlan.contextIdsToDelete.length
-            : 0
+          const shownPlan = orgUploadPlan
+            ? {
+                agentIdsToDelete: orgUploadPlan.agentIdsToDelete,
+                contextIdsToDelete: orgUploadPlan.contextIdsToDelete,
+              }
+            : { agentIdsToDelete: [], contextIdsToDelete: [] }
           setOrgUploadScopeTab(null)
           setOrgUploadPlan(null)
           setOrgUploadPlanLoading(false)
-          if (tab) void executeUploadOrgWorkspace(tab, { includeAgents, shownDeleteCount })
+          if (tab) void executeUploadOrgWorkspace(tab, { includeAgents, shownPlan })
         }}
       />
 

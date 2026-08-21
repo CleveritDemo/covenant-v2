@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.105.1
+
+- El aviso de workspace de organización ya no se queda pegado cuando falla la wiki al sincronizar, ni vuelve a abrirse solo por una respuesta que llega tarde.
+- Publicar o sincronizar un workspace ya cierra el onboarding: la guía deja de soltar avisos sobre el plano y los panes.
+- Las páginas de la wiki solo se abren dentro del mapa neuronal; con el mapa cerrado ya no aparecen encima del chat ni de los agentes.
+- Al sincronizar contextos, un gestor de contextos ya abierto refresca su lista.
+
 ## v0.105.0
 
 - Un contexto se puede enviar a otro workspace abierto. En el chip del contexto, entre «Editar» y «Eliminar», aparece «Enviar a…»: eliges la pestaña destino y el contexto se copia allí, sin salir del plano. El original se queda donde estaba.

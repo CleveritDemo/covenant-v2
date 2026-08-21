@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.106.1
+
+- Los contextos que apuntan a una carpeta ya se encuentran cuando el repo está dentro del workspace: la ruta se busca también un nivel más abajo, entre las carpetas de los repos.
+- Si esa carpeta no existe o hay dos que coinciden, el contexto lo dice en claro en vez de mostrar el contenido de otra carpeta.
+- Renombrar un contexto en la organización ya no deja dos archivos en disco.
+- Sincronizar avisa cuando fallan los agentes o los contextos, y ya no sigue adelante si falla el clon de los repos.
+
 ## v0.106.0
 
 - Al publicar cambios de un workspace de organización, el progreso ya no es una barra larga que se metía debajo de la pestaña de conversación: ahora es un anillo pequeño junto a los botones. El porcentaje aparece al pasar el mouse y se cancela pulsando el propio anillo.

@@ -1430,6 +1430,7 @@ const es = {
     reqCloneSsoUrlFallback: 'Abre esta URL en el navegador:',
     reqAgentDeleteFailed: 'No se pudo eliminar el agente en el servidor: {{error}}. Puede reaparecer al actualizar (quizá no tienes permisos de manager).',
     reqAgentUpdateFailed: 'No se pudo guardar el agente en el servidor: {{error}}. Se revirtió el cambio local (quizá no tienes permisos de manager).',
+    reqContextsError: 'No se pudieron preparar los contextos de este workspace.',
     reqWorkspaceRenameFailed: 'No se pudo renombrar el workspace: {{error}}. Solo owners y admins del workspace pueden cambiarlo.',
     reqBusyTitle: 'Sincronizando…',
     reqBusyCancelHint: 'Espacio cancelar',

@@ -1265,7 +1265,7 @@ export const App: React.FC = () => {
       cancelGen?: number
       onPhase?: (phase: OrgWorkspaceSyncPhase) => void
     } = {},
-  ): Promise<{ agentsOk: boolean; contextsOk: boolean; wikiError?: string; cancelled?: boolean }> => {
+  ): Promise<{ agentsOk: boolean; contextsOk: boolean; contextsError?: string; wikiError?: string; cancelled?: boolean }> => {
     const targets = tabsRef.current.filter(tab => tabIds.includes(tab.id))
     const folders = [...new Set(
       targets
@@ -1360,6 +1360,7 @@ export const App: React.FC = () => {
 
     let agentsOk = true
     let contextsOk = true
+    let contextsError: string | undefined
     let wikiError: string | undefined
     for (const cwd of folders) {
       if (isCancelled?.()) {
@@ -1394,6 +1395,7 @@ export const App: React.FC = () => {
       }
       if (!result.agentsOk) agentsOk = false
       if (!result.contextsOk) contextsOk = false
+      if (result.contextsError && !contextsError) contextsError = result.contextsError
       if (result.wikiError && !wikiError) wikiError = result.wikiError
       if (isCancelled?.()) {
         return { agentsOk: true, contextsOk: true, cancelled: true }
@@ -1415,7 +1417,7 @@ export const App: React.FC = () => {
         }
       }
     }
-    return { agentsOk, contextsOk, ...(wikiError ? { wikiError } : {}) }
+    return { agentsOk, contextsOk, ...(contextsError ? { contextsError } : {}), ...(wikiError ? { wikiError } : {}) }
   }, [resolveOrgAccountIdForCwd, refreshProjectAgents, syncTabWithProjectAgents])
   syncOrgWorkspaceContentRef.current = syncOrgWorkspaceContent
 
@@ -2874,9 +2876,14 @@ export const App: React.FC = () => {
           })
           if (result.cancelled || opGen !== orgWorkspaceSyncUploadGenRef.current) return
           wikiErrorToReport = result.wikiError
-          if (!result.agentsOk || !result.contextsOk) {
+          if (!result.agentsOk) {
             setOrgWorkspaceRequirement(prev => prev ?? {
               agentUpdateError: result.wikiError ?? 'sync failed',
+            })
+          }
+          if (!result.contextsOk) {
+            setOrgWorkspaceRequirement({
+              contextsError: result.contextsError ?? 'contexts failed',
             })
           }
         } catch (err) {
@@ -2965,7 +2972,7 @@ export const App: React.FC = () => {
             const reposResult = await covenant.workspaceReposList(org.slug, org.workspaceId)
             if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
             if (reposResult.ok && reposResult.data.length) {
-              await covenant.cloneOrgWorkspace({
+              const res = await covenant.cloneOrgWorkspace({
                 orgSlug: org.slug,
                 workspaceSlug: sanitizeSlugSegment(org.workspaceId),
                 repos: reposResult.data.map(x => ({
@@ -2975,6 +2982,17 @@ export const App: React.FC = () => {
                 })),
                 workspaceDir: localDir,
               })
+              if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+              if (!res.ok) {
+                if (res.error === 'missing-default-dir') {
+                  setOrgWorkspaceRequirement({ missingFolder: true })
+                } else if (res.error === 'missing-token') {
+                  setOrgWorkspaceRequirement({ missingToken: true })
+                } else {
+                  setOrgWorkspaceRequirement({ cloneError: res.error, cloneFailure: res.failure })
+                }
+                return
+              }
             }
           }
         }
@@ -2993,6 +3011,11 @@ export const App: React.FC = () => {
         })
         if (result.cancelled || opGen !== orgWorkspaceSyncUploadGenRef.current) return
         wikiErrorToReport = result.wikiError
+        if (!result.contextsOk) {
+          setOrgWorkspaceRequirement({
+            contextsError: result.contextsError ?? 'contexts failed',
+          })
+        }
         if (canCompleteOnboarding({
           incomplete: isOnboardingIncomplete(onboardingCompletedVersionRef.current),
           path: config.orchestratorPath,
@@ -3827,6 +3850,11 @@ export const App: React.FC = () => {
           })
           if (result.cancelled || opGen !== orgWorkspaceSyncUploadGenRef.current) return null
           wikiErrorToReport = result.wikiError
+          if (!result.contextsOk) {
+            setOrgWorkspaceRequirement({
+              contextsError: result.contextsError ?? 'contexts failed',
+            })
+          }
         }
         return path
       } finally {
@@ -8462,6 +8490,7 @@ export const App: React.FC = () => {
         uploading={orgWorkspaceRequirement?.uploading}
         agentDeleteError={orgWorkspaceRequirement?.agentDeleteError}
         agentUpdateError={orgWorkspaceRequirement?.agentUpdateError}
+        contextsError={orgWorkspaceRequirement?.contextsError}
         workspaceRenameError={orgWorkspaceRequirement?.workspaceRenameError}
         uploadError={orgWorkspaceRequirement?.uploadError}
         wikiError={orgWorkspaceRequirement?.wikiError}

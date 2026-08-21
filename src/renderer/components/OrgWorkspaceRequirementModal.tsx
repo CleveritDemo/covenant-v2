@@ -21,6 +21,7 @@ export type OrgWorkspaceRequirementState = {
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
+  contextsError?: string
   workspaceRenameError?: string
   uploadError?: string
   wikiError?: string
@@ -38,6 +39,7 @@ interface Props {
   uploading?: boolean
   agentDeleteError?: string
   agentUpdateError?: string
+  contextsError?: string
   workspaceRenameError?: string
   uploadError?: string
   wikiError?: string
@@ -172,6 +174,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
   uploading: _uploading = false,
   agentDeleteError,
   agentUpdateError,
+  contextsError,
   workspaceRenameError,
   uploadError,
   wikiError,
@@ -191,6 +194,9 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
     : agentUpdateError?.trim()
       ? t('organizations.reqAgentUpdateFailed', { error: agentUpdateError.trim() })
       : null
+  const contextsErr = contextsError?.trim()
+    ? t('organizations.reqContextsError')
+    : null
   const renameErr = workspaceRenameError?.trim()
     ? t('organizations.reqWorkspaceRenameFailed', { error: workspaceRenameError.trim() })
     : null
@@ -290,6 +296,7 @@ export const OrgWorkspaceRequirementModal: React.FC<Props> = ({
           </pre>
         ) : null}
         {agentErr ? <p className="org-ws-req__line">{agentErr}</p> : null}
+        {contextsErr ? <p className="org-ws-req__line">{contextsErr}</p> : null}
         {renameErr ? <p className="org-ws-req__line">{renameErr}</p> : null}
         {uploadErr ? <p className="org-ws-req__line">{uploadErr}</p> : null}
         {wikiErr ? <p className="org-ws-req__line">{wikiErr}</p> : null}

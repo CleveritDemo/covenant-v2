@@ -1428,6 +1428,7 @@ const en = {
     reqCloneSsoUrlFallback: 'Open this URL in your browser:',
     reqAgentDeleteFailed: 'Could not delete the agent on the server: {{error}}. It may reappear after refreshing (you might lack manager permissions).',
     reqAgentUpdateFailed: 'Could not save the agent on the server: {{error}}. The local change was reverted (you might lack manager permissions).',
+    reqContextsError: 'Could not prepare this workspace\'s contexts.',
     reqWorkspaceRenameFailed: 'Could not rename the workspace: {{error}}. Only workspace owners and admins can change it.',
     reqBusyTitle: 'Syncing…',
     reqBusyCancelHint: 'Space cancel',

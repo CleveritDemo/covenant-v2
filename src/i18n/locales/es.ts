@@ -1377,6 +1377,7 @@ const es = {
     agentsTab: 'Agentes',
     contextsTab: 'Contextos',
     agentsEmpty: 'Aún no hay agentes en este workspace.',
+    agentRoleUnset: 'Sin rol definido',
     contextsEmpty: 'Aún no hay contextos en este workspace.',
     workspaceTabsLabel: 'Secciones del workspace',
     orgManagedFromWorkspaceHint: 'Se administran desde el workspace y se sincronizan con la organización.',

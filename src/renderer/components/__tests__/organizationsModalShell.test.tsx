@@ -169,12 +169,13 @@ describe('OrganizationsView — shell de tres columnas', () => {
     expect(screen.getByText('sin-nombre')).toBeTruthy()
     expect(screen.getByText('organizations.orgManagedFromWorkspaceHint')).toBeTruthy()
     expect(covenant.workspaceAgentsList).toHaveBeenCalledTimes(1)
-    expect(covenant.workspaceContextsList).not.toHaveBeenCalled()
+    expect(covenant.workspaceContextsList).toHaveBeenCalledTimes(1)
   })
 
-  it('la pestaña Contextos lista nombre y kind, y el vacío tiene su texto', async () => {
+  it('la pestaña Contextos usa WorkspaceOrgContextsList, no orgs-rows', async () => {
     covenant.workspaceContextsList.mockImplementation(() => ok([
       { contextId: 'front-rules', kind: 'notes', name: 'Front Rules' },
+      { contextId: 'design-lang', kind: 'notes', name: 'Design Language' },
     ]))
     render(<OrganizationsView onClose={() => {}} />)
 
@@ -182,10 +183,12 @@ describe('OrganizationsView — shell de tres columnas', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'organizations.contextsTab' }))
 
     expect(await screen.findByText('Front Rules')).toBeTruthy()
-    expect(screen.getByText('notes')).toBeTruthy()
-    expect(screen.queryByText('front-rules')).toBeNull()
+    expect(screen.getByText('Design Language')).toBeTruthy()
+    expect(screen.getAllByText('tabContexts.kind_notes')).toHaveLength(2)
+    expect(document.querySelector('.ws-org-contexts')).toBeTruthy()
+    expect(document.querySelector('.orgs-rows')).toBeNull()
     expect(covenant.workspaceContextsList).toHaveBeenCalledTimes(1)
-    expect(covenant.workspaceAgentsList).not.toHaveBeenCalled()
+    expect(covenant.workspaceAgentsList).toHaveBeenCalledTimes(1)
 
     cleanup()
     covenant.workspaceContextsList.mockImplementation(() => ok([]))

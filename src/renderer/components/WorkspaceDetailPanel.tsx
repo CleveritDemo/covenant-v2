@@ -5,10 +5,16 @@ import {
   hasCovenantWorkspaceContentApi,
   hasCovenantWorkspaceReposApi,
   type CovenantWorkspace,
-  type CovenantWorkspaceAgentRecord,
-  type CovenantWorkspaceContextRecord,
   type CovenantWorkspaceRepoRecord,
 } from '../covenantApi'
+import type { ProjectAgentDefinition } from '@shared/projectAgentCatalog'
+import type { TabContext } from '@shared/tabContext'
+import {
+  projectAgentsFromWorkspaceAgents,
+  tabContextsFromWorkspaceContexts,
+} from '@shared/orgWorkspaceContent'
+import { WorkspaceOrgAgentsGrid } from './WorkspaceOrgAgentsGrid'
+import { WorkspaceOrgContextsList } from './WorkspaceOrgContextsList'
 import { SettingsField } from './SettingsSection'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -490,42 +496,71 @@ function WorkspaceReposSection({
   )
 }
 
-function WorkspaceAgentsSection({
-  slug,
-  workspaceId,
-  accountId = '',
-}: {
-  slug: string
-  workspaceId: string
-  accountId?: string
-}): React.ReactElement {
-  const { t } = useT()
+type WorkspaceOrgContentState = {
+  agents: ProjectAgentDefinition[]
+  contexts: TabContext[]
+  loading: boolean
+  error: string | null
+  available: boolean
+}
+
+function useWorkspaceOrgContent(
+  slug: string,
+  workspaceId: string,
+  accountId: string,
+  enabled: boolean,
+): WorkspaceOrgContentState {
   const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
   const available = hasCovenantWorkspaceContentApi(covenant)
-  const [agents, setAgents] = useState<CovenantWorkspaceAgentRecord[]>([])
+  const [agents, setAgents] = useState<ProjectAgentDefinition[]>([])
+  const [contexts, setContexts] = useState<TabContext[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadAgents = useCallback(async (): Promise<void> => {
-    if (!covenant || !available || !slug || !workspaceId) {
+  const loadContent = useCallback(async (): Promise<void> => {
+    if (!enabled || !covenant || !available || !slug || !workspaceId) {
       setAgents([])
+      setContexts([])
       return
     }
     setLoading(true)
     setError(null)
-    const result = await covenant.workspaceAgentsList(slug, workspaceId)
+    const [agentsResult, contextsResult] = await Promise.all([
+      covenant.workspaceAgentsList(slug, workspaceId),
+      covenant.workspaceContextsList(slug, workspaceId),
+    ])
     setLoading(false)
-    if (!result.ok) {
+    if (!agentsResult.ok) {
       setAgents([])
-      setError(result.error)
+      setContexts([])
+      setError(agentsResult.error)
       return
     }
-    setAgents(result.data)
-  }, [available, covenant, slug, workspaceId])
+    if (!contextsResult.ok) {
+      setAgents([])
+      setContexts([])
+      setError(contextsResult.error)
+      return
+    }
+    setAgents(projectAgentsFromWorkspaceAgents(agentsResult.data))
+    setContexts(tabContextsFromWorkspaceContexts(contextsResult.data))
+  }, [available, covenant, enabled, slug, workspaceId])
 
   useEffect(() => {
-    void loadAgents()
-  }, [loadAgents])
+    void loadContent()
+  }, [loadContent])
+
+  return { agents, contexts, loading, error, available }
+}
+
+function WorkspaceAgentsSection({
+  agents,
+  contexts,
+  loading,
+  error,
+  available,
+}: WorkspaceOrgContentState): React.ReactElement {
+  const { t } = useT()
 
   return (
     <section className="orgs-section" aria-label={t('organizations.agentsTab')}>
@@ -535,29 +570,12 @@ function WorkspaceAgentsSection({
       ) : (
         <>
           {agents.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.agentsEmpty')}</p>
+            <div className="orgs-empty-state">
+              <Icon name="bot" size={20} />
+              <p>{t('organizations.agentsEmpty')}</p>
+            </div>
           ) : (
-            <ul className="orgs-rows">
-              {agents.map(agent => {
-                const definition = agent.definition
-                const name =
-                  typeof definition.name === 'string' && definition.name.trim()
-                    ? definition.name
-                    : agent.agentId
-                const role = typeof definition.role === 'string' ? definition.role : null
-                return (
-                  <li key={agent.agentId} className="orgs-row">
-                    <span className="orgs-row__icon" aria-hidden>
-                      <Icon name="bot" size={15} />
-                    </span>
-                    <div className="orgs-row__main">
-                      <p className="orgs-row__title">{name}</p>
-                      {role ? <p className="orgs-row__meta">{role}</p> : null}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+            <WorkspaceOrgAgentsGrid agents={agents} contexts={contexts} />
           )}
           <p className="orgs-section__hint">{t('organizations.orgManagedFromWorkspaceHint')}</p>
         </>
@@ -567,41 +585,13 @@ function WorkspaceAgentsSection({
 }
 
 function WorkspaceContextsSection({
-  slug,
-  workspaceId,
-  accountId = '',
-}: {
-  slug: string
-  workspaceId: string
-  accountId?: string
-}): React.ReactElement {
+  agents,
+  contexts,
+  loading,
+  error,
+  available,
+}: Pick<WorkspaceOrgContentState, 'agents' | 'contexts' | 'loading' | 'error' | 'available'>): React.ReactElement {
   const { t } = useT()
-  const covenant = useMemo(() => getCovenantApi(accountId), [accountId])
-  const available = hasCovenantWorkspaceContentApi(covenant)
-  const [contexts, setContexts] = useState<CovenantWorkspaceContextRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadContexts = useCallback(async (): Promise<void> => {
-    if (!covenant || !available || !slug || !workspaceId) {
-      setContexts([])
-      return
-    }
-    setLoading(true)
-    setError(null)
-    const result = await covenant.workspaceContextsList(slug, workspaceId)
-    setLoading(false)
-    if (!result.ok) {
-      setContexts([])
-      setError(result.error)
-      return
-    }
-    setContexts(result.data)
-  }, [available, covenant, slug, workspaceId])
-
-  useEffect(() => {
-    void loadContexts()
-  }, [loadContexts])
 
   return (
     <section className="orgs-section" aria-label={t('organizations.contextsTab')}>
@@ -611,24 +601,12 @@ function WorkspaceContextsSection({
       ) : (
         <>
           {contexts.length === 0 && !loading ? (
-            <p className="orgs-empty">{t('organizations.contextsEmpty')}</p>
+            <div className="orgs-empty-state">
+              <Icon name="file" size={20} />
+              <p>{t('organizations.contextsEmpty')}</p>
+            </div>
           ) : (
-            <ul className="orgs-rows">
-              {contexts.map(context => {
-                const name = context.name?.trim() ? context.name : context.contextId
-                return (
-                  <li key={context.contextId} className="orgs-row">
-                    <span className="orgs-row__icon" aria-hidden>
-                      <Icon name="file" size={15} />
-                    </span>
-                    <div className="orgs-row__main">
-                      <p className="orgs-row__title">{name}</p>
-                      <p className="orgs-row__meta">{context.kind}</p>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+            <WorkspaceOrgContextsList contexts={contexts} agents={agents} />
           )}
           <p className="orgs-section__hint">{t('organizations.orgManagedFromWorkspaceHint')}</p>
         </>
@@ -675,6 +653,8 @@ export function WorkspaceDetailPanel({
   const { t } = useT()
   const peopleCount = workspacePeopleRows(workspace.assignees, workspace.admins).length
   const [tab, setTab] = useState<'people' | 'repos' | 'agents' | 'contexts'>('people')
+  const orgContentEnabled = tab === 'agents' || tab === 'contexts'
+  const orgContent = useWorkspaceOrgContent(slug, workspace.id, accountId, orgContentEnabled)
 
   useEffect(() => {
     setTab('people')
@@ -738,12 +718,8 @@ export function WorkspaceDetailPanel({
             titled={false}
           />
         ) : null}
-        {tab === 'agents' ? (
-          <WorkspaceAgentsSection slug={slug} workspaceId={workspace.id} accountId={accountId} />
-        ) : null}
-        {tab === 'contexts' ? (
-          <WorkspaceContextsSection slug={slug} workspaceId={workspace.id} accountId={accountId} />
-        ) : null}
+        {tab === 'agents' ? <WorkspaceAgentsSection {...orgContent} /> : null}
+        {tab === 'contexts' ? <WorkspaceContextsSection {...orgContent} /> : null}
       </div>
     </section>
   )

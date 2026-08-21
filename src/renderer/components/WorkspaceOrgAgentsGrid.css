@@ -1,0 +1,12 @@
+.ws-org-agents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.ws-org-agents__cell {
+  min-width: 0;
+}

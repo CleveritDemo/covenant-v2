@@ -253,7 +253,11 @@ import {
   shouldDiscardAbortedDelegationFifoHead,
 } from './orchestrationAbort'
 import { syncReduceMotionDomFlag } from './reduceMotion'
-import { isNewTerminalShortcut } from './newTerminalShortcut'
+import {
+  isNewTerminalShortcut,
+  isNewTerminalShortcutTargetAllowed,
+  pickTerminalPaneId,
+} from './newTerminalShortcut'
 import { platformId } from './platform'
 import {
   contextIdsEqual,
@@ -6757,6 +6761,8 @@ export const App: React.FC = () => {
   handleClosePaneRef.current = handleClosePane
   const handleCreateTerminalRef = useRef(handleCreateTerminal)
   handleCreateTerminalRef.current = handleCreateTerminal
+  const handleOpenPaneWindowRef = useRef(handleOpenPaneWindow)
+  handleOpenPaneWindowRef.current = handleOpenPaneWindow
   const requestAddAgentRef = useRef(requestAddAgent)
   requestAddAgentRef.current = requestAddAgent
 
@@ -7055,18 +7061,19 @@ export const App: React.FC = () => {
 
       // ⌘Y / Ctrl+Y y ⌘J (macOS, convención VS Code/Cursor): nueva terminal en la pestaña activa
       if (isNewTerminalShortcut(e)) {
-        const target = e.target as HTMLElement | null
-        if (target && !target.closest('.xterm')) {
-          const tag = target.tagName
-          if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-          if (target.isContentEditable) return
-        }
+        if (!isNewTerminalShortcutTargetAllowed(e.target as HTMLElement | null)) return
         e.preventDefault()
         e.stopPropagation()
         const tabList = tabsRef.current
         const aid = activeTabIdRef.current
         const tab = tabList.find(t => t.id === aid)
         if (!tab) return
+        const existing = pickTerminalPaneId(tab.paneIds, tab.paneKinds)
+        if (existing) {
+          handleOpenPaneWindowRef.current(tab.id, existing)
+          return
+        }
+        ;(document.activeElement as HTMLElement | null)?.blur()
         handleCreateTerminalRef.current(tab.id)
         return
       }

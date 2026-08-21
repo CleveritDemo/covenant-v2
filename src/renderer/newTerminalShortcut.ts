@@ -24,3 +24,26 @@ export function isNewTerminalShortcut(e: ShortcutEventLike): boolean {
 
   return false
 }
+
+/** Los dos composers sí aceptan el atajo; el resto de campos de texto no. */
+export function isNewTerminalShortcutTargetAllowed(target: HTMLElement | null): boolean {
+  if (target === null) return true
+  if (target.closest('.xterm')) return false
+  if (target.closest('.plane-chat-composer') || target.closest('.agent-pane__composer')) return true
+  const tag = target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false
+  if (target.isContentEditable) return false
+  return true
+}
+
+/** Terminal de la pestaña donde aterriza el atajo: la última no-agente, o null. */
+export function pickTerminalPaneId(
+  paneIds: readonly string[],
+  paneKinds: Record<string, unknown> | undefined,
+): string | null {
+  for (let i = paneIds.length - 1; i >= 0; i--) {
+    const id = paneIds[i]
+    if (paneKinds?.[id] !== 'agent') return id
+  }
+  return null
+}

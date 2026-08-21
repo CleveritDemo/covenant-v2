@@ -35,6 +35,7 @@ import {
 import { PROJECT_DIRS } from '../src/shared/projectDir'
 import { projectDirName, projectDirPath } from './projectDir'
 import { gatherShallowFolderTree } from './agentMd'
+import { resolveContextRoot } from './contextRootResolve'
 import {
   writeAiChangelogDocument,
   formatAiChangelogDocument,
@@ -634,6 +635,37 @@ function conflictingContextFile(
   } catch {
     return null
   }
+}
+
+/**
+ * Tras escribir un contexto, borra otros .md en .gravity/context con el mismo id
+ * (gemelos de rename org / sync sin previousFileName). Sin metadata legible, no toca.
+ */
+function removeTwinContextFiles(
+  cwd: string,
+  keepFilePath: string,
+  ids: string[],
+): void {
+  const contextDir = projectDirPath(cwd, CONTEXT_SUBDIR)
+  if (!existsSync(contextDir) || !statSync(contextDir).isDirectory()) return
+  const idSet = new Set(ids.map(id => id.trim()).filter(Boolean))
+  if (idSet.size === 0) return
+  const keepLower = keepFilePath.toLowerCase()
+  try {
+    for (const entry of readdirSync(contextDir, { withFileTypes: true })) {
+      if (!entry.isFile() || extname(entry.name).toLowerCase() !== '.md') continue
+      const abs = join(contextDir, entry.name)
+      if (abs === keepFilePath || abs.toLowerCase() === keepLower) continue
+      try {
+        const meta = contextFromMetadata(
+          readFileSync(abs, 'utf8'),
+          `${CONTEXT_SUBDIR}/${entry.name}`,
+        )
+        if (!meta) continue
+        if (idSet.has(meta.id)) unlinkSync(abs)
+      } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
 }
 
 /** Elimina el archivo previo del rename; con force (previousFileName explícito) no exige mismo id. */
@@ -1252,7 +1284,39 @@ function buildAutoContent(
   options: { content?: string },
   filePath: string,
 ): string {
-  const root = safeRoot(cwd, context.rootPath)
+  const resolution = resolveContextRoot({
+    cwd,
+    rootPath: context.rootPath,
+    exists: existsSync,
+    listDirs: (abs) => {
+      try {
+        return readdirSync(abs, { withFileTypes: true })
+          .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+          .map(entry => entry.name)
+      } catch {
+        return []
+      }
+    },
+  })
+  if (!resolution.ok) {
+    switch (context.kind) {
+      case 'folderTree':
+      case 'files':
+      case 'spreadsheet':
+      case 'symbols':
+      case 'git':
+      case 'deps':
+      case 'readme':
+      case 'mcp':
+      case 'skill':
+        return resolution.reason === 'not-found'
+          ? `(root folder not found in this workspace: ${context.rootPath})`
+          : `(root folder is ambiguous in this workspace: ${context.rootPath})`
+      default:
+        break
+    }
+  }
+  const root = resolution.ok ? resolution.root : resolve(cwd)
   switch (context.kind) {
     case 'folderTree':
       return gatherShallowFolderTree(root)
@@ -1575,6 +1639,7 @@ export function materializeTabContext(
           true,
         )
       }
+      removeTwinContextFiles(cwd, filePath, [context.id, contextToWrite.id])
     }
     let notesContent = notes
     if (contextToWrite.kind === 'skill') {

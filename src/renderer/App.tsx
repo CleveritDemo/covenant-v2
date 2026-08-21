@@ -63,6 +63,7 @@ import {
   canAccessOrgWorkspace,
   canRenameOrgWorkspace,
   canUploadOrgWorkspaceFromCatalog,
+  orgWorkspaceUploadGateState,
   catalogForAccount,
   catalogHasWorkspaces,
   findOrgWorkspaceCatalogEntry,
@@ -728,6 +729,7 @@ export const App: React.FC = () => {
   >({})
   /** Snapshot Cmd+T: null = aún no hidratado / sin sesión. */
   const [orgWorkspaceCatalogMap, setOrgWorkspaceCatalogMap] = useState<OrgWorkspaceCatalogMap | null>(null)
+  const [permissionsRefreshBusy, setPermissionsRefreshBusy] = useState(false)
   const orgWorkspaceCatalogMapRef = useRef<OrgWorkspaceCatalogMap | null>(null)
   const orgWorkspaceCatalogLoadingRef = useRef(false)
   const orgWorkspaceCatalogLoadGenRef = useRef(0)
@@ -2752,6 +2754,15 @@ export const App: React.FC = () => {
 
   const handleOrgWorkspacesMutated = useCallback(() => {
     void loadOrgWorkspaceCatalog(true)
+  }, [loadOrgWorkspaceCatalog])
+
+  const handleRefreshOrgPermissions = useCallback(async () => {
+    setPermissionsRefreshBusy(true)
+    try {
+      await loadOrgWorkspaceCatalog(true)
+    } finally {
+      setPermissionsRefreshBusy(false)
+    }
   }, [loadOrgWorkspaceCatalog])
 
   const handleOrgWorkspaceTabConfirm = useCallback(async (selection: OrgWorkspaceSelection) => {
@@ -8176,6 +8187,16 @@ export const App: React.FC = () => {
                     tab.orgWorkspace?.slug?.trim() ?? '',
                     tab.orgWorkspace?.workspaceId?.trim() ?? '',
                   )}
+                  uploadWorkspaceGate={orgWorkspaceUploadGateState(
+                    orgCatalogForTab(orgWorkspaceCatalogMap, tab, accountIdForCwd),
+                    tab.orgWorkspace?.slug?.trim() ?? '',
+                    tab.orgWorkspace?.workspaceId?.trim() ?? '',
+                  )}
+                  canRefreshPermissions={Boolean(
+                    tab.orgWorkspace?.slug?.trim() && tab.orgWorkspace?.workspaceId?.trim(),
+                  )}
+                  onRefreshPermissions={() => { void handleRefreshOrgPermissions() }}
+                  refreshPermissionsBusy={permissionsRefreshBusy}
                   uploadWorkspaceLabel={t('tabs.uploadWorkspaceButton')}
                   uploadWorkspaceBusy={uploadingWorkspaceTabs.has(tab.id) || resyncingWorkspaceTabs.has(tab.id)}
                   uploadWorkspaceProgress={

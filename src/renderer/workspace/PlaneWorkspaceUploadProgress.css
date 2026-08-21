@@ -1,10 +1,9 @@
 .plane-workspace-upload-progress {
   box-sizing: border-box;
   display: inline-flex;
-  flex-direction: row;
   align-items: center;
-  gap: 6px;
   height: var(--plane-top-bar-height, 26px);
+  width: 20px;
   padding: 0;
   border: none;
   background: transparent;
@@ -21,156 +20,73 @@
   pointer-events: none;
 }
 
-.plane-workspace-upload-progress--enter.plane-workspace-upload-progress--active
-  .plane-workspace-upload-progress__pulse {
-  animation:
-    plane-upload-progress-meta-in 300ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both,
-    plane-upload-progress-pulse 1.6s ease-in-out 380ms infinite;
-}
-
-.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__pulse,
-.plane-workspace-upload-progress--enter.plane-workspace-upload-progress--complete
-  .plane-workspace-upload-progress__pulse {
-  animation:
-    plane-upload-progress-meta-in 300ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both,
-    plane-upload-progress-pulse-complete 420ms ease-out 380ms both;
-}
-
-.plane-workspace-upload-progress__pulse {
-  flex-shrink: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-
-.plane-workspace-upload-progress--enter .plane-workspace-upload-progress__track {
-  animation: plane-upload-progress-track-in 440ms cubic-bezier(0.22, 1, 0.36, 1) 60ms both;
-}
-
-.plane-workspace-upload-progress__track {
-  position: relative;
-  width: 72px;
-  height: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
-  overflow: hidden;
-  flex-shrink: 0;
-  transform-origin: left center;
-}
-
-.plane-workspace-upload-progress--exit .plane-workspace-upload-progress__track {
-  animation: plane-upload-progress-track-out 280ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.plane-workspace-upload-progress__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--plane-upload-progress-percent, 0%);
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent) 72%, var(--text) 28%) 0%,
-    var(--accent) 58%,
-    color-mix(in srgb, var(--accent) 82%, var(--theme-cyan, var(--accent)) 18%) 100%
-  );
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 42%, transparent);
-  transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__fill,
-.plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__fill {
-  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
-.plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__fill {
-  transition:
-    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 220ms ease-out;
-}
-
-.plane-workspace-upload-progress__fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--text) 24%, transparent) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: plane-upload-progress-sheen 1.5s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__fill::after,
-.plane-workspace-upload-progress--exit .plane-workspace-upload-progress__fill::after {
-  animation: none;
-  opacity: 0;
-}
-
-.plane-workspace-upload-progress--enter .plane-workspace-upload-progress__percent {
-  animation: plane-upload-progress-meta-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both;
-}
-
-.plane-workspace-upload-progress--exit .plane-workspace-upload-progress__percent {
-  animation: plane-upload-progress-meta-out 220ms ease-in forwards;
-}
-
-.plane-workspace-upload-progress__percent {
-  min-width: 2.25rem;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  text-align: right;
-}
-
-.plane-workspace-upload-progress--active .plane-workspace-upload-progress__percent {
-  color: color-mix(in srgb, var(--accent) 38%, var(--text-muted));
-}
-
-.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__percent,
-.plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__percent {
-  color: var(--accent);
-}
-
-.plane-workspace-upload-progress--enter .plane-workspace-upload-progress__cancel {
-  animation: plane-upload-progress-meta-in 320ms cubic-bezier(0.22, 1, 0.36, 1) 180ms both;
-}
-
-.plane-workspace-upload-progress--exit .plane-workspace-upload-progress__cancel {
-  animation: plane-upload-progress-meta-out 200ms ease-in 30ms forwards;
-}
-
-.plane-workspace-upload-progress--exit .plane-workspace-upload-progress__pulse {
-  animation: plane-upload-progress-meta-out 180ms ease-in 50ms forwards;
-}
-
-.plane-workspace-upload-progress__cancel {
+.plane-workspace-upload-progress__ring {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  position: relative;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
-  border-radius: calc(var(--plane-top-bar-radius, 8px) - 2px);
+  border-radius: 50%;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
 }
 
-.plane-workspace-upload-progress__cancel:hover:not(:disabled) {
-  color: var(--text);
+.plane-workspace-upload-progress__ring:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.plane-workspace-upload-progress__ring:hover:not(:disabled) {
   background: color-mix(in srgb, var(--plane-glass) 70%, transparent);
 }
 
-.plane-workspace-upload-progress__cancel:disabled {
-  cursor: default;
-  opacity: 0.6;
+.plane-workspace-upload-progress__dial {
+  position: absolute;
+  inset: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.plane-workspace-upload-progress__dial-track {
+  stroke: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  stroke-width: 2;
+}
+
+.plane-workspace-upload-progress__dial-arc {
+  stroke: var(--accent);
+  stroke-width: 2;
+  transition: stroke-dashoffset 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 45%, transparent));
+}
+
+.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__dial-arc,
+.plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__dial-arc {
+  stroke: var(--accent);
+}
+
+.plane-workspace-upload-progress--complete .plane-workspace-upload-progress__dial,
+.plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__dial {
+  animation: plane-upload-progress-pulse-complete 420ms ease-out both;
+}
+
+.plane-workspace-upload-progress__glyph {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.plane-workspace-upload-progress__ring:hover:not(:disabled)
+  .plane-workspace-upload-progress__glyph,
+.plane-workspace-upload-progress__ring:focus-visible
+  .plane-workspace-upload-progress__glyph {
+  opacity: 1;
 }
 
 @keyframes plane-upload-progress-enter {
@@ -206,86 +122,20 @@
   }
 }
 
-@keyframes plane-upload-progress-track-in {
-  0% {
-    opacity: 0;
-    transform: scaleX(0.15);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-@keyframes plane-upload-progress-track-out {
-  0% {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: scaleX(0.12);
-  }
-}
-
-@keyframes plane-upload-progress-meta-in {
-  0% {
-    opacity: 0;
-    transform: translateX(-6px) scale(0.92);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes plane-upload-progress-meta-out {
-  0% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translateX(8px) scale(0.84);
-  }
-}
-
-@keyframes plane-upload-progress-sheen {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
-}
-
-@keyframes plane-upload-progress-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.55;
-    transform: scale(0.88);
-  }
-}
-
 @keyframes plane-upload-progress-pulse-complete {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 45%, transparent));
   }
 
   50% {
-    transform: scale(1.25);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 90%, transparent);
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 70%, transparent));
   }
 
   100% {
     transform: scale(1);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent);
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 55%, transparent));
   }
 }
 
@@ -296,55 +146,43 @@ html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit {
   transform: none;
 }
 
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--enter
-  .plane-workspace-upload-progress__track,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--enter
-  .plane-workspace-upload-progress__percent,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--enter
-  .plane-workspace-upload-progress__cancel,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--enter
-  .plane-workspace-upload-progress__pulse,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit
-  .plane-workspace-upload-progress__track,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit
-  .plane-workspace-upload-progress__percent,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit
-  .plane-workspace-upload-progress__cancel,
-html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit
-  .plane-workspace-upload-progress__pulse {
-  animation: none;
-  transform: none;
-}
-
-html[data-reduce-motion="true"] .plane-workspace-upload-progress__fill {
+html[data-reduce-motion="true"] .plane-workspace-upload-progress__dial-arc {
   transition: none;
 }
 
-html[data-reduce-motion="true"] .plane-workspace-upload-progress__fill::after {
+html[data-reduce-motion="true"] .plane-workspace-upload-progress--complete
+  .plane-workspace-upload-progress__dial,
+html[data-reduce-motion="true"] .plane-workspace-upload-progress--exit-complete
+  .plane-workspace-upload-progress__dial {
   animation: none;
+  transform: none;
+  filter: none;
+}
+
+html[data-reduce-motion="true"] .plane-workspace-upload-progress__glyph {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .plane-workspace-upload-progress--enter,
-  .plane-workspace-upload-progress--exit,
-  .plane-workspace-upload-progress--enter .plane-workspace-upload-progress__track,
-  .plane-workspace-upload-progress--enter .plane-workspace-upload-progress__percent,
-  .plane-workspace-upload-progress--enter .plane-workspace-upload-progress__cancel,
-  .plane-workspace-upload-progress--enter .plane-workspace-upload-progress__pulse,
-  .plane-workspace-upload-progress--exit .plane-workspace-upload-progress__track,
-  .plane-workspace-upload-progress--exit .plane-workspace-upload-progress__percent,
-  .plane-workspace-upload-progress--exit .plane-workspace-upload-progress__cancel,
-  .plane-workspace-upload-progress--exit .plane-workspace-upload-progress__pulse {
+  .plane-workspace-upload-progress--exit {
     animation: none;
     transform: none;
     filter: none;
   }
 
-  .plane-workspace-upload-progress__fill {
+  .plane-workspace-upload-progress__dial-arc {
     transition: none;
   }
 
-  .plane-workspace-upload-progress__fill::after {
+  .plane-workspace-upload-progress--complete .plane-workspace-upload-progress__dial,
+  .plane-workspace-upload-progress--exit-complete .plane-workspace-upload-progress__dial {
     animation: none;
+    transform: none;
+    filter: none;
+  }
+
+  .plane-workspace-upload-progress__glyph {
+    transition: none;
   }
 }

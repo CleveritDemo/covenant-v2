@@ -6,6 +6,9 @@ import './PlaneWorkspaceUploadProgress.css'
 
 export const PLANE_WORKSPACE_UPLOAD_PROGRESS_EXIT_MS = 360
 
+const DIAL_RADIUS = 8
+const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS
+
 export interface PlaneWorkspaceUploadProgressProps {
   percent: number
   exiting?: boolean
@@ -41,25 +44,41 @@ export const PlaneWorkspaceUploadProgress: React.FC<PlaneWorkspaceUploadProgress
       aria-valuemax={100}
       aria-valuenow={clamped}
     >
-      <span className="plane-workspace-upload-progress__pulse" aria-hidden="true" />
-      <div className="plane-workspace-upload-progress__track">
-        <div
-          className="plane-workspace-upload-progress__fill"
-          style={{ ['--plane-upload-progress-percent' as string]: `${clamped}%` }}
-        />
-      </div>
-      <span className="plane-workspace-upload-progress__percent" aria-hidden="true">
-        {clamped}%
-      </span>
-      <Tooltip content={cancelLabel}>
+      <Tooltip content={ariaLabel} hint={cancelLabel}>
         <button
           type="button"
-          className="plane-workspace-upload-progress__cancel"
+          className="plane-workspace-upload-progress__ring"
           aria-label={cancelLabel}
           disabled={exiting}
           onClick={onCancel}
         >
-          <Icon name="close" size={10} />
+          <svg
+            className="plane-workspace-upload-progress__dial"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <circle
+              cx={10}
+              cy={10}
+              r={DIAL_RADIUS}
+              fill="none"
+              className="plane-workspace-upload-progress__dial-track"
+            />
+            <circle
+              cx={10}
+              cy={10}
+              r={DIAL_RADIUS}
+              fill="none"
+              className="plane-workspace-upload-progress__dial-arc"
+              strokeLinecap="round"
+              transform="rotate(-90 10 10)"
+              strokeDasharray={DIAL_CIRCUMFERENCE}
+              style={{ strokeDashoffset: DIAL_CIRCUMFERENCE * (1 - clamped / 100) }}
+            />
+          </svg>
+          <span className="plane-workspace-upload-progress__glyph" aria-hidden="true">
+            <Icon name="close" size={8} />
+          </span>
         </button>
       </Tooltip>
     </div>

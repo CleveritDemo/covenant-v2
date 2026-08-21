@@ -2955,7 +2955,7 @@ export const App: React.FC = () => {
 
   const handleResyncOrgWorkspace = useCallback(async (
     tab: TabSession,
-    options: { includeAgents: boolean } = { includeAgents: true },
+    options: { includeAgents: boolean; dropLocalStale?: boolean } = { includeAgents: true },
   ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
@@ -3013,7 +3013,7 @@ export const App: React.FC = () => {
 
       try {
         const result = await syncOrgWorkspaceContent(org.slug, org.workspaceId, [tab.id], {
-          wipeLocal: false,
+          wipeLocal: options.dropLocalStale === true,
           includeAgents: options.includeAgents,
           cancelGen: opGen,
           onPhase: reportOrgSyncPhase,
@@ -3146,7 +3146,10 @@ export const App: React.FC = () => {
 
   const executeUploadOrgWorkspace = useCallback(async (
     tab: TabSession,
-    options: { includeAgents: boolean } = { includeAgents: true },
+    options: { includeAgents: boolean; shownDeleteCount: number } = {
+      includeAgents: true,
+      shownDeleteCount: 0,
+    },
   ) => {
     const org = tab.orgWorkspace
     if (!org?.slug?.trim() || !org.workspaceId?.trim()) return
@@ -3170,6 +3173,25 @@ export const App: React.FC = () => {
     const opGen = ++orgWorkspaceSyncUploadGenRef.current
     try {
       const deps = buildOrgWorkspaceUploadDeps(covenant, org.slug, org.workspaceId)
+      const planResult = await planOrgWorkspaceUpload(cwd, deps, {
+        includeAgents: options.includeAgents,
+      })
+      if (opGen !== orgWorkspaceSyncUploadGenRef.current) return
+      if (planResult.ok) {
+        const recalculatedDeleteCount =
+          planResult.plan.agentIdsToDelete.length + planResult.plan.contextIdsToDelete.length
+        if (recalculatedDeleteCount > options.shownDeleteCount) {
+          setOrgWorkspaceRequirement({
+            uploadError: t('organizations.reqUploadPlanChanged'),
+          })
+          setOrgUploadPlan({
+            agentIdsToDelete: planResult.plan.agentIdsToDelete,
+            contextIdsToDelete: planResult.plan.contextIdsToDelete,
+          })
+          setOrgUploadScopeTab(tab)
+          return
+        }
+      }
       const orderedAgentIds = orderedAgentIdsFromTab(tab)
       const result = await uploadOrgWorkspaceFromLocal(cwd, deps, {
         ...(orderedAgentIds.length ? { orderedAgentIds } : {}),
@@ -3215,6 +3237,7 @@ export const App: React.FC = () => {
     clearWorkspaceUploadProgress,
     pushOrgWikiForScope,
     reportWorkspaceUploadProgress,
+    t,
   ])
 
   const handleUploadOrgWorkspace = useCallback((tab: TabSession) => {
@@ -3784,10 +3807,10 @@ export const App: React.FC = () => {
       const workspaceSlug = sanitizeSlugSegment(workspaceId)
       const opGen = ++orgWorkspaceSyncUploadGenRef.current
       setOrgWorkspaceRequirement({ syncing: true, syncPhase: 'repos' })
-      const covenant = getCovenantApi(
+      const accountId =
         (tab ? orgAccountIdForTab(tab, accountIdForCwd) : '')
-          || resolveOrgAccountIdForCwd(path),
-      )
+        || resolveOrgAccountIdForCwd(path)
+      const covenant = getCovenantApi(accountId)
       let wikiErrorToReport: string | undefined
       try {
         let repos: Array<{ repoFullName: string; cloneUrl: string; folderName?: string }> = []
@@ -3835,6 +3858,7 @@ export const App: React.FC = () => {
                   slug: orgSlug,
                   workspaceId,
                   localDir: path,
+                  ...(accountId ? { accountId } : {}),
                 },
               }
             : t
@@ -8523,10 +8547,10 @@ export const App: React.FC = () => {
       <OrgSyncScopeModal
         open={orgSyncScopeTab !== null}
         onClose={() => setOrgSyncScopeTab(null)}
-        onConfirm={includeAgents => {
+        onConfirm={({ includeAgents, dropLocalStale }) => {
           const tab = orgSyncScopeTab
           setOrgSyncScopeTab(null)
-          if (tab) void handleResyncOrgWorkspace(tab, { includeAgents })
+          if (tab) void handleResyncOrgWorkspace(tab, { includeAgents, dropLocalStale })
         }}
       />
 
@@ -8544,12 +8568,15 @@ export const App: React.FC = () => {
           const tab = orgUploadScopeTab
           if (tab) void loadOrgUploadPlan(tab, includeAgents)
         }}
-        onConfirm={includeAgents => {
+        onConfirm={({ includeAgents }) => {
           const tab = orgUploadScopeTab
+          const shownDeleteCount = orgUploadPlan
+            ? orgUploadPlan.agentIdsToDelete.length + orgUploadPlan.contextIdsToDelete.length
+            : 0
           setOrgUploadScopeTab(null)
           setOrgUploadPlan(null)
           setOrgUploadPlanLoading(false)
-          if (tab) void executeUploadOrgWorkspace(tab, { includeAgents })
+          if (tab) void executeUploadOrgWorkspace(tab, { includeAgents, shownDeleteCount })
         }}
       />
 

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { APP_CHROME_MODAL_Z } from '@shared/overlayZIndex'
 import { useT } from '@i18n/useT'
 import { TerminalModal } from './TerminalModal'
-import { Button, ChoiceCard, Skeleton } from './ui'
+import { Button, ChoiceCard, ContextCheckOption, Skeleton } from './ui'
 import './OrgSyncScopeModal.css'
 
 type SyncScope = 'all' | 'contexts'
@@ -12,10 +12,15 @@ export type OrgSyncScopePlan = {
   contextIdsToDelete: string[]
 }
 
+export type OrgSyncScopeConfirm = {
+  includeAgents: boolean
+  dropLocalStale: boolean
+}
+
 interface Props {
   open: boolean
   onClose: () => void
-  onConfirm: (includeAgents: boolean) => void
+  onConfirm: (result: OrgSyncScopeConfirm) => void
   mode?: 'download' | 'upload'
   plan?: OrgSyncScopePlan | null
   planLoading?: boolean
@@ -33,11 +38,13 @@ export const OrgSyncScopeModal: React.FC<Props> = ({
 }) => {
   const { t } = useT()
   const [scope, setScope] = useState<SyncScope>('all')
+  const [dropLocalStale, setDropLocalStale] = useState(false)
   const wasOpenRef = useRef(false)
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       setScope('all')
+      setDropLocalStale(false)
     }
     wasOpenRef.current = open
   }, [open])
@@ -88,7 +95,10 @@ export const OrgSyncScopeModal: React.FC<Props> = ({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => onConfirm(scope === 'all')}
+            onClick={() => onConfirm({
+              includeAgents: scope === 'all',
+              dropLocalStale: mode === 'download' ? dropLocalStale : false,
+            })}
           >
             {t('organizations.syncScopeConfirm')}
           </Button>
@@ -125,6 +135,13 @@ export const OrgSyncScopeModal: React.FC<Props> = ({
             </span>
           </ChoiceCard>
         </div>
+        {mode === 'download' && (
+          <ContextCheckOption
+            name={t('organizations.syncDropLocalStale')}
+            checked={dropLocalStale}
+            onChange={() => setDropLocalStale(v => !v)}
+          />
+        )}
         {mode === 'upload' && (
           <div className="org-sync-scope__upload-notice" aria-live="polite">
             {planLoading ? (

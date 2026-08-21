@@ -1,17 +1,23 @@
 export function describeCovenantSignInError(
   raw: string,
-  source: 'settings' | 'env' | 'keychain' | 'none',
+  source: 'settings' | 'env' | 'keychain' | 'none' | 'account',
+  accountLabel?: string,
 ): string {
   if (raw === 'no-github-token') return raw
 
+  const trimmedAccountLabel = accountLabel?.trim() ?? ''
   const label =
-    source === 'settings'
-      ? 'Ajustes > GitHub'
-      : source === 'env'
-        ? 'la variable GITHUB_TOKEN'
-        : source === 'keychain'
-          ? 'el keychain de git (git credential)'
-          : 'origen desconocido'
+    source === 'account'
+      ? trimmedAccountLabel
+        ? `la cuenta «${trimmedAccountLabel}» de Ajustes > GitHub`
+        : 'Ajustes > GitHub'
+      : source === 'settings'
+        ? 'Ajustes > GitHub'
+        : source === 'env'
+          ? 'la variable GITHUB_TOKEN'
+          : source === 'keychain'
+            ? 'el keychain de git (git credential)'
+            : 'origen desconocido'
 
   const lower = raw.toLowerCase()
   if (lower.includes('unauthorized') || lower.includes('bad credentials') || raw.startsWith('401')) {

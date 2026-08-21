@@ -44,4 +44,23 @@ describe('describeCovenantSignInError', () => {
       `timeout (token tomado de ${LABEL[source]})`,
     )
   })
+
+  it('account con label nombra la cuenta en 401', () => {
+    expect(describeCovenantSignInError('401', 'account', 'Cleverit')).toBe(
+      'GitHub rechazó el token que la app tomó de la cuenta «Cleverit» de Ajustes > GitHub: está vencido, revocado o no puede leer tu cuenta. Genera uno nuevo en github.com/settings/tokens y pégalo en Ajustes > GitHub.',
+    )
+  })
+
+  it.each(['', '   '])('account sin label usable cae a Ajustes > GitHub (%s)', emptyLabel => {
+    const expected =
+      'GitHub rechazó el token que la app tomó de Ajustes > GitHub: está vencido, revocado o no puede leer tu cuenta. Genera uno nuevo en github.com/settings/tokens y pégalo en Ajustes > GitHub.'
+    expect(describeCovenantSignInError('401', 'account', emptyLabel)).toBe(expected)
+  })
+
+  it('account con 5xx no cambia el texto de servidor', () => {
+    const five = 'Covenant respondió con 500 Internal Server Error'
+    expect(describeCovenantSignInError(five, 'account', 'Cleverit')).toBe(
+      `El servidor de Covenant no respondió (${five}). Reintenta en un momento.`,
+    )
+  })
 })

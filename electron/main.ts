@@ -1522,10 +1522,11 @@ function registerIpc(): void {
         return covenantStatus(accountId)
       })
       if (!result.ok) {
+        const accountLabel = readConfig().githubAccounts.find(a => a.id === accountId)?.label
         return {
           ...result,
-          error: describeCovenantSignInError(result.error, 'settings'),
-          source: 'settings' as const,
+          error: describeCovenantSignInError(result.error, 'account', accountLabel),
+          source: 'account' as const,
         }
       }
       return result

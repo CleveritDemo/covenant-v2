@@ -129,7 +129,7 @@ describe('cloneOrgWorkspace', () => {
     expect(result.workspaceDir).toBe(workspaceDir)
     expect(result.skipped).toEqual(['owner/repo-a'])
     expect(result.cloned).toEqual(['owner/repo-b'])
-    expect(spawnMock).toHaveBeenCalledTimes(2)
+    expect(spawnMock).toHaveBeenCalledTimes(3)
     const cloneCall = spawnMock.mock.calls.find(c => (c[1] as string[]).includes('clone'))
     expect(cloneCall).toBeTruthy()
     const args = cloneCall?.[1] as string[]
@@ -260,8 +260,15 @@ describe('cloneOrgWorkspace', () => {
   it('con folderName no trata repo-a/.git como instalado', async () => {
     const base = tempDir()
     const workspaceDir = join(base, 'org', 'ws')
-    mkdirSync(join(workspaceDir, 'repo-a', '.git'), { recursive: true })
-    mockSpawnSuccess()
+    const decoyDir = join(workspaceDir, 'repo-a')
+    mkdirSync(join(decoyDir, '.git'), { recursive: true })
+    spawnMock.mockImplementation((_cmd: unknown, args: string[]) => {
+      if (args.includes('clone')) return mockChild()
+      if (args[0] === '-C' && args[1] === decoyDir) {
+        return mockChild({ code: 1, stderr: 'missing' })
+      }
+      return mockChild()
+    })
 
     const result = await cloneOrgWorkspace({
       baseDir: base,
@@ -279,8 +286,9 @@ describe('cloneOrgWorkspace', () => {
     if (!result.ok) return
     expect(result.skipped).toEqual([])
     expect(result.cloned).toEqual(['owner/repo-a'])
-    expect(spawnMock).toHaveBeenCalledTimes(1)
-    const args = spawnMock.mock.calls[0]?.[1] as string[]
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+    const cloneCall = spawnMock.mock.calls.find(c => (c[1] as string[]).includes('clone'))
+    const args = cloneCall?.[1] as string[]
     expect(args[args.length - 1]).toBe(join(workspaceDir, 'custom-dir'))
   })
 

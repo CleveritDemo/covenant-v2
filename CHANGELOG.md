@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.106.0
+
+- Al publicar cambios de un workspace de organización, el progreso ya no es una barra larga que se metía debajo de la pestaña de conversación: ahora es un anillo pequeño junto a los botones. El porcentaje aparece al pasar el mouse y se cancela pulsando el propio anillo.
+- Si GitHub rechaza el token de tu cuenta por defecto, Organizations ya te deja cambiar de cuenta desde la propia pantalla de inicio de sesión, en vez de dejarte reintentando la misma.
+- Cuando GitHub rechaza un token, el aviso ahora dice de qué cuenta se trata, así sabes cuál regenerar.
+
 ## v0.105.1
 
 - El aviso de workspace de organización ya no se queda pegado cuando falla la wiki al sincronizar, ni vuelve a abrirse solo por una respuesta que llega tarde.

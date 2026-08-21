@@ -86,6 +86,10 @@ describe('agent input anti-collision guards', () => {
     expect(canDrainAgentQueue({ ...idleBase })).toBe(true)
   })
 
+  it('does not drain when offline', () => {
+    expect(canDrainAgentQueue({ ...idleBase, offline: true })).toBe(false)
+  })
+
   it('blocks human-head drain while delegationWorkActive', () => {
     expect(canDrainAgentQueue({
       ...idleBase,
@@ -140,6 +144,27 @@ describe('canStartHumanTurnNow', () => {
       orchestrationWorkStyle: 'turbo',
     })).toBe(false)
   })
+
+  it('blocks human turn when offline', () => {
+    expect(canStartHumanTurnNow({
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: false,
+      offline: true,
+    })).toBe(false)
+  })
+
+  it('does not change idle result when offline is false or omitted', () => {
+    const idle = {
+      busy: false,
+      awaitingDelegations: false,
+      delegationWorkActive: false,
+      systemFollowUpsPending: false,
+    }
+    expect(canStartHumanTurnNow({ ...idle, offline: false })).toBe(true)
+    expect(canStartHumanTurnNow(idle)).toBe(true)
+  })
 })
 
 describe('shouldShowComposerStop', () => {
@@ -159,6 +184,10 @@ describe('shouldShowComposerStop', () => {
       busy: false,
       delegationWorkActive: true,
     })).toBe(true)
+  })
+
+  it('does not change when offline is not passed', () => {
+    expect(shouldShowComposerStop({ busy: false })).toBe(false)
   })
 })
 
@@ -220,6 +249,19 @@ describe('shouldPromoteHumanSendToVisibleQueue', () => {
       delegationWorkActive: false,
       systemFollowUpsPending,
     }, 'linear')).toBe(false)
+  })
+
+  it('promotes when offline even if otherwise idle', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      busy: false,
+      offline: true,
+    })).toBe(true)
+  })
+
+  it('does not promote when idle without offline', () => {
+    expect(shouldPromoteHumanSendToVisibleQueue({
+      busy: false,
+    })).toBe(false)
   })
 })
 
@@ -309,6 +351,28 @@ describe('describeAgentQueueDrainBlock', () => {
       ...idleBase,
       systemFollowUpsPending: true,
     })).toBe('system_follow_ups_pending')
+  })
+
+  it('reports offline before busy and other gates', () => {
+    expect(describeAgentQueueDrainBlock({ ...idleBase, offline: true })).toBe('offline')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      offline: true,
+      busy: true,
+    })).toBe('offline')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      loaded: false,
+      offline: true,
+    })).toBe('not_loaded')
+  })
+
+  it('without offline field matches previous drain reasons', () => {
+    expect(describeAgentQueueDrainBlock({ ...idleBase, busy: true })).toBe('busy')
+    expect(describeAgentQueueDrainBlock({
+      ...idleBase,
+      awaitingDelegations: true,
+    })).toBe('awaiting_delegations')
   })
 
   it('coincide siempre con canDrainAgentQueue', () => {

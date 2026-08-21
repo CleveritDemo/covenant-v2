@@ -51,6 +51,7 @@ export interface AgentQueueDrainGuard {
   delegationWorkActive: boolean
   /** FIFO/preferSend de orquestación pendiente en App para este pane. */
   systemFollowUpsPending: boolean
+  offline?: boolean
   /**
    * Si la cabeza de cola es una subtarea, no exigir !delegationWorkActive
    * (el hold del target no debe bloquear drenar esa misma delegación encolada).
@@ -68,6 +69,7 @@ export interface AgentQueueDrainGuard {
  * Orden: orchestrationFifo/preferSend → queuedTurns humanas.
  * Cabeza delegación: permite drenar aunque delegationWorkActive (defensa post-deadlock).
  * Turbo: ignora awaitingDelegations para turnos humanos.
+ * Offline retiene la cola, no la rechaza.
  */
 export function canStartHumanTurnNow(state: {
   busy: boolean
@@ -75,7 +77,9 @@ export function canStartHumanTurnNow(state: {
   delegationWorkActive: boolean
   systemFollowUpsPending: boolean
   orchestrationWorkStyle?: 'linear' | 'turbo'
+  offline?: boolean
 }): boolean {
+  if (state.offline === true) return false
   const awaitingBlocksHuman = state.orchestrationWorkStyle !== 'turbo' && state.awaitingDelegations
   return !state.busy && !awaitingBlocksHuman && !state.delegationWorkActive
     && !state.systemFollowUpsPending
@@ -83,6 +87,7 @@ export function canStartHumanTurnNow(state: {
 
 export type AgentQueueDrainBlockReason =
   | 'not_loaded'
+  | 'offline'
   | 'busy'
   | 'awaiting_delegations'
   | 'delegation_work_active'
@@ -93,11 +98,13 @@ export type AgentQueueDrainBlockReason =
  * `canDrainAgentQueue`, que se apoya en esta función para no divergir: cuando
  * un chip se queda encolado con el pane idle, el motivo es lo único que
  * distingue "la ola sigue abierta" de "hay trabajo de sistema atascado".
+ * Offline retiene la cola, no la rechaza.
  */
 export function describeAgentQueueDrainBlock(
   state: AgentQueueDrainGuard,
 ): AgentQueueDrainBlockReason | null {
   if (!state.loaded) return 'not_loaded'
+  if (state.offline) return 'offline'
   if (state.busy) return 'busy'
   if (state.orchestrationWorkStyle !== 'turbo' && state.awaitingDelegations) {
     return 'awaiting_delegations'
@@ -109,6 +116,7 @@ export function describeAgentQueueDrainBlock(
   return null
 }
 
+/** Offline retiene la cola, no la rechaza. */
 export function canDrainAgentQueue(state: AgentQueueDrainGuard): boolean {
   return describeAgentQueueDrainBlock(state) === null
 }
@@ -164,12 +172,14 @@ export interface HumanSendVisibleQueuePromotionStatus {
   awaitingDelegations?: boolean
   delegationWorkActive?: boolean
   systemFollowUpsPending?: boolean
+  offline?: boolean
 }
 
 /**
  * Promueve el chip a la cola visible en onSendChat (sin esperar al drenador FIFO)
  * con la misma regla que preferSendIntake para turnos humanos: busy o no puede
  * arrancar turno ahora.
+ * Offline retiene la cola, no la rechaza.
  */
 export function shouldPromoteHumanSendToVisibleQueue(
   status: HumanSendVisibleQueuePromotionStatus | null | undefined,
@@ -181,6 +191,7 @@ export function shouldPromoteHumanSendToVisibleQueue(
     awaitingDelegations: status.awaitingDelegations ?? false,
     delegationWorkActive: status.delegationWorkActive ?? false,
     systemFollowUpsPending: status.systemFollowUpsPending ?? false,
+    offline: status.offline ?? false,
     orchestrationWorkStyle,
   })
   return status.busy || !canStart

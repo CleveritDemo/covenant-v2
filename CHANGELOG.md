@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.107.1
+
+- Al clonar un workspace de organización, si la carpeta destino ya existe o tiene un `.git` con otro origin, el clon falla antes de tocar Git y te avisa, en vez de reutilizar o pisar un repo ajeno.
+- Sincronizar con «limpiar lo local» solo borra agentes y contextos que ya no están en la organización; los marcados localOnly y los resultados de agentes se quedan.
+- Al elegir carpeta para un workspace de organización se conserva la cuenta ya guardada, sin volver a sincronizar con la cuenta por defecto.
+- Antes de subir, si la lista de borrados cambió (aunque el número sea el mismo), Subir te pide revisar otra vez.
+- Hay una casilla opcional (apagada por defecto) para descartar en la sincronización lo local que la organización ya borró.
+
 ## v0.107.0
 
 - El detalle de un workspace de organización ya muestra a los agentes como las tarjetas del plano: cara con sus iniciales, el CLI que usan, el modelo y los contextos que tienen asignados, en vez de una lista de iconos iguales.

@@ -1980,7 +1980,6 @@ export const App: React.FC = () => {
             }
             if (reposByWorkspace.size) {
               let firstCloneError: string | null = null
-              let firstCloneFailure: OrgWorkspaceRequirementState['cloneFailure']
               await Promise.all([...reposByWorkspace.values()].map(async ws => {
                 const covenant = getCovenantApi(resolveOrgAccountIdForCwd(ws.localDir))
                 if (
@@ -2005,24 +2004,21 @@ export const App: React.FC = () => {
                   })
                   if (!res.ok) {
                     console.warn('[boot] org workspace repo clone falló', ws.slug, ws.workspaceId, res.error)
-                    if (!firstCloneError) {
-                      firstCloneError = res.error
-                      firstCloneFailure = res.failure
-                    }
+                    if (!firstCloneError) firstCloneError = res.error
                   }
                 } catch (err) {
                   console.warn('[boot] org workspace repo sync failed', ws.slug, ws.workspaceId, err)
                   if (!firstCloneError) firstCloneError = String(err)
                 }
               }))
-              if (firstCloneError) {
-                const cloneErr = firstCloneError as string
+              if (
+                firstCloneError === 'missing-default-dir'
+                || firstCloneError === 'missing-token'
+              ) {
                 const requirement: OrgWorkspaceRequirementState =
-                  cloneErr === 'missing-default-dir'
+                  firstCloneError === 'missing-default-dir'
                     ? { missingFolder: true }
-                    : cloneErr === 'missing-token'
-                      ? { missingToken: true }
-                      : { cloneError: cloneErr, cloneFailure: firstCloneFailure }
+                    : { missingToken: true }
                 setOrgWorkspaceRequirement(prev => (prev === null ? requirement : prev))
               }
             }

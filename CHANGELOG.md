@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.108.0
+
+- Cmd+J desde el campo de chat lleva a la terminal de la pestaña: si ya hay una abierta la enfoca, y si no la crea con el cursor puesto.
+- Al abrir la app, un repositorio que no se puede clonar ya no interrumpe con una ventana: solo se avisa si falta la carpeta del workspace o el token de GitHub.
+- Si el repositorio ya está clonado en la carpeta del workspace con otro nombre, la app lo reconoce por su origin y deja de intentar clonarlo en cada arranque.
+- Cuando GitHub rechaza la llave SSH de un repositorio, el aviso lo dice con esas palabras y explica qué hacer, en vez del mensaje genérico de error.
+- Al publicar un workspace local en una organización, los repositorios con remoto SSH de GitHub se registran con su URL https, para que el resto del equipo pueda clonarlos.
+
 ## v0.107.1
 
 - Al clonar un workspace de organización, si la carpeta destino ya existe o tiene un `.git` con otro origin, el clon falla antes de tocar Git y te avisa, en vez de reutilizar o pisar un repo ajeno.

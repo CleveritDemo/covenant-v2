@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatElapsed,
+  shouldPromoteTurnPhaseToWriting,
   turnActivityKey,
   turnActivityLabel,
   type TurnActivityState,
@@ -41,6 +42,18 @@ describe('turnActivityLabel', () => {
   it('wraps the tool label with activitySteps when toolCount is greater than 1', () => {
     expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Bash', toolCount: 3 }, t))
       .toBe('[agentPane.activitySteps|label=[agentPane.activity|tool=Bash],n=3]')
+  })
+})
+
+describe('shouldPromoteTurnPhaseToWriting', () => {
+  it('blocks writing while a tool is in flight', () => {
+    expect(shouldPromoteTurnPhaseToWriting('tool', 1)).toBe(false)
+    expect(shouldPromoteTurnPhaseToWriting('writing', 2)).toBe(false)
+  })
+
+  it('allows writing once every tool has completed', () => {
+    expect(shouldPromoteTurnPhaseToWriting('tool', 0)).toBe(true)
+    expect(shouldPromoteTurnPhaseToWriting('thinking', 0)).toBe(true)
   })
 })
 

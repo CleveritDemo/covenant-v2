@@ -74,6 +74,7 @@ import { createPlaneStatusThrottler } from './planeStatusThrottle'
 import { shouldResumeCliSessionForTurn } from './shouldResumeCliSessionForTurn'
 import { shouldMarkBusyOnCliError, turnFailedAfter } from './turnFailureState'
 import {
+  shouldPromoteTurnPhaseToWriting,
   turnActivityKey,
   turnActivityLabel,
   type TurnActivityState,
@@ -671,6 +672,8 @@ export const AgentPane: React.FC<Props> = ({
   const [activity, setActivity] = useState('')
   const [turnActivity, setTurnActivity] = useState<TurnActivityState>(IDLE_TURN_ACTIVITY)
   const turnActivityRef = useRef<TurnActivityState>(IDLE_TURN_ACTIVITY)
+  const toolsInFlightRef = useRef(0)
+  const hasAssistantDeltaRef = useRef(false)
   const [activityStartedAtMs, setActivityStartedAtMs] = useState(0)
   const applyTurnActivity = useCallback((next: TurnActivityState): void => {
     turnActivityRef.current = next
@@ -679,11 +682,15 @@ export const AgentPane: React.FC<Props> = ({
   }, [t])
   const resetTurnActivity = useCallback((): void => {
     turnActivityRef.current = IDLE_TURN_ACTIVITY
+    toolsInFlightRef.current = 0
+    hasAssistantDeltaRef.current = false
     setTurnActivity(IDLE_TURN_ACTIVITY)
     setActivity('')
     setActivityStartedAtMs(0)
   }, [])
   const beginTurnActivity = useCallback((): void => {
+    toolsInFlightRef.current = 0
+    hasAssistantDeltaRef.current = false
     setActivityStartedAtMs(Date.now())
     applyTurnActivity({ phase: 'starting', toolCount: 0 })
   }, [applyTurnActivity])
@@ -2353,10 +2360,9 @@ export const AgentPane: React.FC<Props> = ({
     // pisar el mensaje nuevo al drenar la cola.
     if (turnClosedRef.current) return
     if (event.type === 'tool') {
-      // Solo actualizar al empezar; al completar se mantiene el último label
-      // hasta el siguiente tool o el fin del turno (evita huecos de espera vacía).
+      const current = turnActivityRef.current
       if (event.status === 'started') {
-        const current = turnActivityRef.current
+        toolsInFlightRef.current += 1
         const toolLabel = event.detail
           ? `${event.name} · ${event.detail}`
           : event.name
@@ -2365,6 +2371,12 @@ export const AgentPane: React.FC<Props> = ({
           toolLabel,
           toolCount: current.toolCount + 1,
         })
+      } else if (event.status === 'completed') {
+        toolsInFlightRef.current = Math.max(0, toolsInFlightRef.current - 1)
+        // Narración en paralelo: al cerrar la tool, volver a writing si ya hubo deltas.
+        if (toolsInFlightRef.current === 0 && hasAssistantDeltaRef.current) {
+          applyTurnActivity({ phase: 'writing', toolCount: current.toolCount })
+        }
       }
       return
     }
@@ -2453,13 +2465,9 @@ export const AgentPane: React.FC<Props> = ({
       return
     }
     if (event.type === 'assistant_delta') {
+      hasAssistantDeltaRef.current = true
       const current = turnActivityRef.current
-      if (
-        current.phase === 'starting'
-        || current.phase === 'context'
-        || current.phase === 'thinking'
-        || current.phase === 'tool'
-      ) {
+      if (shouldPromoteTurnPhaseToWriting(current.phase, toolsInFlightRef.current)) {
         applyTurnActivity({ phase: 'writing', toolCount: current.toolCount })
       }
       assistantDeltaThrottlerRef.current.append(assistantId, event.text)

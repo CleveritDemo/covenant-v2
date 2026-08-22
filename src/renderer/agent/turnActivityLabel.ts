@@ -29,6 +29,19 @@ export function turnActivityKey(state: TurnActivityState): string {
   return `${state.phase}:${state.toolLabel ?? ''}`
 }
 
+/** `assistant_delta` no debe tapar una tool en vuelo con la fase writing. */
+export function shouldPromoteTurnPhaseToWriting(
+  phase: TurnPhase,
+  toolsInFlight: number,
+): boolean {
+  if (toolsInFlight > 0) return false
+  return phase === 'starting'
+    || phase === 'context'
+    || phase === 'thinking'
+    || phase === 'tool'
+    || phase === 'writing'
+}
+
 /** `m:ss` hasta 59:59; `h:mm:ss` desde 1 h. Negativos y NaN → `0:00`. */
 export function formatElapsed(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '0:00'

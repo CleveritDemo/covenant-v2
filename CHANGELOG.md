@@ -5,6 +5,12 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.112.0
+
+### Anotar imágenes en el lienzo
+- El preview grande de una imagen adjunta ahora tiene un botón «Anotar»: abre el lienzo de dibujo con esa imagen ya puesta de fondo para marcarla con flechas, círculos o texto y adjuntarla como PNG.
+- Disponible en el chat del plano y en el curador de wiki. Abrir el lienzo en blanco desde su botón, o cambiar de agente o de hilo, deja el lienzo limpio.
+
 ## v0.111.0
 
 ### Galería de previews

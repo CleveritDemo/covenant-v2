@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useT } from '@i18n/useT'
+import { Button } from './ui/Button'
 import { Icon } from './ui/Icon'
 import { TerminalModal } from './TerminalModal'
 import './PendingImageThumb.css'
@@ -10,6 +11,8 @@ export interface PendingImageThumbProps {
   removeDisabled?: boolean
   /** Sin esto la miniatura es solo de lectura: los adjuntos ya enviados. */
   onRemove?: () => void
+  /** Abre el lienzo de sketch con esta imagen de fondo. Sin callback no se pinta el botón. */
+  onSketch?: () => void
 }
 
 /**
@@ -24,6 +27,7 @@ export const PendingImageThumb: React.FC<PendingImageThumbProps> = ({
   name,
   removeDisabled = false,
   onRemove,
+  onSketch,
 }) => {
   const { t } = useT()
   const [preview, setPreview] = useState(false)
@@ -63,6 +67,22 @@ export const PendingImageThumb: React.FC<PendingImageThumbProps> = ({
       >
         <div className="pending-thumb__preview">
           <img src={src} alt={name} decoding="async" />
+          {onSketch ? (
+            <div className="pending-thumb__preview-actions">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('agentPane.imageSketch')}
+                onClick={() => {
+                  setPreview(false)
+                  onSketch()
+                }}
+              >
+                <Icon name="pencil" size={12} />
+                {t('agentPane.imageSketch')}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </TerminalModal>
     </>

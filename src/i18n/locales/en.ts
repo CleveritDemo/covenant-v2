@@ -245,6 +245,7 @@ const en = {
     dictationLive: 'Hearing you…',
     dictationError: 'Dictation failed; try again',
     imagePreviewOpen: 'View {{name}} larger',
+    imageSketch: 'Annotate',
     removeImage: 'Remove image',
     imagesAttached: '{{n}} attached image(s)',
     pastedTextBadge: 'PASTED',

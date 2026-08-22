@@ -86,12 +86,27 @@
 
 /* Vista previa: la imagen manda; el modal se adapta a ella sin recortarla. */
 .pending-thumb__preview {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: min(40vh, 320px);
   padding: 8px 12px 12px;
   background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+}
+
+.pending-thumb__preview-actions {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: var(--plane-glass-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .pending-thumb__preview img {

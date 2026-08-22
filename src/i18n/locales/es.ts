@@ -247,6 +247,7 @@ const es = {
     dictationLive: 'Te escucho…',
     dictationError: 'El dictado falló; inténtalo de nuevo',
     imagePreviewOpen: 'Ver {{name}} en grande',
+    imageSketch: 'Anotar',
     removeImage: 'Quitar imagen',
     imagesAttached: '{{n}} imagen(es) adjunta(s)',
     pastedTextBadge: 'PEGADO',

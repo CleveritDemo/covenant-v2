@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.113.0
+
+- El botón de historial de hilos del plano ahora también se abre con un clic, además del hover, y queda marcado mientras el panel está visible.
+- Si no hay conversaciones fuera de los chips recientes, el botón de historial ya no aparece; si el panel no tiene filas, muestra un mensaje de vacío.
+
 ## v0.112.1
 
 - La galería de previews ya reserva el mismo espacio que el resto de vistas del plano: el riel de herramientas dejó de taparle los títulos de la lista.

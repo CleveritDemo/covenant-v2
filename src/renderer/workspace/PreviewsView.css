@@ -3,6 +3,8 @@
  * `.brainstorm-overlay`: absolute dentro de `.tab-agentic-plane`.
  */
 .previews-view {
+  /* Canalón del riel de herramientas elevado: 28px del riel + 8 de inset + holgura. */
+  --previews-rail-gutter: 44px;
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -14,11 +16,13 @@
 }
 
 .previews-view__bar {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: var(--plane-top-bar-inset, 14px) var(--plane-top-bar-inset, 14px) 0 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .previews-view__title {
@@ -56,15 +60,15 @@
 
 .previews-view__body {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: calc(260px + var(--previews-rail-gutter)) minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
 
 .previews-view__list {
   overflow-y: auto;
-  border-right: 1px solid var(--border);
-  padding: 6px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  padding: 6px 6px 6px var(--previews-rail-gutter);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -170,7 +174,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 48px 32px;
+  padding: 48px 32px 48px var(--previews-rail-gutter);
   text-align: center;
 }
 

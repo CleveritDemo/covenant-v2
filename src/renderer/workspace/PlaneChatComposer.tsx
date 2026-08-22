@@ -157,6 +157,7 @@ export interface PlaneChatComposerProps {
 
 export interface PlaneChatComposerHandle {
   attachReference: (content: string) => void
+  openSketchWithImage: (src: string, name: string) => void
 }
 
 export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatComposerProps>(
@@ -203,6 +204,7 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const [cliMissingNotice, setCliMissingNotice] = useState(false)
   const [sketchOpen, setSketchOpen] = useState(false)
+  const [sketchInitialImage, setSketchInitialImage] = useState<{ src: string; name: string } | null>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const pendingImagesRef = useRef(pendingImages)
   pendingImagesRef.current = pendingImages
@@ -279,6 +281,7 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
     setPendingPastes(saved?.pastes ?? [])
     setEditingQueuedId(null)
     setSketchOpen(false)
+    setSketchInitialImage(null)
     mention.close()
     historyRef.current = []
     stashRef.current = ''
@@ -428,7 +431,12 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
     )
   }, [])
 
-  useImperativeHandle(ref, () => ({ attachReference }), [attachReference])
+  const openSketchWithImage = useCallback((src: string, name: string) => {
+    setSketchInitialImage({ src, name })
+    setSketchOpen(true)
+  }, [])
+
+  useImperativeHandle(ref, () => ({ attachReference, openSketchWithImage }), [attachReference, openSketchWithImage])
 
   const handleSketchAttach = useCallback((blob: Blob): void => {
     void pendingImageFromBlob(blob, `sketch-${Date.now()}.png`).then(image => {
@@ -776,7 +784,10 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
             <PlaneSketchButton
               label={t('sketch.open')}
               disabled={agents.length === 0 || noAgentSelected || pendingImages.length >= MAX_PENDING_IMAGES}
-              onClick={() => setSketchOpen(true)}
+              onClick={() => {
+                setSketchInitialImage(null)
+                setSketchOpen(true)
+              }}
             />
           )}
           inputOverlay={mention.picker}
@@ -791,6 +802,7 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
                   src={image.previewUrl}
                   name={image.name}
                   onRemove={() => removePendingImage(image.id)}
+                  onSketch={() => openSketchWithImage(image.previewUrl, image.name)}
                 />
               ))}
             </div>
@@ -846,7 +858,11 @@ export const PlaneChatComposer = forwardRef<PlaneChatComposerHandle, PlaneChatCo
 
       <SketchModal
         open={sketchOpen}
-        onClose={() => setSketchOpen(false)}
+        initialImage={sketchInitialImage}
+        onClose={() => {
+          setSketchOpen(false)
+          setSketchInitialImage(null)
+        }}
         onAttach={handleSketchAttach}
       />
 

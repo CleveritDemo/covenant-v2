@@ -17,6 +17,8 @@ export interface PlaneQuickChatProps {
   activity?: string
   activityKey?: string
   activityStartedAtMs?: number
+  lastEventAtMs?: number
+  canGoStale?: boolean
   awaitingDelegations?: boolean
   orchestrationAwaiting?: OrchestrationAwaitingView | null
   activeAssistantId: string | null
@@ -48,6 +50,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   activity = '',
   activityKey = '',
   activityStartedAtMs = 0,
+  lastEventAtMs = 0,
+  canGoStale = false,
   awaitingDelegations = false,
   orchestrationAwaiting = null,
   activeAssistantId,
@@ -179,6 +183,8 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                   label={activityText}
                   activityKey={activityKey}
                   startedAtMs={activityStartedAtMs}
+                  lastEventAtMs={lastEventAtMs}
+                  canGoStale={canGoStale}
                 />
               ) : null}
             </div>

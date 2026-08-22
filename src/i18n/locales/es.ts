@@ -261,6 +261,7 @@ const es = {
     emptyTitle: '¿En qué trabajamos?',
     empty: 'Describe una tarea o haz una pregunta. El agente trabaja en tu carpeta y responde aquí; las terminales quedan como apoyo.',
     activity: '{{tool}}…',
+    activityStale: 'sin novedades hace {{since}}',
     activitySteps: '{{n}} · {{label}}',
     phaseStarting: 'Arrancando…',
     phaseThinking: 'Pensando…',

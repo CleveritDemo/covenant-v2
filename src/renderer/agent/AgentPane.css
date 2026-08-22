@@ -72,6 +72,7 @@ html[data-reduce-motion="true"] {
   .agent-pane__scroll-bottom-anchor,
   .agent-pane__activity,
   .agent-pane__activity-text,
+  .agent-pane__activity-stale,
   .agent-pane__row,
   .agent-pane__row--user,
   .agent-pane__row--assistant,
@@ -773,6 +774,11 @@ html[data-reduce-motion="true"] {
    parpadee de golpe. */
 .agent-pane__activity-text {
   animation: agent-pane-activity-text-in .3s ease both;
+}
+
+.agent-pane__activity-stale {
+  font-size: calc(var(--agent-chat-font-size) * 0.85);
+  color: color-mix(in srgb, var(--text-muted) 65%, transparent);
 }
 
 @keyframes agent-pane-activity-text-in {

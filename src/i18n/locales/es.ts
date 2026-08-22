@@ -172,6 +172,20 @@ const es = {
     round: 'ola {{round}}',
     pending: 'faltan {{n}}',
   },
+
+  toolVerb: {
+    withTarget: '{{verb}} {{target}}',
+    bare: '{{verb}}…',
+    read: 'Leyendo',
+    edit: 'Editando',
+    run: 'Ejecutando',
+    search: 'Buscando',
+    delegate: 'Delegando a un subagente',
+    web: 'Consultando la web',
+    plan: 'Ordenando su plan',
+    tool: 'Usando una herramienta externa',
+  },
+
   agentPane: {
     pickerTitle: 'Nueva ventana de agente',
     pickerDescription: 'Elige el proveedor CLI para este chat.',
@@ -262,7 +276,7 @@ const es = {
     empty: 'Describe una tarea o haz una pregunta. El agente trabaja en tu carpeta y responde aquí; las terminales quedan como apoyo.',
     activity: '{{tool}}…',
     activityStale: 'sin novedades hace {{since}}',
-    activitySteps: '{{n}} · {{label}}',
+    activitySteps: '{{label}} · paso {{n}}',
     phaseStarting: 'Arrancando…',
     phaseThinking: 'Pensando…',
     phaseWriting: 'Escribiendo respuesta…',

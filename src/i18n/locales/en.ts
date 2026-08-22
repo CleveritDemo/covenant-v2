@@ -170,6 +170,20 @@ const en = {
     round: 'wave {{round}}',
     pending: '{{n}} pending',
   },
+
+  toolVerb: {
+    withTarget: '{{verb}} {{target}}',
+    bare: '{{verb}}…',
+    read: 'Reading',
+    edit: 'Editing',
+    run: 'Running',
+    search: 'Searching',
+    delegate: 'Delegating to a subagent',
+    web: 'Checking the web',
+    plan: 'Sorting out its plan',
+    tool: 'Using an external tool',
+  },
+
   agentPane: {
     pickerTitle: 'New agent window',
     pickerDescription: 'Choose the CLI provider for this chat.',
@@ -260,7 +274,7 @@ const en = {
     empty: 'Describe a task or ask a question. The agent works in your folder and replies here; terminals stay as supporting tools.',
     activity: '{{tool}}…',
     activityStale: 'no news for {{since}}',
-    activitySteps: '{{n}} · {{label}}',
+    activitySteps: '{{label}} · step {{n}}',
     phaseStarting: 'Starting…',
     phaseThinking: 'Thinking…',
     phaseWriting: 'Writing the response…',

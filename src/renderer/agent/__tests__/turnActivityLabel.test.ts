@@ -32,16 +32,24 @@ describe('turnActivityLabel', () => {
       .toBe('[agentPane.contextLoading|n=0]')
   })
 
-  it('maps a single tool to the activity key and never returns empty', () => {
+  it('maps a single tool to the product verb label and never returns empty', () => {
     expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Read · a.ts', toolCount: 1 }, t))
-      .toBe('[agentPane.activity|tool=Read · a.ts]')
-    expect(turnActivityLabel({ phase: 'tool', toolCount: 1 }, t)).toBe('[agentPane.activity|tool=]')
+      .toBe('[toolVerb.withTarget|verb=[toolVerb.read],target=a.ts]')
+    expect(turnActivityLabel({ phase: 'tool', toolCount: 1 }, t))
+      .toBe('[agentPane.activity|tool=]')
     expect(turnActivityLabel({ phase: 'tool', toolCount: 1 }, t)).not.toBe('')
   })
 
-  it('wraps the tool label with activitySteps when toolCount is greater than 1', () => {
+  it('falls back to the raw activity key for unknown tool names', () => {
+    expect(turnActivityLabel({ phase: 'tool', toolLabel: 'TotallyUnknown · x', toolCount: 1 }, t))
+      .toBe('[agentPane.activity|tool=TotallyUnknown · x]')
+  })
+
+  it('appends step count after the label when toolCount is greater than 1', () => {
+    expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Read · src/foo.ts', toolCount: 7 }, t))
+      .toBe('[agentPane.activitySteps|label=[toolVerb.withTarget|verb=[toolVerb.read],target=src/foo.ts],n=7]')
     expect(turnActivityLabel({ phase: 'tool', toolLabel: 'Bash', toolCount: 3 }, t))
-      .toBe('[agentPane.activitySteps|label=[agentPane.activity|tool=Bash],n=3]')
+      .toBe('[agentPane.activitySteps|label=[toolVerb.bare|verb=[toolVerb.run]],n=3]')
   })
 })
 

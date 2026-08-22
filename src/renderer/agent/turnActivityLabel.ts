@@ -1,3 +1,5 @@
+import { toolVerbLabel } from './toolVerbLabel'
+
 export type TurnPhase = 'starting' | 'context' | 'thinking' | 'tool' | 'writing'
 
 export interface TurnActivityState {
@@ -17,7 +19,12 @@ export function turnActivityLabel(state: TurnActivityState, t: Translate): strin
   }
   if (state.phase === 'thinking') return t('agentPane.phaseThinking')
   if (state.phase === 'writing') return t('agentPane.phaseWriting')
-  const label = t('agentPane.activity', { tool: state.toolLabel ?? '' })
+  // toolLabel llega como `${name} · ${detail}` desde AgentPane en eventos tool.
+  const raw = state.toolLabel ?? ''
+  const sep = raw.indexOf(' · ')
+  const name = sep >= 0 ? raw.slice(0, sep) : raw
+  const detail = sep >= 0 ? raw.slice(sep + 3) : undefined
+  const label = toolVerbLabel(name, detail, t) ?? t('agentPane.activity', { tool: state.toolLabel ?? '' })
   if (state.toolCount > 1) {
     return t('agentPane.activitySteps', { label, n: state.toolCount })
   }

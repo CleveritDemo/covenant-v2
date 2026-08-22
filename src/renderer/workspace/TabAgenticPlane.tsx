@@ -38,7 +38,10 @@ import { isBrainstormLive } from './brainstormViewClose'
 import { PlaneExplorerButton } from './PlaneExplorerButton'
 import { PlaneGitButton } from './PlaneGitButton'
 import { PlanePulseButton } from './PlanePulseButton'
+import { PlanePreviewsButton } from './PlanePreviewsButton'
 import { PulseView } from './PulseView'
+import { PreviewsView } from './PreviewsView'
+import { usePreviews } from './usePreviews'
 import { PlaneWikiMapButton } from './PlaneWikiMapButton'
 import { PlaneWorkspaceButton } from './PlaneWorkspaceButton'
 import { Badge } from '../components/ui/Badge'
@@ -390,6 +393,8 @@ export interface TabAgenticPlaneProps {
    * Tras crear la wiki desde el CTA del mapa (ensureWiki ok): push org si aplica.
    */
   onWikiMutated?: (cwd: string) => void
+  /** Ola 3: abre la galería y selecciona un preview por nombre de archivo. */
+  previewOpenRequest?: { fileName: string; nonce: number } | null
 }
 
 export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
@@ -582,6 +587,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   onFirstLayoutReady,
   deferPositionMotion = false,
   onWikiMutated,
+  previewOpenRequest = null,
 }) => {
   const { t } = useT()
   const planeRef = useRef<HTMLDivElement>(null)
@@ -590,6 +596,16 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
   // Pulse solo lee del store por IPC: no necesita nada del padre, así que su
   // estado se queda acá en vez de engordar las props de App.tsx.
   const [pulseOpen, setPulseOpen] = useState(false)
+  const [previewsOpen, setPreviewsOpen] = useState(false)
+  const {
+    entries: previewEntries,
+    selectedFileName: previewSelectedFileName,
+    html: previewHtml,
+    loading: previewLoading,
+    error: previewError,
+    select: selectPreview,
+    remove: removePreview,
+  } = usePreviews(projectFolder, previewsOpen)
   const [pendingWorkspaceAction, setPendingWorkspaceAction] = useState<PendingWorkspaceAction | null>(null)
   const topLeftChromeRef = useRef<HTMLDivElement>(null)
   const prevUploadProgressRef = useRef<number | null>(uploadWorkspaceProgress ?? null)
@@ -978,10 +994,10 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
     || agent.delegationWorkActive
   ))
 
-  // Los tres ocupan el mismo sitio del plano; cerrar la vista de una sala no para su runner, que sigue en main.
-  // `none` = volver al plano: cierra los tres.
+  // Los overlays del plano son mutuamente excluyentes; cerrar una sala no para su runner.
+  // `none` = volver al plano: cierra todos.
   const closeOtherPlaneOverlays = useCallback((
-    keep: 'wiki' | 'brainstorm' | 'pulse' | 'none',
+    keep: 'wiki' | 'brainstorm' | 'pulse' | 'previews' | 'none',
   ): void => {
     if (keep !== 'wiki') {
       setWikiMapOpen(false)
@@ -992,10 +1008,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       onBrainstormDockOpenChange?.(false)
     }
     if (keep !== 'pulse') setPulseOpen(false)
+    if (keep !== 'previews') setPreviewsOpen(false)
   }, [onBrainstormViewChange, onBrainstormDockOpenChange])
 
+  useEffect(() => {
+    if (!previewOpenRequest) return
+    closeOtherPlaneOverlays('previews')
+    setPreviewsOpen(true)
+    selectPreview(previewOpenRequest.fileName)
+  }, [previewOpenRequest?.nonce, closeOtherPlaneOverlays, selectPreview, previewOpenRequest])
+
   const showIdleGravity = !anyFullscreen && !quickChatShowing && !wikiMapOpen
-    && !brainstormOverlayOpen && !pulseOpen
+    && !brainstormOverlayOpen && !pulseOpen && !previewsOpen
   const canToggleExplorer = Boolean(explorerSessionId && onToggleExplorer)
   /** Sin agentes ni terminales no hay a quién hablar: el composer no se monta. */
   const showPlaneComposer = entities.length > 0 && !hideComposer
@@ -1057,7 +1081,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         <div
           ref={topLeftChromeRef}
           className={`plane-top-left-chrome${
-            wikiMapOpen || brainstormOverlayOpen || pulseOpen ? ' plane-top-left-chrome--over-wiki' : ''
+            wikiMapOpen || brainstormOverlayOpen || pulseOpen || previewsOpen ? ' plane-top-left-chrome--over-wiki' : ''
           }`}
         >
           <div className="plane-top-left-bar">
@@ -1151,13 +1175,13 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {!anyFullscreen && !appOverlayOpen && (
         <PlaneToolsRail
           ariaLabel={t('tabs.planeToolsRailLabel')}
-          elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen}
+          elevated={wikiMapOpen || brainstormOverlayOpen || pulseOpen || previewsOpen}
         >
           {/* El plano primero; luego las salas de brainstorm; después el resto de herramientas. */}
           <PlaneWorkspaceButton
             label={t('tabs.planeWorkspaceButton')}
             hint={t('tabs.planeWorkspaceButtonHint')}
-            pressed={!wikiMapOpen && !brainstormOverlayOpen && !pulseOpen}
+            pressed={!wikiMapOpen && !brainstormOverlayOpen && !pulseOpen && !previewsOpen}
             onClick={() => closeOtherPlaneOverlays('none')}
           />
           {onBrainstormViewChange ? (
@@ -1238,6 +1262,17 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
                 if (pulseOpen) { setPulseOpen(false); return }
                 closeOtherPlaneOverlays('pulse')
                 setPulseOpen(true)
+              }}
+            />
+          ) : null}
+          {projectFolder.trim() ? (
+            <PlanePreviewsButton
+              label={t('previews.button')}
+              pressed={previewsOpen}
+              onClick={() => {
+                if (previewsOpen) { setPreviewsOpen(false); return }
+                closeOtherPlaneOverlays('previews')
+                setPreviewsOpen(true)
               }}
             />
           ) : null}
@@ -1431,7 +1466,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {/* El pool no se retira con la sala: solo con mapa de wiki, Pulse y
           fullscreen; en la sala sube a 675 por elevated. Las líneas de
           asignación sí se ocultan con la sala (apuntan a minis tapadas). */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !previewsOpen && !appOverlayOpen && (
         <PlaneContextPool
           title={contextPoolTitle}
           configureLabel={contextPoolConfigureLabel}
@@ -1465,7 +1500,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       )}
       {/* Con la sala abierta el haz sigue: el riel es el mismo y los asientos
           son destino igual que las minis, solo cambia de quién son las aristas. */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !previewsOpen && !appOverlayOpen && (
         <PlaneContextAssignmentLinks
           planeRef={planeRef}
           agents={brainstormOverlayOpen ? brainstormContextLinkAgents : contextPoolAgents}
@@ -1474,7 +1509,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
         />
       )}
 
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !previewsOpen && (
         <PlaneChatDock
           toolbar={openChatAgentId ? (
             <PlaneChatContextsBar
@@ -1566,7 +1601,7 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
 
       {/* Con la sala abierta solo queda el alta de agente, elevada — abrir una
           terminal desde dentro de una sala no tiene sentido. */}
-      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !appOverlayOpen && (
+      {!anyFullscreen && !wikiMapOpen && !pulseOpen && !previewsOpen && !appOverlayOpen && (
         <PlaneFabStack
           canAdd={canAdd}
           canAddAgent={canAddAgent}
@@ -1595,6 +1630,18 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
       {brainstormOverlays}
 
       <PulseView open={pulseOpen} active={tabActive} onClose={() => setPulseOpen(false)} />
+
+      <PreviewsView
+        open={previewsOpen}
+        entries={previewEntries}
+        selectedFileName={previewSelectedFileName}
+        html={previewHtml}
+        loading={previewLoading}
+        error={previewError}
+        onSelect={selectPreview}
+        onDelete={removePreview}
+        onClose={() => setPreviewsOpen(false)}
+      />
 
       {/* Páginas reales de la wiki (cuerpo legible vía preprocess + AiMarkdown).
           Hasta 3 modales movibles con posiciones dispersas sobre el plano. */}

@@ -25,6 +25,7 @@ import {
   agentRulesForPrompt,
 } from '@shared/agentIdentity'
 import { pulseWorkspaceTag } from '@shared/pulseEvents'
+import { shouldBumpActivityHeartbeat } from './activityHeartbeat'
 import {
   DEFAULT_THREAD_ID,
   deleteThread,
@@ -518,6 +519,10 @@ export interface AgentPlaneStatus {
   activityKey: string
   /** Sello de arranque del turno activo; el tick vive en PlaneActivityLine. */
   activityStartedAtMs: number
+  /** Sello del último evento CLI del hilo visible; alimenta el aviso de inactividad del plano. */
+  lastEventAtMs: number
+  /** false durante writing: la burbuja creciendo ya es señal de vida. */
+  activityCanGoStale: boolean
   lastSnippet: string
   /**
    * Último prompt del usuario, ya recortado, para el snippet de la mini-card.
@@ -675,6 +680,8 @@ export const AgentPane: React.FC<Props> = ({
   const toolsInFlightRef = useRef(0)
   const hasAssistantDeltaRef = useRef(false)
   const [activityStartedAtMs, setActivityStartedAtMs] = useState(0)
+  const [lastEventAtMs, setLastEventAtMs] = useState(0)
+  const lastEventAtRef = useRef(0)
   const applyTurnActivity = useCallback((next: TurnActivityState): void => {
     turnActivityRef.current = next
     setTurnActivity(next)
@@ -687,11 +694,16 @@ export const AgentPane: React.FC<Props> = ({
     setTurnActivity(IDLE_TURN_ACTIVITY)
     setActivity('')
     setActivityStartedAtMs(0)
+    lastEventAtRef.current = 0
+    setLastEventAtMs(0)
   }, [])
   const beginTurnActivity = useCallback((): void => {
     toolsInFlightRef.current = 0
     hasAssistantDeltaRef.current = false
-    setActivityStartedAtMs(Date.now())
+    const now = Date.now()
+    setActivityStartedAtMs(now)
+    lastEventAtRef.current = now
+    setLastEventAtMs(now)
     applyTurnActivity({ phase: 'starting', toolCount: 0 })
   }, [applyTurnActivity])
   const [confirmClose, setConfirmClose] = useState(false)
@@ -1467,6 +1479,8 @@ export const AgentPane: React.FC<Props> = ({
       activity,
       activityKey: turnActivityKey(turnActivity),
       activityStartedAtMs,
+      lastEventAtMs,
+      activityCanGoStale: turnActivity.phase !== 'writing',
       lastSnippet,
       lastUserSnippet,
       lastTurnFailed,
@@ -1559,6 +1573,7 @@ export const AgentPane: React.FC<Props> = ({
     activeThreadIdForGate,
     activity,
     activityStartedAtMs,
+    lastEventAtMs,
     turnActivity,
     awaitingDelegations,
     awaitingDelegationThreadIds,
@@ -2359,6 +2374,11 @@ export const AgentPane: React.FC<Props> = ({
     // done/EXIT tardíos de un proceso anterior no deben reabrir el turno ni
     // pisar el mensaje nuevo al drenar la cola.
     if (turnClosedRef.current) return
+    const now = Date.now()
+    if (shouldBumpActivityHeartbeat(lastEventAtRef.current, now)) {
+      lastEventAtRef.current = now
+      setLastEventAtMs(now)
+    }
     if (event.type === 'tool') {
       const current = turnActivityRef.current
       if (event.status === 'started') {

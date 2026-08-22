@@ -68,6 +68,8 @@ const chatStatus = (runningThreadIds: string[] = []): AgentPlaneStatus => ({
   activity: '',
   activityKey: '',
   activityStartedAtMs: 0,
+  lastEventAtMs: 0,
+  activityCanGoStale: false,
   lastSnippet: '',
   lastUserSnippet: '',
   lastTurnFailed: false,

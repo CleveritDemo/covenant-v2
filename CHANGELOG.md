@@ -5,6 +5,11 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.112.1
+
+- La galería de previews ya reserva el mismo espacio que el resto de vistas del plano: el riel de herramientas dejó de taparle los títulos de la lista.
+- Los separadores de la galería bajan a la intensidad suave del resto de la app, y la cabecera ahora tiene su propia línea.
+
 ## v0.112.0
 
 ### Anotar imágenes en el lienzo

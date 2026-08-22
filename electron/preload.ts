@@ -93,6 +93,7 @@ import type {
   TabContextPreviewRequest,
   TabContextPreviewResult,
 } from '../src/shared/tabContext'
+import type { PreviewsListResult, PreviewReadResult } from '../src/shared/previews'
 import type { WikiGraphResult } from '../src/shared/wikiGraph'
 import type { WikiCuratorConfig, WikiCuratorEvent } from '../src/shared/wikiCurator'
 import type { WikiSweepEvent } from '../src/shared/wikiCuratorSweep'
@@ -333,6 +334,15 @@ const api = {
   },
   listSkills(cwd: string): Promise<ContextSkillsListResult> {
     return ipcRenderer.invoke(IPC.CONTEXT_SKILLS_LIST, cwd)
+  },
+  previewsList(cwd: string): Promise<PreviewsListResult> {
+    return ipcRenderer.invoke(IPC.PREVIEWS_LIST, cwd)
+  },
+  previewsRead(cwd: string, fileName: string): Promise<PreviewReadResult> {
+    return ipcRenderer.invoke(IPC.PREVIEWS_READ, cwd, fileName)
+  },
+  previewsDelete(cwd: string, fileName: string): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke(IPC.PREVIEWS_DELETE, cwd, fileName)
   },
   ensureAiAgentResults(request: {
     cwd: string

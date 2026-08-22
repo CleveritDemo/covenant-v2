@@ -161,6 +161,7 @@ import {
   listSkills,
   materializeTabContext,
 } from './tabContextBuild'
+import { deletePreview, listPreviews, readPreview } from './previewsStore'
 import { resolveTabContextRevealPath } from './tabContextReveal'
 import {
   ensureWikiWithSeed,
@@ -2615,6 +2616,24 @@ function registerIpc(): void {
       return { ok: false, skills: [], error: 'Solicitud inválida.' }
     }
     return listSkills(cwd)
+  })
+  ipcMain.handle(IPC.PREVIEWS_LIST, (_event, cwd: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return listPreviews(cwd)
+  })
+  ipcMain.handle(IPC.PREVIEWS_READ, (_event, cwd: unknown, fileName: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof fileName !== 'string' || !fileName.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return readPreview(cwd, fileName)
+  })
+  ipcMain.handle(IPC.PREVIEWS_DELETE, (_event, cwd: unknown, fileName: unknown) => {
+    if (typeof cwd !== 'string' || !cwd.trim() || typeof fileName !== 'string' || !fileName.trim()) {
+      return { ok: false, error: 'Solicitud inválida.' }
+    }
+    return deletePreview(cwd, fileName)
   })
   ipcMain.handle(IPC.AGENT_RESULTS_ENSURE, (_event, request: unknown) => {
     if (!request || typeof request !== 'object') {

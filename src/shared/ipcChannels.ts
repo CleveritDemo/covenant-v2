@@ -81,6 +81,10 @@ export const IPC = {
   TAB_CONTEXT_DISCOVER: 'tabContext:discover',
   /** Renderer → main (invoke): lista skills instaladas en `.gravity/skills/`. */
   CONTEXT_SKILLS_LIST: 'context:skills:list',
+  /** Renderer → main (invoke): lista archivos en `.gravity/previews/`. */
+  PREVIEWS_LIST: 'previews:list',
+  PREVIEWS_READ: 'previews:read',
+  PREVIEWS_DELETE: 'previews:delete',
   TAB_CONTEXT_DELETE: 'tabContext:delete',
   /** Renderer → main (invoke): grafo de la wiki (`.gravity/wiki/pages`) de un cwd. */
   WIKI_GRAPH: 'wiki:graph',

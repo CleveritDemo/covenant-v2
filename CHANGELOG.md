@@ -5,6 +5,14 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.110.0
+
+### Cambios
+- La línea de actividad ahora dice qué está haciendo el agente y en qué paso va («Leyendo src/foo.ts · paso 7»), en vez de una fase genérica.
+- Con Claude, Gemini y Kimi ya se ven los pasos del turno: antes la app decía «Escribiendo respuesta» durante todo el turno porque no leía las herramientas del CLI.
+- Si pasan 40 segundos sin novedades del motor, la línea lo avisa en gris para distinguir un turno que avanza de uno colgado.
+- La fase de escritura ya no tapa las herramientas que siguen corriendo.
+
 ## v0.109.0
 
 - Sin conexión la app ya no se bloquea: lo que escribes queda en cola y se envía solo cuando la red vuelve.

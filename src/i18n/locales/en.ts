@@ -162,6 +162,11 @@ const en = {
     emptyObjective: '(no objective)',
   },
 
+  previewMention: {
+    open: 'View preview',
+    needFolder: 'Choose a project folder first',
+  },
+
   delegationCard: {
     status_ok: 'done',
     status_fail: 'failed',
@@ -300,7 +305,7 @@ const en = {
     threadNew: 'New conversation',
     threadNewHint: 'Start a separate thread. The current one is kept and can be resumed.',
     threadHistory: 'History',
-    threadHistoryHint: 'All saved conversations.',
+    threadHistoryHint: 'Open older conversations.',
     threadHistoryEmpty: 'No more conversations',
     threadHistoryAria: 'Conversation history',
     threadRename: 'Rename conversation',
@@ -2033,6 +2038,19 @@ const en = {
     harness_noMeasure: 'This CLI does not report token usage',
     harness_partial: 'Measured on {{measured}} of {{turns}} turns',
     harness_empty: 'No harness turns in this scope yet.',
+  },
+
+  previews: {
+    button: 'Previews',
+    title: 'Previews',
+    empty: 'No previews yet',
+    emptyHint:
+      'Agents write visual proposals in .gravity/previews/. They show up here before you integrate them.',
+    pick: 'Pick a preview from the list',
+    loading: 'Loading…',
+    error: 'Could not load preview',
+    delete: 'Delete preview',
+    close: 'Close Previews',
   },
 
   lsp: {

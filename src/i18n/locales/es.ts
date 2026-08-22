@@ -164,6 +164,11 @@ const es = {
     emptyObjective: '(sin objetivo)',
   },
 
+  previewMention: {
+    open: 'Ver preview',
+    needFolder: 'Elige una carpeta de proyecto primero',
+  },
+
   delegationCard: {
     status_ok: 'listo',
     status_fail: 'falló',
@@ -302,7 +307,7 @@ const es = {
     threadNew: 'Conversación nueva',
     threadNewHint: 'Abre un hilo aparte. El actual queda guardado y se puede retomar.',
     threadHistory: 'Historial',
-    threadHistoryHint: 'Todas las conversaciones guardadas.',
+    threadHistoryHint: 'Abre conversaciones anteriores.',
     threadHistoryEmpty: 'No hay más conversaciones',
     threadHistoryAria: 'Historial de conversaciones',
     threadRename: 'Renombrar conversación',
@@ -2035,6 +2040,19 @@ const es = {
     harness_noMeasure: 'Este CLI no reporta uso de tokens',
     harness_partial: 'Medido en {{measured}} de {{turns}} turnos',
     harness_empty: 'Todavía no hay turnos de harness en este alcance.',
+  },
+
+  previews: {
+    button: 'Previews',
+    title: 'Previews',
+    empty: 'Sin previews todavía',
+    emptyHint:
+      'Los agentes escriben propuestas visuales en .gravity/previews/. Aquí las ves antes de integrarlas.',
+    pick: 'Elige un preview de la lista',
+    loading: 'Cargando…',
+    error: 'No se pudo cargar el preview',
+    delete: 'Eliminar preview',
+    close: 'Cerrar Previews',
   },
 
   lsp: {

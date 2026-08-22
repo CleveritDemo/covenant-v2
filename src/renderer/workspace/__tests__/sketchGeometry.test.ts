@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arrowHeadPoints, boxFromDrag, ellipseFromDrag } from '../sketchGeometry'
+import { arrowHeadPoints, boxFromDrag, ellipseFromDrag, fitImageBox } from '../sketchGeometry'
 
 function distance(ax: number, ay: number, bx: number, by: number): number {
   return Math.hypot(bx - ax, by - ay)
@@ -53,6 +53,44 @@ describe('boxFromDrag', () => {
 
   it('un clic sin arrastre da una caja vacía, no negativa', () => {
     expect(boxFromDrag(42, 42, 42, 42)).toEqual({ x: 42, y: 42, width: 0, height: 0 })
+  })
+})
+
+describe('fitImageBox', () => {
+  const canvasWidth = 720
+  const canvasHeight = 400
+
+  it('reduce una imagen más grande y la centra', () => {
+    expect(fitImageBox(1440, 800, canvasWidth, canvasHeight)).toEqual({
+      x: 0,
+      y: 0,
+      width: 720,
+      height: 400,
+    })
+  })
+
+  it('no amplía una imagen más pequeña y la centra', () => {
+    expect(fitImageBox(100, 50, canvasWidth, canvasHeight)).toEqual({
+      x: 310,
+      y: 175,
+      width: 100,
+      height: 50,
+    })
+  })
+
+  it('cubre el lienzo cuando la imagen coincide con su tamaño', () => {
+    expect(fitImageBox(canvasWidth, canvasHeight, canvasWidth, canvasHeight)).toEqual({
+      x: 0,
+      y: 0,
+      width: canvasWidth,
+      height: canvasHeight,
+    })
+  })
+
+  it('devuelve caja cero con ancho 0 o NaN', () => {
+    const zero = { x: 0, y: 0, width: 0, height: 0 }
+    expect(fitImageBox(0, 100, canvasWidth, canvasHeight)).toEqual(zero)
+    expect(fitImageBox(NaN, 100, canvasWidth, canvasHeight)).toEqual(zero)
   })
 })
 

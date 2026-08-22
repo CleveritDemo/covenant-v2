@@ -52,6 +52,38 @@ export function boxFromDrag(x0: number, y0: number, x1: number, y1: number): Ske
   }
 }
 
+/**
+ * Caja centrada para pegar una imagen en el lienzo: reduce si hace falta, nunca amplía.
+ */
+export function fitImageBox(
+  imageWidth: number,
+  imageHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): SketchBox {
+  if (
+    !Number.isFinite(imageWidth) ||
+    !Number.isFinite(imageHeight) ||
+    !Number.isFinite(canvasWidth) ||
+    !Number.isFinite(canvasHeight) ||
+    imageWidth <= 0 ||
+    imageHeight <= 0 ||
+    canvasWidth <= 0 ||
+    canvasHeight <= 0
+  ) {
+    return { x: 0, y: 0, width: 0, height: 0 }
+  }
+  const scale = Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight, 1)
+  const width = imageWidth * scale
+  const height = imageHeight * scale
+  return {
+    x: (canvasWidth - width) / 2,
+    y: (canvasHeight - height) / 2,
+    width,
+    height,
+  }
+}
+
 /** Elipse inscrita en la caja del arrastre. */
 export function ellipseFromDrag(
   x0: number,

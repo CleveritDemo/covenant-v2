@@ -3,7 +3,7 @@ import { useT } from '@i18n/useT'
 import { TerminalModal } from '../components/TerminalModal'
 import { Button } from '../components/ui'
 import { Icon, type IconName } from '../components/ui/Icon'
-import { arrowHeadPoints, boxFromDrag, ellipseFromDrag } from './sketchGeometry'
+import { arrowHeadPoints, boxFromDrag, ellipseFromDrag, fitImageBox } from './sketchGeometry'
 import {
   sketchFontSize,
   sketchTextFont,
@@ -63,6 +63,8 @@ export interface SketchModalProps {
   onClose: () => void
   /** El PNG dibujado. El modal no sabe nada del composer. */
   onAttach: (blob: Blob) => void
+  /** Imagen con la que arranca el lienzo al entrar desde el preview de un adjunto. */
+  initialImage?: { src: string; name: string } | null
 }
 
 /** Ajusta la altura del textarea al contenido. */
@@ -75,7 +77,12 @@ function resizeSketchTextInput(el: HTMLTextAreaElement): void {
  * Lienzo para dibujar o anotar un screenshot y adjuntarlo como imagen.
  * El estado de dibujo vive en refs: un trazo no debe re-renderizar React.
  */
-export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttach }) => {
+export const SketchModal: React.FC<SketchModalProps> = ({
+  open,
+  onClose,
+  onAttach,
+  initialImage,
+}) => {
   const { t } = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textInputRef = useRef<HTMLTextAreaElement>(null)
@@ -83,6 +90,7 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
   const undoRef = useRef<ImageData[]>([])
   const redoRef = useRef<ImageData[]>([])
+  const initialImagePaintedRef = useRef(false)
   const dragRef = useRef<DragState>({
     drawing: false,
     startX: 0,
@@ -166,6 +174,28 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
     syncHistory()
     return data
   }, [syncHistory])
+
+  useEffect(() => {
+    if (!open) {
+      initialImagePaintedRef.current = false
+      return
+    }
+    const src = initialImage?.src
+    if (!src || initialImagePaintedRef.current) return
+    initialImagePaintedRef.current = true
+    const context = ctxRef.current
+    if (!context) return
+    paintBackground(context)
+    snapshot()
+    const image = new Image()
+    image.onload = () => {
+      const ctx = ctxRef.current
+      if (!ctx) return
+      const box = fitImageBox(image.width, image.height, CANVAS_WIDTH, CANVAS_HEIGHT)
+      ctx.drawImage(image, box.x, box.y, box.width, box.height)
+    }
+    image.src = src
+  }, [open, initialImage?.src, paintBackground, snapshot])
 
   const undo = useCallback((): void => {
     const context = ctxRef.current
@@ -376,14 +406,8 @@ export const SketchModal: React.FC<SketchModalProps> = ({ open, onClose, onAttac
         const context = ctxRef.current
         if (context) {
           snapshot()
-          const imageScale = Math.min(
-            CANVAS_WIDTH / image.width,
-            CANVAS_HEIGHT / image.height,
-            1,
-          )
-          const w = image.width * imageScale
-          const h = image.height * imageScale
-          context.drawImage(image, (CANVAS_WIDTH - w) / 2, (CANVAS_HEIGHT - h) / 2, w, h)
+          const box = fitImageBox(image.width, image.height, CANVAS_WIDTH, CANVAS_HEIGHT)
+          context.drawImage(image, box.x, box.y, box.width, box.height)
         }
         URL.revokeObjectURL(url)
       }

@@ -32,6 +32,7 @@ export interface PlaneQuickChatProps {
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
   onReferenceMessage?: (content: string) => void
 }
 
@@ -63,6 +64,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
   onAbortDelegation,
   projectAgents = [],
   onInsertCommand,
+  onOpenPreview,
   onReferenceMessage,
 }) => {
   const { t } = useT()
@@ -152,6 +154,7 @@ export const PlaneQuickChat: React.FC<PlaneQuickChatProps> = ({
                 scrollRef={scrollRef}
                 projectAgents={projectAgents}
                 onInsertCommand={onInsertCommand}
+                onOpenPreview={onOpenPreview}
                 onReferenceMessage={onReferenceMessage}
               />
               {awaitingDelegations ? (

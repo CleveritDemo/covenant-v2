@@ -12,6 +12,7 @@ vi.mock('@i18n/useT', () => ({
     t: (key: string) => {
       if (key === 'agentPane.showMore') return 'Show more'
       if (key === 'agentPane.showLess') return 'Show less'
+      if (key === 'previewMention.open') return 'View preview'
       return key
     },
   }),
@@ -315,5 +316,72 @@ describe('AgentChatBubbles reference action', () => {
       />,
     )
     expect(screen.getByRole('button', { name: 'agentPane.referenceBubble' })).toBeTruthy()
+  })
+})
+
+describe('AgentChatBubbles preview mention', () => {
+  const previewContent = 'Listo. Revisa `.gravity/previews/x.html` antes de integrar.'
+
+  it('paints the preview chip and click calls onOpenPreview with the basename', () => {
+    const onOpenPreview = vi.fn()
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-preview', role: 'assistant', content: previewContent }]}
+        busy={false}
+        activeAssistantId={null}
+        onOpenPreview={onOpenPreview}
+      />,
+    )
+    const chip = screen.getByRole('button', { name: 'View preview' })
+    expect(chip).toBeTruthy()
+    expect(screen.getByText('x.html')).toBeTruthy()
+    fireEvent.click(chip)
+    expect(onOpenPreview).toHaveBeenCalledTimes(1)
+    expect(onOpenPreview).toHaveBeenCalledWith('x.html')
+  })
+
+  it('does not paint the preview chip without onOpenPreview', () => {
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-preview', role: 'assistant', content: previewContent }]}
+        busy={false}
+        activeAssistantId={null}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'View preview' })).toBeNull()
+    expect(document.querySelector('.assistant-formatted-body__preview-mentions')).toBeNull()
+  })
+
+  it('does not paint the preview chip on the live bubble', () => {
+    render(
+      <AgentChatBubbles
+        messages={[{ id: 'a-live-preview', role: 'assistant', content: previewContent }]}
+        busy
+        activeAssistantId="a-live-preview"
+        onOpenPreview={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'View preview' })).toBeNull()
+  })
+
+  it('paints the preview chip when onOpenPreview arrives after the first render', () => {
+    const messages = [{ id: 'a-late-preview', role: 'assistant' as const, content: previewContent }]
+    const { rerender } = render(
+      <AgentChatBubbles
+        messages={messages}
+        busy={false}
+        activeAssistantId={null}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'View preview' })).toBeNull()
+    rerender(
+      <AgentChatBubbles
+        messages={messages}
+        busy={false}
+        activeAssistantId={null}
+        onOpenPreview={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'View preview' })).toBeTruthy()
   })
 })

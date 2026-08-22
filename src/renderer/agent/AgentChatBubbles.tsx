@@ -63,7 +63,8 @@ const BubbleBodyInner: React.FC<{
   role: 'user' | 'assistant'
   projectAgents?: readonly ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
-}> = ({ content, live, role, projectAgents = [], onInsertCommand }) => {
+  onOpenPreview?: (fileName: string) => void
+}> = ({ content, live, role, projectAgents = [], onInsertCommand, onOpenPreview }) => {
   // Usuario: texto literal. Nunca AiMarkdown / splitChatSentences.
   if (role === 'user') {
     // Salvo lo que arma el host: el encargo que entra al especialista…
@@ -106,7 +107,12 @@ const BubbleBodyInner: React.FC<{
   }
   return (
     <div className={live ? 'agent-pane__stream' : undefined}>
-      <AssistantFormattedBody content={content} live={live} onInsertCommand={onInsertCommand} />
+      <AssistantFormattedBody
+        content={content}
+        live={live}
+        onInsertCommand={onInsertCommand}
+        onOpenPreview={onOpenPreview}
+      />
     </div>
   )
 }
@@ -116,6 +122,8 @@ const BubbleBody = React.memo(BubbleBodyInner, (prev, next) => {
   return prev.content === next.content
     && prev.role === next.role
     && prev.projectAgents === next.projectAgents
+    && prev.onInsertCommand === next.onInsertCommand
+    && prev.onOpenPreview === next.onOpenPreview
 })
 
 function isRenderableChatRow(
@@ -149,6 +157,7 @@ interface AgentChatBubbleRowProps {
   onMaterializingAnimationEnd?: (id: string) => void
   projectAgents?: readonly ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
   onReferenceMessage?: (content: string) => void
 }
 
@@ -167,6 +176,7 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
   onMaterializingAnimationEnd,
   projectAgents = [],
   onInsertCommand,
+  onOpenPreview,
   onReferenceMessage,
 }) => {
   const { t } = useT()
@@ -270,6 +280,7 @@ const AgentChatBubbleRowInner: React.FC<AgentChatBubbleRowProps> = ({
                     role={message.role === 'user' ? 'user' : 'assistant'}
                     projectAgents={projectAgents}
                     onInsertCommand={onInsertCommand}
+                    onOpenPreview={onOpenPreview}
                   />
                 </div>
                 {canCollapse && (
@@ -328,6 +339,7 @@ const AgentChatBubbleRow = React.memo(AgentChatBubbleRowInner, (prev, next) => {
   }
   if (prev.onReferenceMessage !== next.onReferenceMessage) return false
   if (prev.onInsertCommand !== next.onInsertCommand) return false
+  if (prev.onOpenPreview !== next.onOpenPreview) return false
   return true
 })
 
@@ -352,6 +364,7 @@ export interface AgentChatBubblesProps {
   /** Contenedor con scroll (`.agent-pane__messages`). */
   scrollRef?: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement>
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
   onReferenceMessage?: (content: string) => void
 }
 
@@ -370,6 +383,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     projectAgents = [],
     scrollRef,
     onInsertCommand,
+    onOpenPreview,
     onReferenceMessage,
   },
   ref,
@@ -529,6 +543,7 @@ export const AgentChatBubbles = forwardRef<AgentChatBubblesHandle, AgentChatBubb
     onMaterializingAnimationEnd,
     projectAgents,
     onInsertCommand,
+    onOpenPreview,
     onReferenceMessage,
   }
 

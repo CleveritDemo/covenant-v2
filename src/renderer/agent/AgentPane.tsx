@@ -365,6 +365,7 @@ interface Props {
   /** Hilo borrado del catálogo: limpiar colas externas atadas a ese threadId. */
   onThreadClosed?: (threadId: string) => void
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
 }
 
 /** Hilos con carril vivo o turno activo del pane; orden estable, sin duplicados. */
@@ -658,6 +659,7 @@ export const AgentPane: React.FC<Props> = ({
   registerShortcutCloseInterceptor,
   onThreadClosed,
   onInsertCommand,
+  onOpenPreview,
 }) => {
   const { t } = useT()
   const [messages, setMessages] = useState<AgentChatEntry[]>([])
@@ -3809,6 +3811,7 @@ export const AgentPane: React.FC<Props> = ({
             onScrollToBottom={scrollChatToBottom}
             onAbortDelegation={id => onAbortDelegationRef.current?.(id)}
             onInsertCommand={onInsertCommand}
+            onOpenPreview={onOpenPreview}
             onReferenceMessage={attachBubbleReference}
           />
 

@@ -51,6 +51,7 @@ export interface AgentPaneMessagesProps {
   onAbortDelegation?: (delegationId: string) => void
   projectAgents?: ProjectAgentDefinition[]
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
   onReferenceMessage?: (content: string) => void
 }
 
@@ -78,6 +79,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
   onAbortDelegation,
   projectAgents = [],
   onInsertCommand,
+  onOpenPreview,
   onReferenceMessage,
 }) => {
   const { t } = useT()
@@ -112,6 +114,7 @@ export const AgentPaneMessages: React.FC<AgentPaneMessagesProps> = ({
           scrollRef={scrollRef}
           projectAgents={projectAgents}
           onInsertCommand={onInsertCommand}
+          onOpenPreview={onOpenPreview}
           onReferenceMessage={onReferenceMessage}
         />
         {awaitingDelegations ? (

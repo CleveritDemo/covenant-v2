@@ -1,5 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import { useT } from '@i18n/useT'
+import { findPreviewMentions } from '@shared/previewMentions'
+import { PreviewMentionCard } from '../../agent/PreviewMentionCard'
 import { AiMarkdown } from '../AiMarkdown'
 import { AiCodeBlock } from '../AiCodeBlock'
 import { ChatBubble } from './ChatBubble'
@@ -15,6 +17,7 @@ export interface AssistantFormattedBodyProps {
   content: string
   live?: boolean
   onInsertCommand?: (cmd: string) => void
+  onOpenPreview?: (fileName: string) => void
 }
 
 type BodyStableCache = {
@@ -28,9 +31,15 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
   content,
   live = false,
   onInsertCommand,
+  onOpenPreview,
 }) => {
   const { t } = useT()
   const stableCacheRef = useRef<BodyStableCache>({ length: 0, slice: '', segments: [] })
+
+  const mentions = useMemo(
+    () => (onOpenPreview && !live ? findPreviewMentions(content) : []),
+    [content, live, onOpenPreview],
+  )
 
   const segments = useMemo(() => {
     const stripped = stripAgentControlFences(content, { keepDelegateFences: live })
@@ -59,7 +68,7 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
     return [...stableSegments, ...liveSegments]
   }, [content, live])
 
-  if (segments.length === 0) return null
+  if (segments.length === 0 && mentions.length === 0) return null
   return (
     <>
       {segments.map((segment, index) => {
@@ -94,6 +103,18 @@ export const AssistantFormattedBody: React.FC<AssistantFormattedBodyProps> = ({
           />
         )
       })}
+      {mentions.length > 0 && onOpenPreview ? (
+        <div className="assistant-formatted-body__preview-mentions">
+          {mentions.map(mention => (
+            <PreviewMentionCard
+              key={mention.fileName}
+              fileName={mention.fileName}
+              label={t('previewMention.open')}
+              onOpen={onOpenPreview}
+            />
+          ))}
+        </div>
+      ) : null}
     </>
   )
 }

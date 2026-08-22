@@ -174,6 +174,11 @@
   pointer-events: none;
 }
 
+.plane-chat-thread-history__row--empty .plane-chat-thread-history__label {
+  font-style: italic;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+}
+
 .plane-chat-thread-history__label {
   flex: 1 1 auto;
   min-width: 0;

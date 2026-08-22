@@ -75,7 +75,16 @@ function HistoryHarness({
       runningThreadIds={runningThreadIds}
       onSelectThread={onSelectThread}
       anchor={hoverProps => (
-        <button ref={triggerRef} type="button" {...hoverProps}>
+        <button
+          ref={triggerRef}
+          type="button"
+          onMouseEnter={hoverProps.onMouseEnter}
+          onMouseLeave={hoverProps.onMouseLeave}
+          onFocusCapture={hoverProps.onFocusCapture}
+          onBlurCapture={hoverProps.onBlurCapture}
+          onClick={hoverProps.onClick}
+          aria-expanded={hoverProps.panelOpen}
+        >
           Open
         </button>
       )}
@@ -181,6 +190,36 @@ describe('PlaneChatThreadHistoryButton', () => {
     expect(options[2]?.textContent).toContain('Human seven')
   })
 
+  it('sin contenido de historial no monta el panel', () => {
+    render(
+      <HistoryHarness
+        threads={makeThreads(4)}
+        activeThreadId="t-1"
+        runningThreadIds={['t-2']}
+        onSelectThread={() => undefined}
+      />,
+    )
+    expect(screen.queryByRole('listbox', { hidden: true })).toBeNull()
+  })
+
+  it('click en el ancla abre y cierra el panel', () => {
+    render(
+      <HistoryHarness
+        threads={makeThreads(7)}
+        activeThreadId="t-1"
+        runningThreadIds={['t-2']}
+        onSelectThread={() => undefined}
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: 'Open' })
+    fireEvent.click(trigger)
+    const panel = screen.getByRole('listbox', { hidden: true })
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(true)
+
+    fireEvent.click(trigger)
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(false)
+  })
+
   it('sin hilos no monta el panel', () => {
     render(
       <HistoryHarness
@@ -196,7 +235,7 @@ describe('PlaneChatThreadHistoryButton', () => {
   it('Escape cierra el panel abierto', () => {
     render(
       <HistoryHarness
-        threads={makeThreads(6)}
+        threads={makeThreads(7)}
         activeThreadId="t-1"
         runningThreadIds={['t-2']}
         onSelectThread={() => undefined}

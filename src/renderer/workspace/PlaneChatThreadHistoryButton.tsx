@@ -22,6 +22,8 @@ export interface PlaneChatThreadHistoryAnchorProps {
   onMouseLeave: () => void
   onFocusCapture: () => void
   onBlurCapture: (event: React.FocusEvent<HTMLElement>) => void
+  onClick: () => void
+  panelOpen: boolean
 }
 
 export interface PlaneChatThreadHistoryButtonProps {
@@ -104,6 +106,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   const [visibleLimit, setVisibleLimit] = useState(HISTORY_PAGE_SIZE)
   const [box, setBox] = useState<React.CSSProperties>({})
   const [closing, setClosing] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
   const openTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const closeAnimTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -122,6 +125,12 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
   )
 
   const rowCount = orchestrationItems.length + delegations.length + humanItems.length
+
+  const showAwaitingPlaceholder = awaitingDelegations
+    && orchestrationItems.length === 0
+    && delegations.length === 0
+
+  const hasPanelContent = rowCount > 0 || showAwaitingPlaceholder
 
   const syncPanelPosition = useCallback((): void => {
     const trigger = triggerRef.current?.getBoundingClientRect()
@@ -161,6 +170,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     }
     isOpenRef.current = true
     setClosing(false)
+    setPanelOpen(true)
     onOpenChange?.(true)
     setVisibleLimit(HISTORY_PAGE_SIZE)
     requestAnimationFrame(syncPanelPositionAfterLayout)
@@ -179,6 +189,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
       }
       setClosing(false)
       isOpenRef.current = false
+      setPanelOpen(false)
       onOpenChange?.(false)
     }
 
@@ -230,12 +241,20 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     }, HOVER_CLOSE_DELAY_MS)
   }, [cancelScheduledOpen, closePanel])
 
+  const togglePanel = useCallback((): void => {
+    cancelScheduledOpen()
+    cancelScheduledClose()
+    if (isOpenRef.current) closePanel(false)
+    else openPanel()
+  }, [cancelScheduledClose, cancelScheduledOpen, closePanel, openPanel])
+
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
     const onToggle = (event: Event): void => {
       const nowOpen = (event as ToggleEvent).newState === 'open'
       isOpenRef.current = nowOpen
+      setPanelOpen(nowOpen)
       onOpenChange?.(nowOpen)
       if (nowOpen) {
         panel.classList.add('plane-chat-thread-history__panel--open')
@@ -262,7 +281,9 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     onMouseLeave: scheduleClose,
     onFocusCapture: scheduleOpen,
     onBlurCapture,
-  }), [onBlurCapture, scheduleClose, scheduleOpen])
+    onClick: togglePanel,
+    panelOpen,
+  }), [onBlurCapture, panelOpen, scheduleClose, scheduleOpen, togglePanel])
 
   useEffect(() => () => {
     cancelScheduledOpen()
@@ -306,7 +327,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
     }
   }
 
-  if (threads.length === 0 && orchestrationItems.length === 0) return null
+  if (!hasPanelContent) return null
 
   const renderThreadRow = (thread: AgentThread): React.ReactNode => {
     const rowDot: PlaneActivityDotKind | null = thread.origin === 'delegation'
@@ -391,8 +412,7 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
           </div>
         ))}
         {awaitingDelegations
-          && orchestrationItems.length === 0
-          && delegations.length === 0 ? (
+          && showAwaitingPlaceholder ? (
             <div
               className="plane-chat-thread-history__row plane-chat-thread-history__row--static"
               role="presentation"
@@ -405,6 +425,16 @@ export const PlaneChatThreadHistoryButton: React.FC<PlaneChatThreadHistoryButton
           ) : null}
         {delegations.map(renderThreadRow)}
         {humanItems.map(renderThreadRow)}
+        {rowCount === 0 ? (
+          <div
+            className="plane-chat-thread-history__row plane-chat-thread-history__row--static plane-chat-thread-history__row--empty"
+            role="presentation"
+          >
+            <span className="plane-chat-thread-history__label">
+              {t('agentPane.threadHistoryEmpty')}
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
     </>

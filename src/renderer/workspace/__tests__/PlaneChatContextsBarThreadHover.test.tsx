@@ -70,4 +70,34 @@ describe('PlaneChatContextsBar thread history hover', () => {
     expect(panel.textContent).toContain('Seven')
     vi.useRealTimers()
   })
+
+  it('con pocos hilos no muestra el botón de historial', () => {
+    render(
+      <PlaneChatContextsBar
+        threads={threads.slice(0, 4)}
+        activeThreadId="t-1"
+        onSelectThread={() => undefined}
+        onRenameThread={() => undefined}
+      />,
+    )
+    expect(document.querySelector('.plane-chat-contexts-bar__history-host')).toBeNull()
+  })
+
+  it('click en historial abre el panel de otros hilos', () => {
+    render(
+      <PlaneChatContextsBar
+        threads={threads}
+        activeThreadId="t-1"
+        onSelectThread={() => undefined}
+        onRenameThread={() => undefined}
+      />,
+    )
+
+    const historyButton = screen.getByRole('button', { name: 'agentPane.threadHistoryAria' })
+    fireEvent.click(historyButton)
+
+    const panel = screen.getByRole('listbox', { hidden: true })
+    expect(panel.classList.contains('plane-chat-thread-history__panel--open')).toBe(true)
+    expect(panel.textContent).toContain('Seven')
+  })
 })

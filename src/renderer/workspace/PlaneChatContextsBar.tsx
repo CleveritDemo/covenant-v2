@@ -97,7 +97,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const chipsRef = useRef<HTMLDivElement>(null)
   const chipLeftByIdRef = useRef<Map<string, number>>(new Map())
-  const [threadPanelOpen, setThreadPanelOpen] = useState(false)
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [scrollFadeStart, setScrollFadeStart] = useState(false)
@@ -360,7 +359,6 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                 paneCliBusy={paneCliBusy}
                 threadSelectionLocked={threadSelectionLocked}
                 onSelectThread={onSelectThread!}
-                onOpenChange={setThreadPanelOpen}
                 anchor={hoverProps => (
                   <Tooltip
                     content={t('agentPane.threadHistory')}
@@ -369,13 +367,22 @@ export const PlaneChatContextsBar: React.FC<PlaneChatContextsBarProps> = ({
                     <span
                       ref={threadHistoryTriggerRef}
                       className="plane-chat-contexts-bar__history-host"
-                      {...hoverProps}
+                      onMouseEnter={hoverProps.onMouseEnter}
+                      onMouseLeave={hoverProps.onMouseLeave}
+                      onFocusCapture={hoverProps.onFocusCapture}
+                      onBlurCapture={hoverProps.onBlurCapture}
                     >
                       <Button
                         variant="ghost"
                         size="sm"
+                        pressed={hoverProps.panelOpen}
                         aria-label={t('agentPane.threadHistoryAria')}
-                        aria-expanded={threadPanelOpen}
+                        aria-expanded={hoverProps.panelOpen}
+                        onClick={event => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          hoverProps.onClick()
+                        }}
                       >
                         <Icon name="history" size={13} />
                       </Button>

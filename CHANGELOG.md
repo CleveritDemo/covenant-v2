@@ -5,6 +5,13 @@ release de GitHub y, vía `latest*.yml`, en el modal "Novedades" del auto-update
 de la app. Escríbelas pensando en quien las va a leer desde la titlebar.
 
 
+## v0.111.0
+
+### Galería de previews
+- Nueva vista de previews en el riel del plano: lista los archivos HTML de `.gravity/previews/` del proyecto y los renderiza dentro de la app, sin abrir el explorador.
+- Los previews se ordenan por fecha, se pueden borrar desde la lista y la galería comparte slot con Pulse, el mapa de wiki y las salas.
+- Cuando un agente menciona la ruta de un preview en el chat, aparece un chip «Ver preview» que lo abre directamente en la galería, tanto desde el chat del plano como desde un panel de agente.
+
 ## v0.110.0
 
 ### Cambios

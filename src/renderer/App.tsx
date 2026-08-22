@@ -870,6 +870,9 @@ export const App: React.FC = () => {
   const planeNewThreadPaneIdRef = useRef(planeNewThreadPaneId)
   planeNewThreadPaneIdRef.current = planeNewThreadPaneId
   const [planeLoopsOpenByTab, setPlaneLoopsOpenByTab] = useState<Record<string, boolean>>({})
+  const [previewOpenRequestByTab, setPreviewOpenRequestByTab] = useState<
+    Record<string, { fileName: string; nonce: number }>
+  >({})
   /**
    * Salas por tab, en orden de convocatoria. Son varias a la vez: main ya
    * lleva un runner por `roomId`, así que el límite era solo del renderer.
@@ -4307,6 +4310,13 @@ export const App: React.FC = () => {
     handleCreateTerminal(tabId)
   }, [handleCreateTerminal, handleOpenPaneWindow])
 
+  const handleOpenPreviewFromChat = useCallback((tabId: string, fileName: string) => {
+    setPreviewOpenRequestByTab(prev => ({
+      ...prev,
+      [tabId]: { fileName, nonce: (prev[tabId]?.nonce ?? 0) + 1 },
+    }))
+  }, [])
+
   const openPaneWindowUnlessSuppressed = useCallback((tabId: string, paneId: string) => {
     if (isMiniExpandSuppressed()) return
     if (Date.now() < suppressPaneExpandUntilRef.current) return
@@ -7186,6 +7196,7 @@ export const App: React.FC = () => {
             void abortSingleDelegation(paneId, delegationId)
           }}
           onInsertCommand={cmd => handleInsertCommandInTerminal(tab.id, cmd)}
+          onOpenPreview={fileName => handleOpenPreviewFromChat(tab.id, fileName)}
           onDelegationTurnComplete={handleDelegationTurnComplete}
           onOrchestrationUserTurn={() => beginOrchestrationUserTurn(paneId)}
           getOrchestrationRound={() => {
@@ -8113,6 +8124,7 @@ export const App: React.FC = () => {
                     void abortSingleDelegation(fromPaneId, delegationId)
                   }}
                   onInsertCommand={cmd => handleInsertCommandInTerminal(tab.id, cmd)}
+                  previewOpenRequest={previewOpenRequestByTab[tab.id] ?? null}
                   onClearConversation={paneId => {
                     setPlaneClearPaneId(paneId)
                   }}

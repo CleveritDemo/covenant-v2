@@ -1558,6 +1558,11 @@ export const TabAgenticPlane: React.FC<TabAgenticPlaneProps> = ({
               }
               projectAgents={projectAgents}
               onInsertCommand={onInsertCommand}
+              onOpenPreview={fileName => {
+                closeOtherPlaneOverlays('previews')
+                setPreviewsOpen(true)
+                selectPreview(fileName)
+              }}
               onReferenceMessage={(content: string) => planeComposerRef.current?.attachReference(content)}
             />
           ) : null}

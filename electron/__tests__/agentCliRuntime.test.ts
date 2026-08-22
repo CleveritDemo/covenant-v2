@@ -825,6 +825,123 @@ describe('agent CLI event normalization', () => {
     ])
   })
 
+  it('normalizes Claude assistant tool_use and user tool_result (fixtures NDJSON reales)', () => {
+    // Captura: claude -p … --output-format stream-json --verbose --include-partial-messages
+    const readToolUseAssistant = {
+      type: 'assistant',
+      session_id: '69b75d42-b608-4c96-892c-35eb4713c828',
+      parent_tool_use_id: null,
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_01WseZMYHrtEx433u4j8EhPo',
+          name: 'Read',
+          input: {
+            file_path: '/Users/carlosgallardoarenas/Documents/covenant/rodrigoanti/covenant/covenant-v2/package.json',
+          },
+          caller: { type: 'direct' },
+        }],
+      },
+    }
+    expect(normalizeClaudeEvent(readToolUseAssistant)).toEqual([
+      { type: 'session', cliSessionId: '69b75d42-b608-4c96-892c-35eb4713c828' },
+      { type: 'tool', name: 'Read', status: 'started', detail: 'covenant-v2/package.json' },
+    ])
+
+    const bashToolUseAssistant = {
+      type: 'assistant',
+      session_id: 'f21900f7-4d2a-4f06-b6b6-36b13624b236',
+      parent_tool_use_id: null,
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_01BG6k5sVcUYrnKzrUP4Dcu6',
+          name: 'Bash',
+          input: {
+            description: 'Read version and list agent* files in src/shared',
+          },
+          caller: { type: 'direct' },
+        }],
+      },
+    }
+    expect(normalizeClaudeEvent(bashToolUseAssistant)).toEqual([
+      { type: 'session', cliSessionId: 'f21900f7-4d2a-4f06-b6b6-36b13624b236' },
+      { type: 'tool', name: 'Bash', status: 'started' },
+    ])
+
+    const toolResultUser = {
+      type: 'user',
+      session_id: 'f21900f7-4d2a-4f06-b6b6-36b13624b236',
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: [{
+          tool_use_id: 'toolu_01BG6k5sVcUYrnKzrUP4Dcu6',
+          type: 'tool_result',
+          content: 'truncated',
+          is_error: false,
+        }],
+      },
+    }
+    expect(normalizeClaudeEvent(toolResultUser)).toEqual([
+      { type: 'session', cliSessionId: 'f21900f7-4d2a-4f06-b6b6-36b13624b236' },
+      { type: 'tool', name: 'tool', status: 'completed' },
+    ])
+
+    const textOnlyAssistant = {
+      type: 'assistant',
+      session_id: 'f21900f7-4d2a-4f06-b6b6-36b13624b236',
+      message: {
+        model: 'claude-opus-5',
+        id: 'msg_011CeGvpfvFZq5z41THqF1fz',
+        type: 'message',
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text: '**Versión:** 0.109.0',
+        }],
+      },
+    }
+    expect(normalizeClaudeEvent(textOnlyAssistant)).toEqual([
+      { type: 'session', cliSessionId: 'f21900f7-4d2a-4f06-b6b6-36b13624b236' },
+      { type: 'assistant_final', text: '**Versión:** 0.109.0' },
+    ])
+
+    const twoToolUseAssistant = {
+      type: 'assistant',
+      session_id: 'f21900f7-4d2a-4f06-b6b6-36b13624b236',
+      message: {
+        role: 'assistant',
+        content: [
+          readToolUseAssistant.message.content[0],
+          {
+            type: 'tool_use',
+            id: 'toolu_01BG6k5sVcUYrnKzrUP4Dcu6',
+            name: 'Bash',
+            input: { command: 'ls src/shared | grep ^agent' },
+            caller: { type: 'direct' },
+          },
+        ],
+      },
+    }
+    expect(normalizeClaudeEvent(twoToolUseAssistant)).toEqual([
+      { type: 'session', cliSessionId: 'f21900f7-4d2a-4f06-b6b6-36b13624b236' },
+      { type: 'tool', name: 'Read', status: 'started', detail: 'covenant-v2/package.json' },
+      { type: 'tool', name: 'Bash', status: 'started', detail: 'ls src/shared | grep ^agent' },
+    ])
+
+    const subagentToolUse = {
+      ...readToolUseAssistant,
+      parent_tool_use_id: 'toolu_parent_subagent',
+    }
+    expect(normalizeClaudeEvent(subagentToolUse)).toEqual([
+      { type: 'session', cliSessionId: '69b75d42-b608-4c96-892c-35eb4713c828' },
+      { type: 'tool', name: 'Read', status: 'started', detail: 'covenant-v2/package.json' },
+    ])
+  })
+
   it('normalizes Copilot deltas, final message, tools and session', () => {
     expect(normalizeCopilotEvent({
       type: 'assistant.message_delta',

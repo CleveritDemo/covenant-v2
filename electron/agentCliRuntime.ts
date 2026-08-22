@@ -481,13 +481,46 @@ export function normalizeClaudeEvent(value: unknown): AgentCliUiEvent[] {
       if (result) out.push({ type: 'assistant_final', text: result })
     }
   } else if (obj.type === 'assistant') {
+    const content = messageContentBlocks(obj)
+    for (const block of content) {
+      if (!block || typeof block !== 'object') continue
+      const part = block as Record<string, unknown>
+      if (part.type !== 'tool_use') continue
+      const name = typeof part.name === 'string' && part.name.trim() ? part.name.trim() : 'tool'
+      const input = part.input && typeof part.input === 'object'
+        ? part.input as Record<string, unknown>
+        : {}
+      const detail = pickToolDetail(input)
+      out.push({
+        type: 'tool',
+        name,
+        status: 'started',
+        ...(detail ? { detail } : {}),
+      })
+    }
     const text = contentText(obj)
     if (text && !('parent_tool_use_id' in obj)) {
       // Fallback para versiones sin include-partial-messages.
       out.push({ type: 'assistant_final', text })
     }
+  } else if (obj.type === 'user') {
+    for (const block of messageContentBlocks(obj)) {
+      if (!block || typeof block !== 'object') continue
+      const part = block as Record<string, unknown>
+      if (part.type === 'tool_result') {
+        out.push({ type: 'tool', name: 'tool', status: 'completed' })
+      }
+    }
   }
   return out
+}
+
+function messageContentBlocks(value: unknown): unknown[] {
+  if (!value || typeof value !== 'object') return []
+  const message = (value as Record<string, unknown>).message
+  if (!message || typeof message !== 'object') return []
+  const content = (message as Record<string, unknown>).content
+  return Array.isArray(content) ? content : []
 }
 
 function truncateToolDetail(value: string, max = 72): string {

@@ -83,6 +83,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
   const [pendingImages, setPendingImages] = useState<ComposerPendingImage[]>([])
   const [dictationError, setDictationError] = useState('')
   const [sketchOpen, setSketchOpen] = useState(false)
+  const [sketchInitialImage, setSketchInitialImage] = useState<{ src: string; name: string } | null>(null)
   const [reply, setReply] = useState('')
   const [errorText, setErrorText] = useState('')
   const [thinking, setThinking] = useState(false)
@@ -305,6 +306,11 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
       if (image) appendPendingImages([image])
     })
   }, [appendPendingImages])
+
+  const openSketchWithImage = useCallback((src: string, name: string) => {
+    setSketchInitialImage({ src, name })
+    setSketchOpen(true)
+  }, [])
 
   const send = useCallback((overrideText?: string): void => {
     const message = (overrideText ?? draft).trim()
@@ -564,7 +570,10 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
               <PlaneSketchButton
                 label={t('sketch.open')}
                 disabled={disabled || thinking || pendingImages.length >= MAX_PENDING_IMAGES}
-                onClick={() => setSketchOpen(true)}
+                onClick={() => {
+                  setSketchInitialImage(null)
+                  setSketchOpen(true)
+                }}
               />
             )}
             shellAside={pendingImages.length > 0 ? (
@@ -578,6 +587,7 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
                     src={image.previewUrl}
                     name={image.name}
                     onRemove={() => removePendingImage(image.id)}
+                    onSketch={() => openSketchWithImage(image.previewUrl, image.name)}
                   />
                 ))}
               </div>
@@ -598,7 +608,11 @@ export const WikiCuratorComposer: React.FC<WikiCuratorComposerProps> = ({
 
       <SketchModal
         open={sketchOpen}
-        onClose={() => setSketchOpen(false)}
+        initialImage={sketchInitialImage}
+        onClose={() => {
+          setSketchOpen(false)
+          setSketchInitialImage(null)
+        }}
         onAttach={handleSketchAttach}
       />
     </div>
